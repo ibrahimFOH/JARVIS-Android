@@ -112,7 +112,40 @@ public class MainActivity extends Activity {
 
     private void sendCommand(String text){
         final String cmd=text.trim();if(cmd.isEmpty())return;append("PATRON",cmd);command.setText("");hud.setActive(true);status.setText("● PROCESSING");
-        io.submit(()->{String a=processLocal(cmd);runOnUiThread(()->{hud.setActive(false);status.setText("● ONLINE");append("JARVIS",a);speak(a);});});
+        io.submit(()->{
+            String a;
+            try{
+                if(isResearchCommand(cmd)){
+                    statusPost("● RESEARCHING");
+                    ResearchEngine.Report report=ResearchEngine.research(extractResearchQuery(cmd));
+                    a=report.text;
+                }else{
+                    a=processLocal(cmd);
+                }
+            }catch(Exception e){
+                a="Araştırma tamamlanamadı Patron. İnternet veya arama servisi yanıt vermedi.\n\nTeknik bilgi: "+e.getClass().getSimpleName();
+            }
+            final String answer=a;
+            runOnUiThread(()->{hud.setActive(false);status.setText("● ONLINE");append("JARVIS",answer);speak(answer);});
+        });
+    }
+
+    private void statusPost(String text){runOnUiThread(()->status.setText(text));}
+
+    private boolean isResearchCommand(String c){
+        String x=c.toLowerCase(new Locale("tr","TR"));
+        return x.contains("araştır")||x.contains("araştırsana")||x.contains("araştırma yap")||
+               x.contains("webde bul")||x.contains("internetten bul")||x.contains("internette ara")||
+               x.contains("kaynakları bul")||x.contains("rapor hazırla")||x.contains("raporla");
+    }
+
+    private String extractResearchQuery(String raw){
+        String q=raw.trim();
+        String[] prefixes={"jarvis ","araştır ","araştırma yap ","internette ara ","internetten bul ","webde bul ","kaynakları bul ","rapor hazırla ","raporla "};
+        String low=q.toLowerCase(new Locale("tr","TR"));
+        for(String p:prefixes) if(low.startsWith(p)) { q=q.substring(p.length()).trim(); break; }
+        if(q.isEmpty()) q="güncel haberler";
+        return q;
     }
 
     private String processLocal(String raw){
