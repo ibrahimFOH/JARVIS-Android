@@ -73,6 +73,16 @@ public final class ResearchEngine {
         } finally { c.disconnect(); }
     }
 
+    private static String extractText(String html){
+        String x=html.replaceAll("(?is)<script.*?</script>"," ")
+                     .replaceAll("(?is)<style.*?</style>"," ")
+                     .replaceAll("(?is)<noscript.*?</noscript>"," ")
+                     .replaceAll("(?is)<[^>]+>"," ");
+        x=decode(x).replaceAll("\\s+"," ").trim();
+        if(x.length()>700) x=x.substring(0,700)+"...";
+        return x;
+    }
+
     private static String clean(String s){
         s=s.replaceAll("<[^>]+>"," ");
         s=decode(s).replaceAll("\\s+"," ").trim();
