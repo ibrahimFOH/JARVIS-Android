@@ -1,0 +1,8 @@
+code=0
+stdout=JARVIS fast patch uyarısı: type object 'CommandProcessor' has no attribute 'process_command'
+Ben JARVIS. Ollama ile çalışan, Türkçe sesli komut, web erişimi ve sistem araçları bulunan masaüstü asistanınım.
+Komutları anlayabilir, Ollama ile cevap üretebilir, webden bilgi arayabilir ve bağlı sistem araçlarını güvenli şekilde kullanabilirim.
+
+stderr=08:24:04 | INFO | Configuration loaded from config\config.json
+
+time=2026-09-28 08:24:05

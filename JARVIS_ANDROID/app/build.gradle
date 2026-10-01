@@ -1,0 +1,27 @@
+plugins { id 'com.android.application' }
+
+android {
+    namespace 'com.stagepulse.jarvis'
+    compileSdk 35
+
+    defaultConfig {
+        applicationId 'com.stagepulse.jarvis'
+        minSdk 26
+        targetSdk 35
+        versionCode 210
+        versionName '2.1.0'
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            shrinkResources false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}

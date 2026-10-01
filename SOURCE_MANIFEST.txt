@@ -1,0 +1,13 @@
+JARVIS Android adaptation source set
+
+Primary sources:
+- Jarvis.zip
+- Downloads.zip
+- JARVIS_FINAL_PACKAGE_V3.zip
+- JARVIS_FAST_BUILD.zip
+
+Runtime result:
+- JARVIS_HOST: Windows JARVIS with Ollama-only config + LAN bridge.
+- JARVIS_ANDROID: native Android client.
+
+The legacy download artifacts are preserved under LEGACY_DOWNLOADS/ and LEGACY_PACKAGES/ for traceability; they are not loaded by the Android runtime.

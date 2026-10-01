@@ -1,0 +1,40 @@
+{
+  "time": "2026-09-28 08:28:59",
+  "tests": [
+    {
+      "test": "Ollama API",
+      "ok": true,
+      "detail": "200"
+    },
+    {
+      "test": "AI",
+      "ok": true,
+      "detail": "1.58s | JARVIS fast patch uyarısı: type object 'CommandProcessor' has no attribute 'process_command'\nBen JARVIS. Ollama ile çalışan Türkçe masaüstü asistanınım.\nKomut anlayabilir, Ollama ile cevap üretebilir, webden bilgi getirebilir ve bağlı güvenli araçları kullanabilirim."
+    },
+    {
+      "test": "Web",
+      "ok": true,
+      "detail": "200 | 2.04s"
+    },
+    {
+      "test": "Mikrofon",
+      "ok": true,
+      "detail": "12 cihaz"
+    },
+    {
+      "test": "TTS",
+      "ok": true,
+      "detail": "1 ses"
+    },
+    {
+      "test": "Syntax main.py",
+      "ok": true,
+      "detail": "OK"
+    },
+    {
+      "test": "Syntax core/jarvis.py",
+      "ok": true,
+      "detail": "OK"
+    }
+  ]
+}

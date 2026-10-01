@@ -1,0 +1,33 @@
+# Android
+.gradle/
+build/
+*/build/
+.idea/
+*.iml
+local.properties
+.cxx/
+.externalNativeBuild/
+captures/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.venv/
+venv/
+
+# Legacy package archives
+LEGACY_DOWNLOADS/*.zip
+LEGACY_PACKAGES/*.zip
+
+# OS / editor
+.DS_Store
+Thumbs.db
+
+# Legacy downloads and old package archives
+LEGACY_DOWNLOADS/
+LEGACY_PACKAGES/
+
+# Old JARVIS backup snapshots
+JARVIS_HOST/backup_*/
