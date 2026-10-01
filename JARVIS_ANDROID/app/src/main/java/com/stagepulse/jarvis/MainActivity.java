@@ -63,29 +63,15 @@ public class MainActivity extends Activity {
     private void initTts(){
         tts=new TextToSpeech(this,c->{
             if(c==TextToSpeech.SUCCESS){
-                // Android cihazındaki mevcut İngilizce erkek seslerinden JARVIS'e yakın,
-                // derin ve kontrollü bir profil seçilir. Bu, belirli bir oyuncunun sesini klonlamaz.
-                Voice chosen=null;
-                try{
-                    for(Voice v:tts.getVoices()){
-                        Locale l=v.getLocale();
-                        String n=(v.getName()==null?"":v.getName()).toLowerCase(Locale.ROOT);
-                        if("en".equals(l.getLanguage()) && "GB".equalsIgnoreCase(l.getCountry())
-                                && !v.isNetworkConnectionRequired() && !n.contains("female")){
-                            chosen=v; break;
-                        }
-                    }
-                }catch(Exception ignored){}
-                if(chosen!=null){
-                    tts.setVoice(chosen);
-                    tts.setSpeechRate(.82f);
-                    tts.setPitch(.72f);
+                JarvisVoice.configure(tts);
+                int r=tts.setLanguage(new Locale("tr","TR"));
+                if(r==TextToSpeech.LANG_MISSING_DATA||r==TextToSpeech.LANG_NOT_SUPPORTED){
+                    // Keep the cinematic English voice if Turkish voice data is unavailable.
                     ttsReady=true;
                 }else{
-                    int r=tts.setLanguage(new Locale("tr","TR"));
-                    ttsReady=r!=TextToSpeech.LANG_MISSING_DATA&&r!=TextToSpeech.LANG_NOT_SUPPORTED;
-                    tts.setSpeechRate(.88f);
-                    tts.setPitch(.78f);
+                    // Turkish voice keeps pronunciation correct; the JARVIS profile controls cadence/pitch.
+                    ttsReady=true;
+                    JarvisVoice.configure(tts);
                 }
             }
         });
@@ -168,7 +154,7 @@ public class MainActivity extends Activity {
         return "Komutunuz alındı Patron. Bu komut için Android yerel çekirdeğinde henüz bir işlem tanımlı değil.";
     }
 
-    private void speak(String s){if(ttsReady&&tts!=null){ Bundle p=new Bundle(); p.putFloat(TextToSpeech.Engine.KEY_PARAM_VOLUME,1.0f); tts.speak(s,TextToSpeech.QUEUE_FLUSH,p,"jarvis-response"); }}
+    private void speak(String s){if(ttsReady&&tts!=null)tts.speak(JarvisVoice.prepare(s),TextToSpeech.QUEUE_FLUSH,JarvisVoice.params(),"jarvis-response");}
     private void append(String who,String msg){chat.append((chat.length()>0?"\n\n":"")+who+"\n"+msg);}
     private void toast(String s){Toast.makeText(this,s,Toast.LENGTH_SHORT).show();}
     @Override protected void onDestroy(){if(speech!=null)speech.destroy();if(tts!=null)tts.shutdown();io.shutdownNow();super.onDestroy();}
