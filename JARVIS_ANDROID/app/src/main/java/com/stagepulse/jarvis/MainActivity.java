@@ -125,7 +125,14 @@ public class MainActivity extends Activity {
         if(c.contains("ayarlar")){try{startActivity(new Intent(Settings.ACTION_SETTINGS));return "Android ayarlarını açıyorum.";}catch(Exception e){return "Android ayarları açılamadı.";}}
         if(c.contains("tarayıcı")||c.contains("internet aç")){try{startActivity(new Intent(Intent.ACTION_VIEW,android.net.Uri.parse("https://www.google.com")));return "Tarayıcıyı açıyorum.";}catch(Exception e){return "Tarayıcı açılamadı.";}}
         if(c.contains("yardım")||c.contains("ne yapabiliyorsun"))return "Saat, tarih, pil, ayarlar ve tarayıcı gibi Android komutlarını yerel olarak çalıştırabiliyorum. Sesli komut da aktif.";
-        return "Komutu aldım Patron. Bu Android sürümü Windows JARVIS'ten tamamen bağımsız çalışıyor.";
+        if(c.contains("nasılsın")||c.contains("nasılsın jarvis")||c.contains("iyi misin"))return "İyiyim Patron. Sistemler kararlı ve komut bekliyorum.";
+        if(c.contains("ne yapıyorsun")||c.contains("ne yapıyorsun jarvis"))return "Sizi dinliyorum Patron. Vereceğiniz komutu bekliyorum.";
+        if(c.contains("teşekkür")||c.contains("sağ ol"))return "Rica ederim Patron.";
+        if(c.contains("adın ne"))return "Ben J.A.R.V.I.S. Patron.";
+        if(c.contains("müzik"))return "Müzik komutları için Android çekirdeğine ses kontrol modülü eklenebilir.";
+        if(c.contains("merhaba jarvis")||c.contains("selam jarvis"))return "Emrinizdeyim Patron.";
+        if(c.endsWith("?"))return "Sorunuzu aldım Patron. Bu Android sürümünde henüz bu soruya cevap verecek yerel bilgi modülü bulunmuyor.";
+        return "Komutunuz alındı Patron. Bu komut için Android yerel çekirdeğinde henüz bir işlem tanımlı değil.";
     }
 
     private void speak(String s){if(ttsReady&&tts!=null){ Bundle p=new Bundle(); p.putFloat(TextToSpeech.Engine.KEY_PARAM_VOLUME,1.0f); tts.speak(s,TextToSpeech.QUEUE_FLUSH,p,"jarvis-response"); }}
