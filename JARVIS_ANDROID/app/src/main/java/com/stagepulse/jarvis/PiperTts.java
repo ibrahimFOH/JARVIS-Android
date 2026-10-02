@@ -95,13 +95,26 @@ public final class PiperTts {
                 espeak = new EspeakNative();
                 int init = espeak.initialize(context.getFilesDir().getAbsolutePath());
                 if (init < 0) {
-                    throw new IllegalStateException("eSpeak-NG initialization failed: " + init);
+                    throw new IllegalStateException("eSpeak-NG initialization failed: " + init
+                            + " data=" + new File(context.getFilesDir(), ESPEAK_ASSET).getAbsolutePath());
                 }
 
                 ortEnvironment = OrtEnvironment.getEnvironment();
                 OrtSession.SessionOptions options = new OrtSession.SessionOptions();
                 options.setIntraOpNumThreads(2);
-                ortSession = ortEnvironment.createSession(modelFile.getAbsolutePath(), options);
+
+                // Piper/NekoSpeak uses byte-array model loading on 32-bit ARM
+                // to avoid ONNX mmap/alignment failures on older tablets.
+                String abi = android.os.Build.SUPPORTED_ABIS.length > 0
+                        ? android.os.Build.SUPPORTED_ABIS[0] : "";
+                boolean is32BitArm = "armeabi-v7a".equals(abi) || "armeabi".equals(abi);
+
+                if (is32BitArm) {
+                    byte[] modelBytes = java.nio.file.Files.readAllBytes(modelFile.toPath());
+                    ortSession = ortEnvironment.createSession(modelBytes, options);
+                } else {
+                    ortSession = ortEnvironment.createSession(modelFile.getAbsolutePath(), options);
+                }
                 options.close();
 
                 initialized = true;
