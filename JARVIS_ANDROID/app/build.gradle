@@ -134,15 +134,15 @@ def preparePiperAssets = tasks.register('preparePiperAssets') {
                 include '**/app/src/main/assets/espeak-ng-data/**'
             }
 
-            File voicesFile = fileTree(extracted).matching {
-                include '**/app/src/main/assets/espeak-ng-data/voices'
+            File marker = fileTree(extracted).matching {
+                include '**/app/src/main/assets/espeak-ng-data/af_dict'
             }.files.find { it.isFile() }
 
-            if (voicesFile == null) {
+            if (marker == null) {
                 throw new GradleException('NekoSpeak espeak-ng-data not found in source archive')
             }
 
-            File found = voicesFile.parentFile
+            File found = marker.parentFile
             copy {
                 from found
                 into espeakDir
