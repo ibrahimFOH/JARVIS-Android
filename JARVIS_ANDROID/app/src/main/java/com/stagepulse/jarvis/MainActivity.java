@@ -61,20 +61,35 @@ public class MainActivity extends Activity {
     private Button button(String s){Button b=new Button(this);b.setText(s);b.setTextColor(gold());b.setTextSize(11);b.setBackgroundColor(panel());return b;}
 
     private void initTts(){
-        tts=new TextToSpeech(this,c->{
-            if(c==TextToSpeech.SUCCESS){
-                JarvisVoice.configure(tts);
-                int r=tts.setLanguage(new Locale("tr","TR"));
-                if(r==TextToSpeech.LANG_MISSING_DATA||r==TextToSpeech.LANG_NOT_SUPPORTED){
-                    // Keep the cinematic English voice if Turkish voice data is unavailable.
+        // Force JARVIS to use the installed NekoSpeak TTS engine.
+        // NekoSpeak keeps the voice selected by the user in its own settings
+        // (for example Turkish DFKI medium Piper).
+        try{
+            tts=new TextToSpeech(this,c->{
+                if(c==TextToSpeech.SUCCESS){
+                    JarvisVoice.configure(tts);
+                    // NekoSpeak's TTS service advertises English to Android,
+                    // while the selected NekoSpeak voice determines the actual
+                    // synthesis voice. Do not switch to the system Turkish
+                    // female voice by calling setLanguage(tr-TR).
+                    int r=tts.setLanguage(Locale.US);
+                    ttsReady=(r!=TextToSpeech.LANG_MISSING_DATA && r!=TextToSpeech.LANG_NOT_SUPPORTED);
+                }else{
+                    ttsReady=false;
+                }
+            },"com.nekospeak.tts");
+        }catch(Exception e){
+            // Fallback only if NekoSpeak is not installed.
+            tts=new TextToSpeech(this,c->{
+                if(c==TextToSpeech.SUCCESS){
+                    JarvisVoice.configure(tts);
+                    tts.setLanguage(new Locale("tr","TR"));
                     ttsReady=true;
                 }else{
-                    // Turkish voice keeps pronunciation correct; the JARVIS profile controls cadence/pitch.
-                    ttsReady=true;
-                    JarvisVoice.configure(tts);
+                    ttsReady=false;
                 }
-            }
-        });
+            });
+        }
     }
 
     private void initSpeech(){
