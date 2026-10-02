@@ -18,8 +18,8 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Set up Android SDK, NDK and CMake
-        uses: android-actions/setup-android@v3
+      - name: Accept Android SDK licenses
+        run: yes | sdkmanager --licenses > /dev/null || true
 
       - name: Install Android native build tools
         run: |
