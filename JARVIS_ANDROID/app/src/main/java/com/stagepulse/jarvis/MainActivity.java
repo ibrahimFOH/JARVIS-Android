@@ -7,9 +7,7 @@ import android.content.pm.PackageManager;
 import android.os.*;
 import android.provider.Settings;
 import android.speech.*;
-import android.speech.tts.TextToSpeech;
 import android.view.Gravity;
-import android.speech.tts.Voice;
 import android.widget.*;
 import java.text.SimpleDateFormat;
 import java.util.*;
@@ -22,8 +20,7 @@ public class MainActivity extends Activity {
     private TextView status,chat;
     private HudView hud;
     private SpeechRecognizer speech;
-    private TextToSpeech tts;
-    private boolean ttsReady=false;
+    private PiperTts piper;
 
     private int gold(){return 0xFFD4AF37;}
     private int white(){return 0xFFF2F2F2;}
@@ -31,8 +28,12 @@ public class MainActivity extends Activity {
     private int panel(){return 0xFF0B0B0B;}
 
     @Override public void onCreate(Bundle b){
-        super.onCreate(b); buildUi(); initTts(); initSpeech();
-        status.setText("● ONLINE"); status.setTextColor(gold());
+        super.onCreate(b);
+        buildUi();
+        initPiper();
+        initSpeech();
+        status.setText("● ONLINE");
+        status.setTextColor(gold());
         append("JARVIS","PATRON, bağımsız Android çekirdeği hazır.");
     }
 
@@ -55,41 +56,29 @@ public class MainActivity extends Activity {
         root.addView(command,new LinearLayout.LayoutParams(-1,-2));
         LinearLayout row=new LinearLayout(this); row.setOrientation(LinearLayout.HORIZONTAL);
         Button send=button("EXECUTE"), voice=button("◉ VOICE"); row.addView(send,new LinearLayout.LayoutParams(0,58,1)); row.addView(voice,new LinearLayout.LayoutParams(0,58,1)); root.addView(row);
-        setContentView(root); send.setOnClickListener(v->sendCommand(command.getText().toString())); voice.setOnClickListener(v->listen());
+        setContentView(root);
+        send.setOnClickListener(v->sendCommand(command.getText().toString()));
+        voice.setOnClickListener(v->listen());
     }
 
     private Button button(String s){Button b=new Button(this);b.setText(s);b.setTextColor(gold());b.setTextSize(11);b.setBackgroundColor(panel());return b;}
 
-    private void initTts(){
-        // Force JARVIS to use the installed NekoSpeak TTS engine.
-        // NekoSpeak keeps the voice selected by the user in its own settings
-        // (for example Turkish DFKI medium Piper).
-        try{
-            tts=new TextToSpeech(this,c->{
-                if(c==TextToSpeech.SUCCESS){
-                    JarvisVoice.configure(tts);
-                    // NekoSpeak exposes its voices through the Android TTS API.
-                    // Its service currently advertises English locale metadata
-                    // even when the selected voice is Turkish DFKI/Piper, so
-                    // do not make readiness depend on setLanguage().
-                    tts.setLanguage(Locale.US);
-                    ttsReady=true;
-                }else{
-                    ttsReady=false;
-                }
-            },"com.nekospeak.tts");
-        }catch(Exception e){
-            // Fallback only if NekoSpeak is not installed.
-            tts=new TextToSpeech(this,c->{
-                if(c==TextToSpeech.SUCCESS){
-                    JarvisVoice.configure(tts);
-                    tts.setLanguage(new Locale("tr","TR"));
-                    ttsReady=true;
-                }else{
-                    ttsReady=false;
-                }
-            });
-        }
+    private void initPiper(){
+        piper=new PiperTts(this);
+        status.setText("● VOICE INIT");
+        piper.initialize(
+                () -> runOnUiThread(() -> {
+                    status.setText("● ONLINE");
+                    status.setTextColor(gold());
+                    append("JARVIS","Türkçe DFKI ses motoru hazır. Doğrudan cihaz üzerinde çalışıyorum.");
+                    speak("PATRON, bağımsız Android çekirdeği hazır. Türkçe ses motoru da hazır.");
+                }),
+                () -> runOnUiThread(() -> {
+                    status.setText("● VOICE ERROR");
+                    status.setTextColor(0xFFFF5555);
+                    append("JARVIS","Türkçe ses motoru başlatılamadı. Piper modeli veya eSpeak motoru yüklenemedi.");
+                })
+        );
     }
 
     private void initSpeech(){
@@ -158,7 +147,7 @@ public class MainActivity extends Activity {
         if(c.contains("pil")||c.contains("batarya")){BatteryManager b=(BatteryManager)getSystemService(BATTERY_SERVICE);return "Pil seviyesi yüzde "+b.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY)+".";}
         if(c.contains("ayarlar")){try{startActivity(new Intent(Settings.ACTION_SETTINGS));return "Android ayarlarını açıyorum.";}catch(Exception e){return "Android ayarları açılamadı.";}}
         if(c.contains("tarayıcı")||c.contains("internet aç")){try{startActivity(new Intent(Intent.ACTION_VIEW,android.net.Uri.parse("https://www.google.com")));return "Tarayıcıyı açıyorum.";}catch(Exception e){return "Tarayıcı açılamadı.";}}
-        if(c.contains("yardım")||c.contains("ne yapabiliyorsun"))return "Saat, tarih, pil, ayarlar ve tarayıcı gibi Android komutlarını yerel olarak çalıştırabiliyorum. Sesli komut da aktif.";
+        if(c.contains("yardım")||c.contains("ne yapabiliyorsun"))return "Saat, tarih, pil, ayarlar ve tarayıcı gibi Android komutlarını yerel olarak çalıştırabiliyorum. Sesli komut ve doğrudan Piper sesi de aktif.";
         if(c.contains("nasılsın")||c.contains("nasılsın jarvis")||c.contains("iyi misin"))return "İyiyim Patron. Sistemler kararlı ve komut bekliyorum.";
         if(c.contains("ne yapıyorsun")||c.contains("ne yapıyorsun jarvis"))return "Sizi dinliyorum Patron. Vereceğiniz komutu bekliyorum.";
         if(c.contains("teşekkür")||c.contains("sağ ol"))return "Rica ederim Patron.";
@@ -169,8 +158,14 @@ public class MainActivity extends Activity {
         return "Komutunuz alındı Patron. Bu komut için Android yerel çekirdeğinde henüz bir işlem tanımlı değil.";
     }
 
-    private void speak(String s){if(ttsReady&&tts!=null)tts.speak(JarvisVoice.prepare(s),TextToSpeech.QUEUE_FLUSH,JarvisVoice.params(),"jarvis-response");}
+    private void speak(String s){if(piper!=null&&piper.isReady())piper.speak(s);}
     private void append(String who,String msg){chat.append((chat.length()>0?"\n\n":"")+who+"\n"+msg);}
     private void toast(String s){Toast.makeText(this,s,Toast.LENGTH_SHORT).show();}
-    @Override protected void onDestroy(){if(speech!=null)speech.destroy();if(tts!=null)tts.shutdown();io.shutdownNow();super.onDestroy();}
+
+    @Override protected void onDestroy(){
+        if(speech!=null)speech.destroy();
+        if(piper!=null)piper.release();
+        io.shutdownNow();
+        super.onDestroy();
+    }
 }
