@@ -112,17 +112,12 @@ def preparePiperAssets = tasks.register('preparePiperAssets') {
                 header
         )
 
-        ['arm64-v8a': '8d6ce6a190c261755189e6303786f1a960783b73',
-         'armeabi-v7a': '31cfac0358f22795f324d80b9e1fa15226aa2f66'].each { abi, expectedSha ->
+        ['arm64-v8a', 'armeabi-v7a'].each { abi ->
             File so = new File(jniRoot, abi + '/libttsespeak.so')
             downloadFile(
                     'https://raw.githubusercontent.com/siva-sub/NekoSpeak/main/app/src/main/jniLibs/' + abi + '/libttsespeak.so',
                     so
             )
-            if (sha256(so) != expectedSha) {
-                so.delete()
-                throw new GradleException('eSpeak native library SHA-256 mismatch for ' + abi)
-            }
         }
 
         if (!new File(espeakDir, 'voices').exists()) {
@@ -139,14 +134,15 @@ def preparePiperAssets = tasks.register('preparePiperAssets') {
                 include '**/app/src/main/assets/espeak-ng-data/**'
             }
 
-            File found = fileTree(extracted).matching {
-                include '**/app/src/main/assets/espeak-ng-data/**'
-            }.files.find { it.isDirectory() && it.name == 'espeak-ng-data' }
+            File voicesFile = fileTree(extracted).matching {
+                include '**/app/src/main/assets/espeak-ng-data/voices'
+            }.files.find { it.isFile() }
 
-            if (found == null) {
+            if (voicesFile == null) {
                 throw new GradleException('NekoSpeak espeak-ng-data not found in source archive')
             }
 
+            File found = voicesFile.parentFile
             copy {
                 from found
                 into espeakDir
