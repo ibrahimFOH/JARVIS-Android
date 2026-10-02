@@ -68,12 +68,12 @@ public class MainActivity extends Activity {
             tts=new TextToSpeech(this,c->{
                 if(c==TextToSpeech.SUCCESS){
                     JarvisVoice.configure(tts);
-                    // NekoSpeak's TTS service advertises English to Android,
-                    // while the selected NekoSpeak voice determines the actual
-                    // synthesis voice. Do not switch to the system Turkish
-                    // female voice by calling setLanguage(tr-TR).
-                    int r=tts.setLanguage(Locale.US);
-                    ttsReady=(r!=TextToSpeech.LANG_MISSING_DATA && r!=TextToSpeech.LANG_NOT_SUPPORTED);
+                    // NekoSpeak exposes its voices through the Android TTS API.
+                    // Its service currently advertises English locale metadata
+                    // even when the selected voice is Turkish DFKI/Piper, so
+                    // do not make readiness depend on setLanguage().
+                    tts.setLanguage(Locale.US);
+                    ttsReady=true;
                 }else{
                     ttsReady=false;
                 }
