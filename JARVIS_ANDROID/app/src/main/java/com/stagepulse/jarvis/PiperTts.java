@@ -78,9 +78,9 @@ public final class PiperTts {
                 noiseW = (float) inference.optDouble("noise_w", 0.8);
 
                 phonemeIds.clear();
-                String[] names = JSONObject.getNames(ids);
-                if (names == null) throw new IllegalStateException("phoneme_id_map missing");
-                for (String key : names) {
+                java.util.Iterator<String> names = ids.keys();
+                while (names.hasNext()) {
+                    String key = names.next();
                     JSONArray arr = ids.getJSONArray(key);
                     long[] values = new long[arr.length()];
                     for (int i = 0; i < arr.length(); i++) values[i] = arr.getLong(i);
@@ -238,7 +238,7 @@ public final class PiperTts {
         );
         OnnxTensor scaleTensor = OnnxTensor.createTensor(
                 ortEnvironment,
-                scales,
+                FloatBuffer.wrap(scales),
                 new long[]{3}
         );
 
