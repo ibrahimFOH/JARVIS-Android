@@ -93,7 +93,7 @@ public final class PiperTts {
                 }
 
                 espeak = new EspeakNative();
-                int init = espeak.initialize(context.getFilesDir().getAbsolutePath());
+                int init = espeak.initialize(espeakDir.getAbsolutePath());
                 if (init < 0) {
                     throw new IllegalStateException("eSpeak-NG initialization failed: " + init
                             + " data=" + new File(context.getFilesDir(), ESPEAK_ASSET).getAbsolutePath());
