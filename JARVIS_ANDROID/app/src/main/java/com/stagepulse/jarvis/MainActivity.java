@@ -21,6 +21,7 @@ public class MainActivity extends Activity {
     private HudView hud;
     private SpeechRecognizer speech;
     private PiperTts piper;
+    private AgencyAgent activeAgent;
 
     private int gold(){return 0xFFD4AF37;}
     private int white(){return 0xFFF2F2F2;}
@@ -55,13 +56,56 @@ public class MainActivity extends Activity {
         command.setTextColor(white()); command.setMinLines(2); command.setBackgroundColor(panel()); command.setPadding(14,12,14,12);
         root.addView(command,new LinearLayout.LayoutParams(-1,-2));
         LinearLayout row=new LinearLayout(this); row.setOrientation(LinearLayout.HORIZONTAL);
-        Button send=button("EXECUTE"), voice=button("◉ VOICE"); row.addView(send,new LinearLayout.LayoutParams(0,58,1)); row.addView(voice,new LinearLayout.LayoutParams(0,58,1)); root.addView(row);
+        Button send=button("EXECUTE"), voice=button("◉ VOICE"), agents=button("AGENTS");
+        row.addView(send,new LinearLayout.LayoutParams(0,58,1));
+        row.addView(voice,new LinearLayout.LayoutParams(0,58,1));
+        row.addView(agents,new LinearLayout.LayoutParams(0,58,1));
+        root.addView(row);
         setContentView(root);
         send.setOnClickListener(v->sendCommand(command.getText().toString()));
         voice.setOnClickListener(v->listen());
+        agents.setOnClickListener(v->showAgents());
     }
 
     private Button button(String s){Button b=new Button(this);b.setText(s);b.setTextColor(gold());b.setTextSize(11);b.setBackgroundColor(panel());return b;}
+
+    private void showAgents(){
+        final List<AgencyAgent> list=AgencyCatalog.all();
+        String[] names=new String[list.size()];
+        for(int i=0;i<list.size();i++) names[i]=list.get(i).name;
+        new AlertDialog.Builder(this)
+                .setTitle("STAGEPULSE AGENTS")
+                .setItems(names,(d,which)->activateAgent(list.get(which),null))
+                .setNegativeButton("KAPAT",null)
+                .show();
+    }
+
+    private void activateAgent(AgencyAgent agent,String task){
+        activeAgent=agent;
+        String t=(task==null||task.trim().isEmpty()) ? "Bu uzmanlık alanında gelen sonraki teknik görevi değerlendir." : task.trim();
+        String prompt=agent.activationPrompt(t);
+        append("AGENT AKTİF",agent.name+"\n\n"+prompt);
+        status.setText("● AGENT: "+agent.name);
+        status.setTextColor(gold());
+        speak(agent.name+" aktif. Patron, teknik görevinizi bekliyorum.");
+    }
+
+    private AgencyAgent detectAgent(String c){
+        String x=c.toLowerCase(new Locale("tr","TR"));
+        for(AgencyAgent a:AgencyCatalog.all()){
+            String n=a.name.toLowerCase(new Locale("tr","TR"));
+            String id=a.id.replace("_"," ").toLowerCase(new Locale("tr","TR"));
+            if(x.contains(n)||x.contains(id)) return a;
+        }
+        if(x.contains("ön taraf")||x.contains("foh")) return AgencyCatalog.find("FOH ENGINEER");
+        if(x.contains("monitör")||x.contains("iem")) return AgencyCatalog.find("MONITOR ENGINEER");
+        if(x.contains("rf")||x.contains("kablosuz")) return AgencyCatalog.find("RF ENGINEER");
+        if(x.contains("dante")) return AgencyCatalog.find("DANTE NETWORK ENGINEER");
+        if(x.contains("spl")) return AgencyCatalog.find("SPL CALCULATOR");
+        if(x.contains("rider")) return AgencyCatalog.find("RIDER ANALYST");
+        if(x.contains("sahne plan")) return AgencyCatalog.find("STAGE PLOT ENGINEER");
+        return null;
+    }
 
     private void initPiper(){
         piper=new PiperTts(this);
@@ -76,7 +120,7 @@ public class MainActivity extends Activity {
                 () -> runOnUiThread(() -> {
                     status.setText("● VOICE ERROR");
                     status.setTextColor(0xFFFF5555);
-                    append("JARVIS","Türkçe ses motoru başlatılamadı. Piper modeli veya eSpeak motoru yüklenemedi.");
+                    append("JARVIS","Türkçe ses motoru başlatılamadı. Piper/eSpeak başlatma hatası. Logcat: JARVIS_PIPER.");
                 })
         );
     }
@@ -105,7 +149,12 @@ public class MainActivity extends Activity {
         io.submit(()->{
             String a;
             try{
-                if(isResearchCommand(cmd)){
+                AgencyAgent requested=detectAgent(cmd);
+                if(requested!=null && (cmd.toLowerCase(new Locale("tr","TR")).contains("aktif") || cmd.toLowerCase(new Locale("tr","TR")).contains("agent") || cmd.toLowerCase(new Locale("tr","TR")).contains("mühendis") || cmd.toLowerCase(new Locale("tr","TR")).contains("uzman"))){
+                    final AgencyAgent ag=requested;
+                    runOnUiThread(()->activateAgent(ag,cmd));
+                    a="STAGEPULSE "+ag.name+" aktif.";
+                }else if(isResearchCommand(cmd)){
                     statusPost("● RESEARCHING");
                     ResearchEngine.Report report=ResearchEngine.research(extractResearchQuery(cmd));
                     a=report.text;
@@ -113,10 +162,10 @@ public class MainActivity extends Activity {
                     a=processLocal(cmd);
                 }
             }catch(Exception e){
-                a="Araştırma tamamlanamadı Patron. İnternet veya arama servisi yanıt vermedi.\n\nTeknik bilgi: "+e.getClass().getSimpleName();
+                a="İşlem tamamlanamadı Patron. Teknik bilgi: "+e.getClass().getSimpleName();
             }
             final String answer=a;
-            runOnUiThread(()->{hud.setActive(false);status.setText("● ONLINE");append("JARVIS",answer);speak(answer);});
+            runOnUiThread(()->{hud.setActive(false);if(!status.getText().toString().startsWith("● AGENT"))status.setText("● ONLINE");append("JARVIS",answer);speak(answer);});
         });
     }
 
@@ -140,6 +189,8 @@ public class MainActivity extends Activity {
 
     private String processLocal(String raw){
         String c=raw.toLowerCase(new Locale("tr","TR")).trim();
+        if(c.equals("ajanlar")||c.equals("agentler")||c.contains("stagepulse agent"))return AgencyCatalog.listText();
+        if(c.contains("aktif ajan")||c.contains("hangi ajan"))return activeAgent==null?"Şu anda aktif bir Stagepulse Agent yok.":"Aktif ajan: "+activeAgent.name+".";
         if(c.contains("merhaba")||c.equals("selam"))return "Merhaba Patron. Android JARVIS çekirdeği hazır.";
         if(c.contains("kimsin"))return "Ben J.A.R.V.I.S. Android sürümüyüm. Bu cihaz üzerinde bağımsız çalışıyorum.";
         if(c.contains("saat"))return "Şu an saat "+new SimpleDateFormat("HH:mm",Locale.getDefault()).format(new Date())+".";
@@ -147,7 +198,7 @@ public class MainActivity extends Activity {
         if(c.contains("pil")||c.contains("batarya")){BatteryManager b=(BatteryManager)getSystemService(BATTERY_SERVICE);return "Pil seviyesi yüzde "+b.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY)+".";}
         if(c.contains("ayarlar")){try{startActivity(new Intent(Settings.ACTION_SETTINGS));return "Android ayarlarını açıyorum.";}catch(Exception e){return "Android ayarları açılamadı.";}}
         if(c.contains("tarayıcı")||c.contains("internet aç")){try{startActivity(new Intent(Intent.ACTION_VIEW,android.net.Uri.parse("https://www.google.com")));return "Tarayıcıyı açıyorum.";}catch(Exception e){return "Tarayıcı açılamadı.";}}
-        if(c.contains("yardım")||c.contains("ne yapabiliyorsun"))return "Saat, tarih, pil, ayarlar ve tarayıcı gibi Android komutlarını yerel olarak çalıştırabiliyorum. Sesli komut ve doğrudan Piper sesi de aktif.";
+        if(c.contains("yardım")||c.contains("ne yapabiliyorsun"))return "Saat, tarih, pil, ayarlar, tarayıcı, web araştırması ve Stagepulse uzman ajanlarını çalıştırabiliyorum.";
         if(c.contains("nasılsın")||c.contains("nasılsın jarvis")||c.contains("iyi misin"))return "İyiyim Patron. Sistemler kararlı ve komut bekliyorum.";
         if(c.contains("ne yapıyorsun")||c.contains("ne yapıyorsun jarvis"))return "Sizi dinliyorum Patron. Vereceğiniz komutu bekliyorum.";
         if(c.contains("teşekkür")||c.contains("sağ ol"))return "Rica ederim Patron.";
@@ -155,6 +206,7 @@ public class MainActivity extends Activity {
         if(c.contains("müzik"))return "Müzik komutları için Android çekirdeğine ses kontrol modülü eklenebilir.";
         if(c.contains("merhaba jarvis")||c.contains("selam jarvis"))return "Emrinizdeyim Patron.";
         if(c.endsWith("?"))return "Sorunuzu aldım Patron. Bu Android sürümünde henüz bu soruya cevap verecek yerel bilgi modülü bulunmuyor.";
+        if(activeAgent!=null)return activeAgent.name+" aktif. Bu Android çekirdeğinde henüz bağlı bir LLM bulunmadığı için uzman ajan şu aşamada görev bağlamını ve çalışma talimatını hazırlar, fakat kendi başına üretken akıl yürütme yapmaz.";
         return "Komutunuz alındı Patron. Bu komut için Android yerel çekirdeğinde henüz bir işlem tanımlı değil.";
     }
 
