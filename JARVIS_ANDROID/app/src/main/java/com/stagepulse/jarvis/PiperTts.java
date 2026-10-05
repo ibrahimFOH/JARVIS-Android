@@ -31,7 +31,7 @@ public final class PiperTts {
     private static final String MODEL_ASSET = "piper/" + VOICE_ID + ".onnx";
     private static final String CONFIG_ASSET = "piper/" + VOICE_ID + ".onnx.json";
     private static final String ESPEAK_ASSET = "espeak-ng-data";
-    private static final String ESPEAK_VOICE = "tr";
+    private String espeakVoice = "tr";
 
     private final Context context;
     private final ExecutorService engineExecutor = Executors.newSingleThreadExecutor();
@@ -63,7 +63,7 @@ public final class PiperTts {
                 sampleRate = audio.optInt("sample_rate", 22050);
                 noiseScale = (float) inference.optDouble("noise_scale", 0.667);
                 lengthScale = (float) inference.optDouble("length_scale", 1.0);
-                noiseW = (float) inference.optDouble("noise_w", 0.8);
+                noiseW = (float) inference.optDouble("noise_w", 0.8);\n                JSONObject espeakConfig = root.optJSONObject("espeak");\n                if (espeakConfig != null) espeakVoice = espeakConfig.optString("voice", "tr");
 
                 phonemeIds.clear();
                 java.util.Iterator<String> names = ids.keys();
@@ -85,11 +85,11 @@ public final class PiperTts {
 
                 // espeak_Initialize expects the directory that CONTAINS
                 // the espeak-ng-data files (voices, dicts, lang, etc.).
-                int init = espeak.initialize(espeakDir.getAbsolutePath());
+                int init = espeak.initialize(context.getFilesDir().getAbsolutePath());
                 if (init < 0)
                     throw new IllegalStateException("eSpeak-NG init failed: " + init + " data=" + espeakDir.getAbsolutePath());
 
-                String probe = espeak.textToPhonemes("merhaba", ESPEAK_VOICE);
+                String probe = espeak.textToPhonemes("merhaba", espeakVoice);
                 if (probe == null || probe.isEmpty())
                     throw new IllegalStateException("eSpeak-NG returned no Turkish phonemes");
 
@@ -130,7 +130,7 @@ public final class PiperTts {
             stopRequested.set(false);
             AudioTrack track = null;
             try {
-                String phonemes = espeak.textToPhonemes(clean, ESPEAK_VOICE);
+                String phonemes = espeak.textToPhonemes(clean, espeakVoice);
                 if (phonemes == null || phonemes.isEmpty()) throw new IllegalStateException("No Turkish phonemes generated");
                 long[] ids = tokenize(phonemes);
                 if (ids.length < 4) throw new IllegalStateException("No valid Piper tokens");
@@ -206,19 +206,41 @@ public final class PiperTts {
 
     private long[] tokenize(String phonemes) {
         List<Long> out = new ArrayList<>();
-        addIds(out, phonemeIds.get("^")); addIds(out, phonemeIds.get("_"));
-        int i = 0, maxLen = 1;
-        for (String key : phonemeIds.keySet()) maxLen = Math.max(maxLen, key.length());
+        addIds(out, phonemeIds.get("^"));
+        addIds(out, phonemeIds.get("_"));
+
+        // Piper phoneme_id_map keys are Unicode code points/phoneme symbols.
+        // Java char indexing can split IPA symbols into surrogate pairs, so
+        // match using Unicode code points instead of UTF-16 char units.
+        int i = 0;
+        int maxCodePoints = 1;
+        for (String key : phonemeIds.keySet()) {
+            maxCodePoints = Math.max(maxCodePoints, key.codePointCount(0, key.length()));
+        }
+
         while (i < phonemes.length()) {
             boolean matched = false;
-            int limit = Math.min(maxLen, phonemes.length() - i);
-            for (int len = limit; len >= 1; len--) {
-                String token = phonemes.substring(i, i + len);
+            int remaining = phonemes.codePointCount(i, phonemes.length());
+            int limit = Math.min(maxCodePoints, remaining);
+
+            for (int count = limit; count >= 1; count--) {
+                int end = phonemes.offsetByCodePoints(i, count);
+                String token = phonemes.substring(i, end);
                 long[] ids = phonemeIds.get(token);
-                if (ids != null) { addIds(out, ids); addIds(out, phonemeIds.get("_")); i += len; matched = true; break; }
+                if (ids != null) {
+                    addIds(out, ids);
+                    addIds(out, phonemeIds.get("_"));
+                    i = end;
+                    matched = true;
+                    break;
+                }
             }
-            if (!matched) i++;
+
+            if (!matched) {
+                i = phonemes.offsetByCodePoints(i, 1);
+            }
         }
+
         addIds(out, phonemeIds.get("$"));
         long[] result = new long[out.size()];
         for (int n = 0; n < out.size(); n++) result[n] = out.get(n);
