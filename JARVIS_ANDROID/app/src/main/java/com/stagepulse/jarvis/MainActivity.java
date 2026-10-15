@@ -34,8 +34,6 @@ public class MainActivity extends Activity {
         buildUi();
         initPiper();
         initSpeech();
-        status.setText("● ONLINE");
-        status.setTextColor(gold());
         append("JARVIS","PATRON, bağımsız Android çekirdeği hazır.");
     }
 
@@ -133,7 +131,7 @@ public class MainActivity extends Activity {
             public void onReadyForSpeech(Bundle b){hud.setActive(true);status.setText("● LISTENING");}
             public void onBeginningOfSpeech(){} public void onRmsChanged(float r){} public void onBufferReceived(byte[] b){}
             public void onEndOfSpeech(){hud.setActive(false);}
-            public void onError(int e){hud.setActive(false);status.setText("● ONLINE");append("JARVIS","Ses algılanamadı veya anlaşılmadı.");}
+            public void onError(int e){hud.setActive(false);refreshVoiceStatus();append("JARVIS","Ses algılanamadı veya anlaşılmadı.");}
             public void onResults(Bundle b){hud.setActive(false);ArrayList<String>x=b.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION);if(x!=null&&!x.isEmpty()){command.setText(x.get(0));sendCommand(x.get(0));}}
             public void onPartialResults(Bundle b){} public void onEvent(int t,Bundle b){}
         });
@@ -166,11 +164,17 @@ public class MainActivity extends Activity {
                 a="İşlem tamamlanamadı Patron. Teknik bilgi: "+e.getClass().getSimpleName();
             }
             final String answer=a;
-            runOnUiThread(()->{hud.setActive(false);if(!status.getText().toString().startsWith("● AGENT"))status.setText("● ONLINE");append("JARVIS",answer);speak(answer);});
+            runOnUiThread(()->{hud.setActive(false);if(!status.getText().toString().startsWith("● AGENT"))refreshVoiceStatus();append("JARVIS",answer);speak(answer);});
         });
     }
 
     private void statusPost(String text){runOnUiThread(()->status.setText(text));}
+
+    private void refreshVoiceStatus(){
+        boolean ready=piper!=null&&piper.isReady();
+        status.setText(ready?"● ONLINE":"● VOICE ERROR");
+        status.setTextColor(ready?gold():0xFFFF5555);
+    }
 
     private boolean isResearchCommand(String c){
         String x=c.toLowerCase(new Locale("tr","TR"));
