@@ -87,7 +87,7 @@ public final class PiperTts {
 
                 // espeak_Initialize expects the directory that CONTAINS
                 // the espeak-ng-data files (voices, dicts, lang, etc.).
-                int init = espeak.initialize(context.getFilesDir().getAbsolutePath());
+                int init = espeak.initialize(espeakDir.getAbsolutePath());
                 if (init < 0)
                     throw new IllegalStateException("eSpeak-NG init failed: " + init + " data=" + espeakDir.getAbsolutePath());
 
