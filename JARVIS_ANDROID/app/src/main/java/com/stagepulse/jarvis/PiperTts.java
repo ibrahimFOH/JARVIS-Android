@@ -63,7 +63,9 @@ public final class PiperTts {
                 sampleRate = audio.optInt("sample_rate", 22050);
                 noiseScale = (float) inference.optDouble("noise_scale", 0.667);
                 lengthScale = (float) inference.optDouble("length_scale", 1.0);
-                noiseW = (float) inference.optDouble("noise_w", 0.8);\n                JSONObject espeakConfig = root.optJSONObject("espeak");\n                if (espeakConfig != null) espeakVoice = espeakConfig.optString("voice", "tr");
+                noiseW = (float) inference.optDouble("noise_w", 0.8);
+                JSONObject espeakConfig = root.optJSONObject("espeak");
+                if (espeakConfig != null) espeakVoice = espeakConfig.optString("voice", "tr");
 
                 phonemeIds.clear();
                 java.util.Iterator<String> names = ids.keys();
