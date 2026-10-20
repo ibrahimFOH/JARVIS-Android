@@ -1,0 +1,11 @@
+{
+  "version": "0.1.5",
+  "pub_date": "2026-10-08T07:10:37.998Z",
+  "windows_x86_64_url": "https://gurizon.com/asistan/surum/Asistan_0.1.5_x64-setup.exe",
+  "signature_source": "https://gurizon.com/asistan/guncelleme.json",
+  "local_setup_sha256": "485cbd596960754590f80f5c7adb05b96e11961d82a8b7a956fabb426f4f3b09",
+  "payload_signature_verification": "VALID",
+  "algorithm": "Ed25519 over BLAKE2b-512 digest",
+  "public_key_source": "Extracted from the supplied asistan.exe; key ID 13ADF2DB829F075A",
+  "caveat": "The trusted comment filename appears as Asistam_0.1.5_x64-setup.exe (typo). The payload signature verifies; this JSON does not assert that the separate trusted-comment/global signature was validated."
+}
