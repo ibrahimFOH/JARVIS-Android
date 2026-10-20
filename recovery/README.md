@@ -15,6 +15,8 @@ This folder stores verified findings, recovered frontend assets, and reproducibl
 
 ## Tools
 
+- `../tools/verify_asistan_setup_signature.py`: verifies the v0.1.5 setup payload signature offline when Python `cryptography` is installed.
+- `../signatures/`: public updater key and detached signature for the 0.1.5 setup.
 - `../tools/inspect_asistan_pe_debug.py`: reads CodeView RSDS/PDB metadata without extra Python modules.
 - `../linux/recover_linux.sh`: accepts `7z` or `7zz`, records expected hashes, extracts assets, inspects PDB metadata, and creates a result archive.
 - `../linux/recover_linux.sh`: Linux static extraction workflow for the EXE and NSIS setup package.
