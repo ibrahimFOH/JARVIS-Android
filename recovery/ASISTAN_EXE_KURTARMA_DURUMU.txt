@@ -44,3 +44,6 @@ Raporlar/araçlar:
 
 
 Linux kurtarma eklentisi (v7): `linux/recover_linux.sh` artık `7z`/`7zz` algılar, bilinen hashleri karşılaştırır, PE CodeView/PDB ipuçlarını raporlar ve sonuç arşivini otomatik oluşturmayı dener. Araç: `tools/inspect_asistan_pe_debug.py`. Rapor: `recovery/PDB_AND_UPDATER_RESEARCH_V7.md`. NSIS dosyalarının fiilî çıkarımı için Linux'ta 7-Zip çıktısı hâlâ gerekli.
+
+
+v7 imza doğrulaması: Yerel kurulum dosyasının payload imzası `tools/verify_asistan_setup_signature.py` ile uygulamanın içinden çıkarılan updater public key'e karşı doğrulandı. Sonuç `SIGNATURE: VALID`; kurulum SHA-256 değeri bilinen setup dosyasıyla eşleşiyor. Bu araç ayrı trusted-comment/global imzasını doğrulamaz. Kaydedilen imza/anahtar: `signatures/`. Ayrıntı: `recovery/PDB_AND_UPDATER_RESEARCH_V7.md`.
