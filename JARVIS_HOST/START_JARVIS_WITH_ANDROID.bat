@@ -1,13 +1,12 @@
 @echo off
 setlocal
 cd /d "%~dp0"
-if exist "venv\Scripts\python.exe" (
-  set "PYTHON=%CD%\venv\Scripts\python.exe"
-) else (
-  set "PYTHON=py -3"
-)
 echo Starting JARVIS Android LAN bridge...
-start "JARVIS Android Bridge" cmd /k ""%PYTHON%" android_bridge.py"
+if exist "venv\Scripts\python.exe" (
+  start "JARVIS Android Bridge" cmd /k ""%CD%\venv\Scripts\python.exe" android_bridge.py"
+) else (
+  start "JARVIS Android Bridge" cmd /k "py -3 android_bridge.py"
+)
 echo Starting Windows JARVIS desktop...
 call run_jarvis.bat
 endlocal
