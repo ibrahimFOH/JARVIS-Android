@@ -95,6 +95,8 @@ if [ -d "$OUT/recovered_frontend" ] && command -v node >/dev/null 2>&1; then
 fi
 python3 "$ROOT/tools/inspect_asistan_pe_debug.py" "$APP_EXE" "$SETUP_EXE" ${UNINSTALL_EXE:+"$UNINSTALL_EXE"} > "$OUT/pe_debug_info.txt" 2>&1 || true
 cat "$OUT/pe_debug_info.txt"
+python3 "$ROOT/tools/verify_asistan_setup_signature.py" "$SETUP_EXE" > "$OUT/setup_signature_verification.txt" 2>&1 || true
+cat "$OUT/setup_signature_verification.txt"
 if command -v zip >/dev/null 2>&1; then
   rm -f "$ARCHIVE"
   (cd "$(dirname "$OUT")" && zip -qr "$ARCHIVE" "$(basename "$OUT")") || echo "ZIP could not be created; output directory remains available."
