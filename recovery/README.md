@@ -15,6 +15,8 @@ This folder stores verified findings, recovered frontend assets, and reproducibl
 
 ## Tools
 
+- `../linux/recover_linux.sh`: Linux static extraction workflow for the EXE and NSIS setup package.
+- `../linux/README_TR.md`: low-resource Linux instructions.
 - `../tools/recover_asistan_frontend_v4.py`: decompresses the frontend Brotli streams.
 - `../tools/extract_asistan_pe_resources.py`: extracts the Windows icons, icon group, version info and manifest.
 
