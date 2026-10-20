@@ -197,7 +197,7 @@ K.coz = function(el, kaydirilan){
     dugumler.forEach(function(n){
       var s = n._f, st = acc; acc += s.length;
       var k = Math.max(0, Math.min(s.length, kes - st)), out = s.slice(0, k), ex = Math.min(s.length - k, 6);
-      for (var i = 0; i < ex; i++) { var ch = s.charAt(k + i); out += (ch === ' ' || ch === '\\n') ? ch : GL.charAt((Math.random() * GL.length) | 0); }
+      for (var i = 0; i < ex; i++) { var ch = s.charAt(k + i); out += (ch === ' ' || ch === '\n') ? ch : GL.charAt((Math.random() * GL.length) | 0); }
       n.nodeValue = out;
     });
     if (kaydirilan) kaydirilan.scrollTop = kaydirilan.scrollHeight;
