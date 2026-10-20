@@ -15,10 +15,15 @@ This folder stores verified findings, recovered frontend assets, and reproducibl
 
 ## Tools
 
+- `../tools/inspect_asistan_pe_debug.py`: reads CodeView RSDS/PDB metadata without extra Python modules.
+- `../linux/recover_linux.sh`: accepts `7z` or `7zz`, records expected hashes, extracts assets, inspects PDB metadata, and creates a result archive.
 - `../linux/recover_linux.sh`: Linux static extraction workflow for the EXE and NSIS setup package.
 - `../linux/README_TR.md`: low-resource Linux instructions.
 - `../tools/recover_asistan_frontend_v4.py`: decompresses the frontend Brotli streams.
 - `../tools/extract_asistan_pe_resources.py`: extracts the Windows icons, icon group, version info and manifest.
+
+- `PDB_AND_UPDATER_RESEARCH_V7.md`: public updater metadata and PDB/debug findings.
+- `FRONTEND_API_SURFACE_V7.md`: external services and native command surface found in the recovered frontend.
 
 ## Latest verified findings
 
@@ -31,3 +36,6 @@ The complete v5 ZIP contains binary icon/font resources that are not all committ
 ## Limitations
 
 This is not the complete original Tauri/Rust project. The full Rust backend sources, `Cargo.toml`, `tauri.conf.json`, and the exact original build pipeline were not recovered. Browser history, cookies and unrelated WebView2 profile state are intentionally excluded because they may contain personal data.
+
+
+Note: files in `recovered_frontend/` on GitHub include manually curated/transcribed excerpts from earlier steps and are not guaranteed byte-identical. Use the v7 recovery ZIP's `recovered_frontend/` folder as the canonical recovered frontend and its SHA-256 manifest for verification.
