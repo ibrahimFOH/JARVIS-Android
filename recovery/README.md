@@ -1,22 +1,31 @@
 # Asistan EXE Recovery
 
-This folder stores findings and repeatable tools for the supplied Asistan 0.1.5 executable.
+This folder stores verified findings, recovered frontend assets, and reproducible extraction tools for Asistan 0.1.5.
 
-- `ASISTAN_EXE_KURTARMA_RAPORU.md`: initial Turkish analysis.
-- `ASISTAN_EXE_KURTARMA_DURUMU.txt`: native strings, embedded asset names and original executable hash.
-- `asset-payload-manifest.json`: earlier raw payload offsets, sizes and SHA-256 hashes.
-- `RAW_PAYLOADS.md`: raw payload extraction notes and limitations.
-- `READABLE_STRINGS_SUMMARY.md`: printable-string observations.
-- `PAYLOAD_TRIAGE.md`: early triage results for raw slices; superseded for frontend recovery by the streaming Brotli results below.
-- `RECOVERED_RUNTIME_PARTS.md`: runtime-related string fragments.
-- `WEBVIEW_CACHE_TRIAGE.md`: profile cache inspection notes.
-- `RECOVERED_SOURCE_FILES.md`: current recovered frontend inventory and validation status.
-- `FRONTEND_ASSET_RECOVERY_V4.md`: details of the complete frontend asset recovery pass.
+## Recovery records
+
+- `ASISTAN_EXE_KURTARMA_RAPORU.md`: initial binary analysis.
+- `ASISTAN_EXE_KURTARMA_DURUMU.txt`: current Turkish status and known command names.
+- `RECOVERED_SOURCE_FILES.md` and `FRONTEND_ASSET_RECOVERY_V4.md`: recovered frontend resource inventory and validation.
+- `RECOVERED_FRONTEND_ASSET_MANIFEST.json`: frontend sizes and SHA-256 values.
+- `TAURI_COMMAND_SURFACE.md`: desktop native command API inferred from the recovered bridge.
+- `PE_RESOURCE_RECOVERY_V5.md`: extracted Windows PE resources (icons, version info, manifest).
+- `PE_RESOURCE_MANIFEST.json`: PE resource offsets, sizes, and SHA-256 values.
+- `PAYLOAD_TRIAGE.md`, `RAW_PAYLOADS.md`, and `WEBVIEW_CACHE_TRIAGE.md`: prior-stage evidence and limitations.
+
+## Tools
+
+- `../tools/recover_asistan_frontend_v4.py`: decompresses the frontend Brotli streams.
+- `../tools/extract_asistan_pe_resources.py`: extracts the Windows icons, icon group, version info and manifest.
 
 ## Latest verified findings
 
-The executable contains Brotli-compressed Tauri frontend assets. Feeding the decoder one byte at a time until it reports end-of-stream successfully recovers the HTML entry page, eight JavaScript files, two CSS files, and seven WOFF2 fonts. All eight JavaScript files passed Node.js syntax validation. Recovered output hashes and extraction offsets are recorded in the v4 recovery bundle manifest.
+The v5 local archive includes 18 recovered frontend assets: the HTML entry page, eight JavaScript files, two CSS files and seven WOFF2 fonts. All eight JavaScript files passed Node.js syntax validation. The Windows `.rsrc` section also provided six PNG icon sizes, a reconstructed `.ico`, version metadata and an application manifest. Both extraction passes were re-run against the original executable and compared byte-for-byte with the packaged outputs.
 
-The original EXE SHA-256 is `03c71a4204fd37f240dabc008742d7ef23938cb1f8bebce24ee79c8cee0b6be8`.
+Original EXE SHA-256: `03c71a4204fd37f240dabc008742d7ef23938cb1f8bebce24ee79c8cee0b6be8`.
 
-Important: the recovered frontend is not the complete original Tauri/Rust project. Rust backend sources and original build configuration have not been fully reconstructed. Browser history, cookies, and unrelated WebView2 profile files are intentionally excluded from this public repository.
+The complete v5 ZIP contains binary icon/font resources that are not all committed as individual binary files here. The repository records the extraction tools, manifests, core frontend pieces and findings.
+
+## Limitations
+
+This is not the complete original Tauri/Rust project. The full Rust backend sources, `Cargo.toml`, `tauri.conf.json`, and the exact original build pipeline were not recovered. Browser history, cookies and unrelated WebView2 profile state are intentionally excluded because they may contain personal data.
