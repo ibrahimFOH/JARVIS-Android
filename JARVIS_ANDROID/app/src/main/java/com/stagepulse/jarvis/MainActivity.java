@@ -23,6 +23,7 @@ public class MainActivity extends Activity {
     private SpeechRecognizer speech;
     private PiperTts piper;
     private AgencyAgent activeAgent;
+    private android.content.SharedPreferences bridgePrefs;
 
     private int gold(){return 0xFFD4AF37;}
     private int white(){return 0xFFF2F2F2;}
@@ -31,6 +32,7 @@ public class MainActivity extends Activity {
 
     @Override public void onCreate(Bundle b){
         super.onCreate(b);
+        bridgePrefs = getSharedPreferences("jarvis_bridge", MODE_PRIVATE);
         buildUi();
         initPiper();
         initSpeech();
@@ -55,18 +57,69 @@ public class MainActivity extends Activity {
         command.setTextColor(white()); command.setMinLines(2); command.setBackgroundColor(panel()); command.setPadding(14,12,14,12);
         root.addView(command,new LinearLayout.LayoutParams(-1,-2));
         LinearLayout row=new LinearLayout(this); row.setOrientation(LinearLayout.HORIZONTAL);
-        Button send=button("EXECUTE"), voice=button("◉ VOICE"), agents=button("AGENTS");
+        Button send=button("EXECUTE"), voice=button("◉ VOICE"), agents=button("AGENTS"), host=button("HOST");
         row.addView(send,new LinearLayout.LayoutParams(0,58,1));
         row.addView(voice,new LinearLayout.LayoutParams(0,58,1));
         row.addView(agents,new LinearLayout.LayoutParams(0,58,1));
+        row.addView(host,new LinearLayout.LayoutParams(0,58,1));
         root.addView(row);
         setContentView(root);
         send.setOnClickListener(v->sendCommand(command.getText().toString()));
         voice.setOnClickListener(v->listen());
         agents.setOnClickListener(v->showAgents());
+        host.setOnClickListener(v->showHostSettings());
     }
 
     private Button button(String s){Button b=new Button(this);b.setText(s);b.setTextColor(gold());b.setTextSize(11);b.setBackgroundColor(panel());return b;}
+
+    private void showHostSettings(){
+        LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+        box.setPadding(20, 8, 20, 0);
+        EditText address = new EditText(this);
+        address.setSingleLine(true);
+        address.setHint("http://192.168.1.100:8765");
+        address.setText(bridgePrefs.getString("url", ""));
+        EditText token = new EditText(this);
+        token.setSingleLine(true);
+        token.setHint("Windows JARVIS bridge token");
+        token.setInputType(129);
+        token.setText(bridgePrefs.getString("token", ""));
+        box.addView(address);
+        box.addView(token);
+        new AlertDialog.Builder(this)
+            .setTitle("WINDOWS JARVIS BAĞLANTISI")
+            .setMessage("Windows bilgisayarının yerel IP adresini ve android_bridge.py tarafından oluşturulan token'ı gir.")
+            .setView(box)
+            .setPositiveButton("KAYDET VE TEST ET", (d, which) -> {
+                String url = address.getText().toString().trim();
+                String secret = token.getText().toString().trim();
+                bridgePrefs.edit().putString("url", url).putString("token", secret).apply();
+                if (url.isEmpty() || secret.isEmpty()) {
+                    append("JARVIS", "Ortak Windows çekirdeği kapalı. Yerel Android komutları kullanılacak.");
+                    return;
+                }
+                status.setText("● HOST TEST");
+                io.submit(() -> {
+                    try {
+                        boolean ok = BridgeClient.health(url, secret);
+                        runOnUiThread(() -> {
+                            status.setText(ok ? "● WINDOWS LINKED" : "● HOST ERROR");
+                            append("JARVIS", ok
+                                ? "Windows JARVIS ortak çekirdeğine bağlandım. Android ve EXE aynı host komut motorunu kullanacak."
+                                : "Windows JARVIS köprüsü doğrulanamadı.");
+                        });
+                    } catch (Exception e) {
+                        runOnUiThread(() -> {
+                            status.setText("● HOST OFFLINE");
+                            append("JARVIS", "Windows bağlantısı kurulamadı. IP, token, aynı Wi-Fi ağı ve Windows Güvenlik Duvarı'nı kontrol et.");
+                        });
+                    }
+                });
+            })
+            .setNegativeButton("İPTAL", null)
+            .show();
+    }
 
     private void showAgents(){
         final List<AgencyAgent> list=AgencyCatalog.all();
@@ -148,6 +201,13 @@ public class MainActivity extends Activity {
         io.submit(()->{
             String a;
             try{
+                String hostUrl = bridgePrefs.getString("url", "").trim();
+                String hostToken = bridgePrefs.getString("token", "").trim();
+                if (!hostUrl.isEmpty() && !hostToken.isEmpty()) {
+                    statusPost("● WINDOWS JARVIS");
+                    BridgeClient.Result remote = BridgeClient.command(hostUrl, hostToken, cmd);
+                    a = remote.response;
+                } else {
                 AgencyAgent requested=detectAgent(cmd);
                 if(requested!=null && (cmd.toLowerCase(new Locale("tr","TR")).contains("aktif") || cmd.toLowerCase(new Locale("tr","TR")).contains("agent") || cmd.toLowerCase(new Locale("tr","TR")).contains("mühendis") || cmd.toLowerCase(new Locale("tr","TR")).contains("uzman"))){
                     final AgencyAgent ag=requested;
@@ -159,6 +219,7 @@ public class MainActivity extends Activity {
                     a=report.text;
                 }else{
                     a=processLocal(cmd);
+                }
                 }
             }catch(Exception e){
                 a="İşlem tamamlanamadı Patron. Teknik bilgi: "+e.getClass().getSimpleName();
