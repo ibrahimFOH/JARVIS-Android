@@ -1,0 +1,39 @@
+# Frontend asset recovery v4
+
+Date: 2026-10-21
+Source EXE SHA-256: `03c71a4204fd37f240dabc008742d7ef23938cb1f8bebce24ee79c8cee0b6be8`
+
+The streaming Brotli decoder recovered the actual application frontend resources. This corrects the earlier triage note that the three JS assets and HTML were not decoded.
+
+| Resource | Decoded bytes | SHA-256 |
+|---|---:|---|
+| `index.html` | 6846 | `762c122c95686cd18f58fe37062b30c24e02961f5770a701582834012f1bb67f` |
+| `kaynak.js` | 8713 | `bdb610e2ad6d03598ff3128c1f389b6e4c36a0929e0b4d14b786a803e8d2b5d8` |
+| `uygulama.js` | 87894 | `84a3b3fcd700ff2bd8fe7e756d2193e64d97781cae6a804876ca78ae7b0791c5` |
+| `stil.css` | 26337 | `c93043f03d32e68b6368f4454d975be69cc56bfb3b372b3329b9b30800e68f44` |
+| `sozlesme.js` | 19130 | `b6d27f538cc1b7f09e57d2b6373917c22eeecd5eeaf2ac573c37cfcda8a48883` |
+| `kopru.js` | 4842 | `24ae9a1c09747e849b22d5f38fc200ab333c0bfbd9a12c1a9908412bc273507b` |
+| `zeka.js` | 16677 | `8ef8a394f856bbb2b503f4ae5ee80498bb9778332457396e0c7a5fc581b2c4af` |
+| `canli.js` | 11540 | `9aa3805f6c13233f40af0a0988fd4752e282ce7d43f9234d5fcc8750c01ce2d1` |
+| `komut.js` | 32182 | `8e7947d80398a409cb3cdab058e3571c3be9e3afcd87626b9e3fb553caf8bdd0` |
+| `kure.js` | 11679 | `2e1f053cbf5733d01a0a14a0a78ab7d3ba1d236619e45f11b6de52dfaeb1f4cc` |
+| `yazitipi/yazitipi.css` | 2641 | `da3623228bc512ea7add8e085511e2414ae69a8098286302ce189483ea201fc5` |
+| `yazitipi/ShareTechMono-400-latin.woff2` | 7408 | `73b87eb7b02dfec4cb1ddfabad6e625d9c77b3c81015064420de88d8dd04816c` |
+| `yazitipi/Rajdhani-600-latin.woff2` | 9400 | `35f7e628ec8e7dd3bf434e95ce28289803401f12d8605c56ca83db2b4b301d33` |
+| `yazitipi/Rajdhani-700-latin-ext.woff2` | 6944 | `0b49d495ac765440570c07bf73f5b288e244c71e758f6d95ff481e9169b816f3` |
+| `yazitipi/Rajdhani-700-latin.woff2` | 9304 | `7597c31a957ae3d2e1ebc786238752d883c15ce2e6b5da617dc3453a9fd86335` |
+| `yazitipi/Rajdhani-500-latin-ext.woff2` | 6824 | `6464c05505c4a3bc7dce7021a89aa9102618ee4fea4c21942008bbb37b7fe85f` |
+| `yazitipi/Rajdhani-500-latin.woff2` | 8964 | `4745b75b6e92d917e2402925dc1a6c1c6300e6e0f607a1ce286da54b33d80d3b` |
+| `yazitipi/Rajdhani-600-latin-ext.woff2` | 7208 | `bdf7c1b3c51cfc37d1a0e2b15d86d85f1fa0fdb87678277e11714f9470b734ed` |
+
+## Validation performed
+
+- All 18 outputs were re-extracted using the committed recovery algorithm and compared byte-for-byte with the package files.
+- All eight JavaScript files passed `node --check`.
+- The local JS/CSS paths listed in `index.html` all exist.
+- The seven font files have the WOFF2 `wOF2` signature and their names match font references in the CSS.
+- The source files, tool, report, and manifest are available in the conversation's v4 archive. The full ZIP has not been committed to GitHub as a binary asset in this commit.
+
+## Limits
+
+The recovered frontend does not include the complete Rust/Tauri backend, `Cargo.toml`, `tauri.conf.json`, or the original build pipeline. This is substantial source recovery, not a complete reproducible application source tree.
