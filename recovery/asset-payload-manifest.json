@@ -1,0 +1,122 @@
+[
+  {
+    "name": "/index.html",
+    "marker_offset": 4573362,
+    "payload_offset": 4573373,
+    "payload_bytes": 4071,
+    "sha256": "5e384ffdb745b6d7aa71324459b33b3558c1871a434f66ec5e4e4601e263ec20",
+    "file": "index_html_0045c8b2.bin"
+  },
+  {
+    "name": "/index.html",
+    "marker_offset": 4645625,
+    "payload_offset": 4645636,
+    "payload_bytes": 25246,
+    "sha256": "9691d8f50ccf37db948bf91a25c6aad0ca605df4e060d1db87ea2668f0be9617",
+    "file": "index_html_0046e2f9.bin"
+  },
+  {
+    "name": "/index.html",
+    "marker_offset": 4829544,
+    "payload_offset": 4829555,
+    "payload_bytes": 1597,
+    "sha256": "9b0992d8e77c9e2e5eb3357c538d9fe6611b258b1dbf7765f7b2adfb7bac2521",
+    "file": "index_html_0049b168.bin"
+  },
+  {
+    "name": "/index.html",
+    "marker_offset": 4831152,
+    "payload_offset": 4831163,
+    "payload_bytes": 375147,
+    "sha256": "b562fbdd3320d0763e12e4b9256ba0649dc27fca96da86be4fe6b63b22374ba7",
+    "file": "index_html_0049b7b0.bin"
+  },
+  {
+    "name": "/index.html",
+    "marker_offset": 5206310,
+    "payload_offset": 5206321,
+    "payload_bytes": 662735,
+    "sha256": "ff3f1519bc2dc27bafb173e3da78683a079fb92f140948c2d33149e82d8245b1",
+    "file": "index_html_004f7126.bin"
+  },
+  {
+    "name": "/kaynak.js",
+    "marker_offset": 4577444,
+    "payload_offset": 4577454,
+    "payload_bytes": 3546,
+    "sha256": "0a68dcad2fdd34e305739da35501f59e2b6de877bdceb9145de04edc237a2d39",
+    "file": "kaynak_js_0045d8a4.bin"
+  },
+  {
+    "name": "/uygulama.js",
+    "marker_offset": 4581000,
+    "payload_offset": 4581012,
+    "payload_bytes": 26424,
+    "sha256": "f98b4016757f997155cd1e023e8bdfb0abfdc7550d3012ff6efd35a545417f25",
+    "file": "uygulama_js_0045e688.bin"
+  },
+  {
+    "name": "/stil.css",
+    "marker_offset": 4607436,
+    "payload_offset": 4607445,
+    "payload_bytes": 6317,
+    "sha256": "5693b689fc30ae3b06493e9050209ff33fd41a3000c6e2c0412975fa0a4727be",
+    "file": "stil_css_00464dcc.bin"
+  },
+  {
+    "name": "/sozlesme.js",
+    "marker_offset": 4613762,
+    "payload_offset": 4613774,
+    "payload_bytes": 6882,
+    "sha256": "b17c1911535bb1cd7f27ec53604f7d84f466eb2e3acd8d53a9b3ee523a2d0918",
+    "file": "sozlesme_js_00466682.bin"
+  },
+  {
+    "name": "/kopru.js",
+    "marker_offset": 4620656,
+    "payload_offset": 4620665,
+    "payload_bytes": 1847,
+    "sha256": "db1e99907d962afe1a7b2d499f4d9d014a5a855f433f112cb63baf7a9605278c",
+    "file": "kopru_js_00468170.bin"
+  },
+  {
+    "name": "/zeka.js",
+    "marker_offset": 4622512,
+    "payload_offset": 4622520,
+    "payload_bytes": 22678,
+    "sha256": "32dce9ab941cee605c3394425a5adb00d7e5a0c1265d746476836cb064e5b33f",
+    "file": "zeka_js_004688b0.bin"
+  },
+  {
+    "name": "/canli.js",
+    "marker_offset": 4670882,
+    "payload_offset": 4670891,
+    "payload_bytes": 20672,
+    "sha256": "9bab1f47c4896fe12aaae6bf88886e0e1c6a9b1f8d5aa41ed3aa325f8233b961",
+    "file": "canli_js_004745a2.bin"
+  },
+  {
+    "name": "/komut.js",
+    "marker_offset": 4691563,
+    "payload_offset": 4691572,
+    "payload_bytes": 11057,
+    "sha256": "068adcb573c18dd37b5d8b24a9f1fc66eb406566ff925b0cc6e607fb7346608b",
+    "file": "komut_js_0047966b.bin"
+  },
+  {
+    "name": "/kure.js",
+    "marker_offset": 4702629,
+    "payload_offset": 4702637,
+    "payload_bytes": 126907,
+    "sha256": "ef82f77a87ac6959718a78fb5ae3ccdca243c0ba0d72babab24b96ca1051a6f6",
+    "file": "kure_js_0047c1a5.bin"
+  },
+  {
+    "name": "/yazitipi/yazitipi.css",
+    "marker_offset": 4645198,
+    "payload_offset": 4645220,
+    "payload_bytes": 405,
+    "sha256": "9c9a8c5377fbde05db8879d990a346c9dbcc14c3c471110a4a59c7ff4deb16d7",
+    "file": "yazitipi_yazitipi_css_0046e14e.bin"
+  }
+]
