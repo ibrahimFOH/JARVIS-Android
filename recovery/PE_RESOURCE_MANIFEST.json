@@ -1,0 +1,67 @@
+{
+  "version": 5,
+  "source_exe_sha256": "03c71a4204fd37f240dabc008742d7ef23938cb1f8bebce24ee79c8cee0b6be8",
+  "resources": [
+    {
+      "path": "icons/icon-16.png",
+      "resource_id": 1,
+      "file_offset": 5788760,
+      "bytes": 705,
+      "sha256": "ee56ee938cf204a2856fa899e271656ec20d301333ef15861f8e9876b4b0fe8a"
+    },
+    {
+      "path": "icons/icon-24.png",
+      "resource_id": 2,
+      "file_offset": 5789472,
+      "bytes": 1184,
+      "sha256": "21a0ab2eb5d532e04bc8e3a99ce405d71b5439c1717c726935029aa82781431b"
+    },
+    {
+      "path": "icons/icon-32.png",
+      "resource_id": 3,
+      "file_offset": 5790656,
+      "bytes": 1997,
+      "sha256": "51fe43aacb1bb9b2ec9148444572e8e9484ce385168f11824d3f838d7383c206"
+    },
+    {
+      "path": "icons/icon-48.png",
+      "resource_id": 4,
+      "file_offset": 5792656,
+      "bytes": 4063,
+      "sha256": "4774e8db9f70d23ecb122b36b7897398b45f1e93e066a262e9b1e6f44b3af804"
+    },
+    {
+      "path": "icons/icon-64.png",
+      "resource_id": 5,
+      "file_offset": 5796720,
+      "bytes": 6414,
+      "sha256": "9ad3f1d8bc6fa5085d7733aefb01149863c94ab72d4a7568412c829c3ff6d30d"
+    },
+    {
+      "path": "icons/icon-256.png",
+      "resource_id": 6,
+      "file_offset": 5807232,
+      "bytes": 44422,
+      "sha256": "8e755e07d9cab84c3c30e295e477d58c2d18524d3c0ebb72888054e6367948a7"
+    },
+    {
+      "path": "asistan.ico",
+      "file_offset": 5841416,
+      "group_resource_bytes": 90,
+      "bytes": 58887,
+      "sha256": "c214b3c92218608e336f5916194fdc9a53c5c168537a89491ebb1c6ac9c1a7ff"
+    },
+    {
+      "path": "version_info_resource.bin",
+      "file_offset": 5788192,
+      "bytes": 564,
+      "sha256": "0095c14ab025fc10205505640d6f3363103e375240d8f33127c2906a856cf473"
+    },
+    {
+      "path": "application.manifest",
+      "file_offset": 5841512,
+      "bytes": 334,
+      "sha256": "b1cb832f790c153aa0e9a66f76e75460263cf1d41971d2dbcc9a4d87ec18b7d8"
+    }
+  ]
+}
