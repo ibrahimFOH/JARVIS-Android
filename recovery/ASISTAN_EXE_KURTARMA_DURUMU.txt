@@ -41,3 +41,6 @@ Raporlar/araçlar:
 - recovery/PE_RESOURCE_MANIFEST.json
 - tools/recover_asistan_frontend_v4.py
 - tools/extract_asistan_pe_resources.py
+
+
+Linux kurtarma eklentisi (v6): linux/recover_linux.sh ve linux/README_TR.md. 7z kurulu Linux'ta NSIS setup ve varsa kaldırıcıyı statik olarak listelemeyi, test etmeyi ve çıkarmayı dener. Doğrulama raporu: recovery/LINUX_RE_VALIDATION_V6.md.
