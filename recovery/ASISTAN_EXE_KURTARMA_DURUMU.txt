@@ -1,19 +1,27 @@
-ASISTAN EXE KURTARMA DURUMU
+ASISTAN EXE KURTARMA DURUMU (GUNCEL: 2026-10-21)
 
-Durum: Kısmi analiz; tam kaynak kod kurtarımı tamamlanmadı.
+Durum: Ön yüz varlıkları kurtarıldı; tam Tauri/Rust proje kurtarımı tamamlanmadı.
 
-Gömülü varlık yolları:
-- /index.html
-- /kaynak.js
-- /uygulama.js
-- /stil.css
-- /sozlesme.js
-- /kopru.js
-- /zeka.js
-- /canli.js
-- /komut.js
-- /kure.js
-- /yazitipi/yazitipi.css
+Brotli akışlı çözümleme sonucunda aşağıdaki gerçek ön yüz varlıkları çıkarıldı:
+- index.html
+- kaynak.js
+- uygulama.js
+- stil.css
+- sozlesme.js
+- kopru.js
+- zeka.js
+- canli.js
+- komut.js
+- kure.js
+- yazitipi/yazitipi.css
+- 7 adet WOFF2 font
+
+Doğrulama:
+- Kaynak EXE SHA-256: 03c71a4204fd37f240dabc008742d7ef23938cb1f8bebce24ee79c8cee0b6be8
+- 8 JavaScript dosyasının tamamı Node.js --check kontrolünden geçti.
+- index.html içindeki göreli CSS/JS yolları dosya sistemi ile eşleştirildi.
+- 7 font dosyasının WOFF2 imzası (wOF2) doğrulandı.
+- Tüm 18 varlık, yeniden çalıştırılan çıkarma aracıyla bayt bazında eşleşti.
 
 EXE içinde tespit edilen yerel komut/ad parçaları (ayrıştırma kısmen belirsiz olabilir):
 caldim, giris, acilis_sebebi, tam_ekran, midosya_ok, dosya_yaz, verisir_okusir_yaz, deger, baglanti_ac, konus, ses, hiz, gunluk, sus, oto_baslat_oku, oto_baslat_yaz, brifing_zamani, klasorler_silme_vazgec, hatirlatici_kursaniye, hatirlaticilar, hatirlatici_sil.
@@ -24,7 +32,11 @@ setup.exe: 485cbd596960754590f80f5c7adb05b96e11961d82a8b7a956fabb426f4f3b09
 uninstall.exe: ea53e123817670550bccb072d9f61dde1ae8cc723627974ef5668b0b83f9f1c1
 
 Sınırlar:
-- .bin dosyaları ham ikili payload parçalarıdır, kaynak kod değildir.
-- Orijinal Rust kaynakları henüz bulunmadı.
-- Kurulum yükleyicisinin tam dosya ağacı henüz çıkarılmadı.
-- Kullanıcı tarayıcı geçmişi ve genel WebView2 profil verileri kişisel veri olabileceğinden herkese açık depoya konmamalıdır.
+- Çıkarılan kaynaklar uygulamanın ön yüzüdür; tam kaynak deposu değildir.
+- Rust backend kaynak kodu, Cargo.toml, tauri.conf.json ve eksiksiz build yapılandırması bulunamadı.
+- Orijinal EXE'nin yeniden oluşturulabilirliği veya uygulamanın çalışma garantisi yoktur.
+- Kullanıcı tarayıcı geçmişi, çerezler ve genel WebView2 profil verileri kişisel veri olabileceğinden herkese açık depoya konulmamalıdır.
+
+Güncel teknik kayıt:
+recovery/FRONTEND_ASSET_RECOVERY_V4.md
+tools/recover_asistan_frontend_v4.py
