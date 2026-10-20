@@ -38,6 +38,7 @@ logs/
 
 # Configuration
 config/config.json
+config/bridge_token.txt
 .env
 
 # API Keys
