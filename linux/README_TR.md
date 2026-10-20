@@ -1,60 +1,75 @@
 # Linux üzerinde statik kurtarma
 
-Bu yardımcı akış eski/düşük donanımlı bilgisayarlar için masaüstü arayüzü gerektirmeden çalışır. EXE ve kurulum paketini çalıştırmaz; yalnızca dosya içeriğini inceler.
+Bu yardımcı akış eski/düşük donanımlı bilgisayarlarda komut satırından çalışır. EXE'yi veya NSIS kurulum dosyasını **çalıştırmaz**; yalnızca dosya içeriğini analiz eder.
 
-## Araç kurulumu
+## 1. Araçları yükle
 
-Debian/Ubuntu için önce şu komutları dene:
+Önce Linux dağıtımını kontrol edebilirsin:
 
-    sudo apt update
-    sudo apt install python3 python3-brotli file binutils p7zip-full
+```bash
+cat /etc/os-release
+uname -m
+free -h
+command -v 7z || command -v 7zz || true
+```
 
-Debian 13 gibi sürümlerde güncel paket adı 7zip olabilir:
+Debian 13 için genellikle:
 
-    sudo apt install 7zip
+```bash
+sudo apt update
+sudo apt install python3 python3-brotli file binutils zip 7zip
+```
 
-Kurulumdan sonra 7z komutunun görünmesi gerekir: `7z --help`. Node.js isteğe bağlıdır; yalnızca JavaScript sözdizimini doğrulamak için kullanılır. Ghidra kurma ile başlama; 4 GB RAM'li bilgisayarda bu ilk adım için gereksiz masraf.
+Eski Ubuntu/Debian sürümlerinde `7zip` yerine `p7zip-full` gerekebilir:
 
-## Dosyaları hazırla
+```bash
+sudo apt update
+sudo apt install python3 python3-brotli file binutils zip p7zip-full
+```
 
-Windows'tan Linux'a şu dosyaları kopyala:
+Node.js yalnızca JavaScript sözdizimi kontrolü için isteğe bağlıdır. Ghidra ile başlama; bu aşamada gerekli değil ve eski cihazı gereksiz yere yorabilir.
 
-- masaüstü uygulaması: asistan.exe
-- kurulum paketi: Asistan_0.1.5_x64-setup.exe
-- varsa kaldırıcı: uninstall.exe
+## 2. Dosyaları aktar
 
-Dosya adları değişik olabilir; komutta gerçek yolları kullan.
+Linux'a şunları kopyala:
+- `asistan.exe`
+- `Asistan_0.1.5_x64-setup.exe` (elindeki dosyanın adı farklıysa gerçek adını kullan)
+- varsa `uninstall.exe`
 
-## Tek komutla kurtarma
+## 3. Kurtarma betiğini çalıştır
 
-ZIP'i aç, paket klasörüne gir ve şunu çalıştır:
+Kurtarma ZIP'ini aç ve paket klasörüne gir:
 
-    chmod +x linux/recover_linux.sh
-    ./linux/recover_linux.sh /path/asistan.exe "/path/Asistan_0.1.5_x64-setup.exe" /path/uninstall.exe
+```bash
+chmod +x linux/recover_linux.sh
+./linux/recover_linux.sh /path/asistan.exe "/path/Asistan_0.1.5_x64-setup.exe" /path/uninstall.exe
+```
 
-Kaldırıcı yoksa son argümanı kaldır. Çıktı, komutu çalıştırdığın klasördeki asistan_linux_kurtarma dizinine yazılır.
+Kaldırıcı yoksa son argümanı çıkar. Betik:
+- Dosya türlerini ve SHA-256 değerlerini kaydeder; bilinen EXE/kurulum/kaldırıcı hash'leriyle eşleşmeyi bildirir.
+- 18 web varlığını ve Windows PE kaynaklarını yeniden çıkarır.
+- `7z` veya `7zz` komutu varsa kurulum/kaldırıcı dosyasını statik olarak listeler, test eder ve çıkarmayı dener.
+- ASCII ve UTF-16LE yazdırılabilir metinleri kaydeder.
+- CodeView/PDB yolunu ve GUID/age ipuçlarını raporlar.
+- Sonuçları otomatik olarak `asistan_linux_kurtarma.zip` arşivlemeyi dener.
 
-Bu dizinde:
-- file_fingerprints.txt: hash ve dosya türleri.
-- recovered_frontend/: Brotli ile kurtarılan web kaynakları.
-- recovered_pe_resources/: Windows ikon/sürüm/manifest dosyaları.
-- setup_nsis/: 7z listeleme, test, çıkarım ve strings çıktıları.
-- uninstaller_nsis/: isteğe bağlı kaldırıcı çıktıları.
+Arşiv oluşmazsa:
 
-Sonuçları gönderme komutu:
+```bash
+zip -r asistan_linux_kurtarma.zip asistan_linux_kurtarma
+```
 
-    zip -r asistan_linux_kurtarma.zip asistan_linux_kurtarma
+Sonuç ZIP'ini bu sohbete yükle. En faydalı dosyalar `setup_nsis/7z_listing.txt`, `setup_nsis/7z_test.log`, `setup_nsis/7z_extract.log`, `setup_nsis/files/`, `file_fingerprints.txt` ve `pe_debug_info.txt`.
 
-Arşivi bu sohbete yükle; özellikle setup_nsis/7z_listing.txt, extracted_file_list.tsv, 7z_test.log ve files/ dizini önemli.
+## NSIS hakkında
 
-## NSIS sınırlaması
+[Resmî NSIS wiki](https://nsis.sourceforge.io/Can_I_decompile_an_existing_installer), orijinal kurulum betiğinin tam olarak geri çıkarılmasının garanti olmadığını açıkça belirtiyor. [7-Zip](https://www.7-zip.org/download.html) çoğu NSIS paketinden dosyaları çıkarmayı deneyebilir, ancak tam `.nsi` kaynak betiğini üretmeyebilir.
 
-NSIS'in resmi belgelerine göre yükleyici kaynak betiğinin birebir tam decompile edilmesi garanti değildir; 7-Zip birçok NSIS paketinden gömülü dosyaları çıkarabilir, ancak eski [NSIS].nsi çıktı özelliği güncel resmi sürümlerde bulunmayabilir. Bu nedenle önce paket dosyalarını almaya çalışıyoruz. Daha derin bytecode analizi gerekirse NSIS Reversing Suite veya nsis-rs gibi araçlara geçeriz.
+7-Zip dosya çıkaramazsa önce günlükleri inceleyeceğiz. Sonraki seçenek [nsis-rs](https://github.com/ATRAPSLLC/nsis-rs) gibi bir parserdır; Rust 1.88+ ve ek derleme gerektirdiği için düşük donanımda ilk adım değil.
 
-nsis-rs, kurulum içindeki dosyaları, script bytecode kayıtlarını ve komut ipuçlarını analiz edebilir; ancak Rust 1.88+ gerektirir ve düşük donanımda derleme zaman alabilir. Önce 7z sonucu yeterli mi görelim.
+## Sınırlar
 
-## Doğrulanmış sınırlar
-
-Özgün masaüstü EXE'nin 18 ön yüz kaynağı ve 9 Windows PE çıktısı yerel araçlarla yeniden çıkarıldı, paket içindeki dosyalarla bayt bazında karşılaştırıldı. Sekiz JavaScript dosyası Node.js sözdizimi kontrolünden geçti. Bu tam Rust/Tauri kaynak deposu değildir; Cargo.toml, tauri.conf.json ve eksiksiz Rust backend henüz kurtarılmadı.
-
-Kişisel WebView2 geçmişi/çerezleri veya genel tarayıcı profili bu iş akışına dahil edilmez.
+- Kaynak EXE SHA-256: `03c71a4204fd37f240dabc008742d7ef23938cb1f8bebce24ee79c8cee0b6be8`
+- Ön yüzün 18 varlığı ve PE'den çıkan 9 kaynak doğrulandı.
+- Özgün Rust/Tauri backend, `Cargo.toml`, `tauri.conf.json` ve eksiksiz derleme zinciri kurtarılmadı.
+- Kişisel tarayıcı geçmişi/çerezleri kurtarma akışına dahil edilmez.
