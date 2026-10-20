@@ -43,4 +43,4 @@ Raporlar/araçlar:
 - tools/extract_asistan_pe_resources.py
 
 
-Linux kurtarma eklentisi (v6): linux/recover_linux.sh ve linux/README_TR.md. 7z kurulu Linux'ta NSIS setup ve varsa kaldırıcıyı statik olarak listelemeyi, test etmeyi ve çıkarmayı dener. Doğrulama raporu: recovery/LINUX_RE_VALIDATION_V6.md.
+Linux kurtarma eklentisi (v7): `linux/recover_linux.sh` artık `7z`/`7zz` algılar, bilinen hashleri karşılaştırır, PE CodeView/PDB ipuçlarını raporlar ve sonuç arşivini otomatik oluşturmayı dener. Araç: `tools/inspect_asistan_pe_debug.py`. Rapor: `recovery/PDB_AND_UPDATER_RESEARCH_V7.md`. NSIS dosyalarının fiilî çıkarımı için Linux'ta 7-Zip çıktısı hâlâ gerekli.
