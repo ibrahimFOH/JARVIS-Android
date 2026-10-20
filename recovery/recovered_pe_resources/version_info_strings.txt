@@ -1,0 +1,10 @@
+Windows version resource strings extracted from the EXE:
+
+CompanyName: Gurizon
+FileDescription: Asistan
+FileVersion: 0.1.5
+LegalCopyright: 2026 Gurizon / Postuby, Inc.
+ProductName: Asistan
+ProductVersion: 0.1.5
+
+The raw VERSIONINFO resource is preserved in version_info_resource.bin.
