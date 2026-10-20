@@ -6,11 +6,13 @@ The public updater metadata at [guncelleme.json](https://gurizon.com/asistan/gun
 
 `https://gurizon.com/asistan/surum/Asistan_0.1.5_x64-setup.exe`
 
-The supplied setup file SHA-256 is `485cbd596960754590f80f5c7adb05b96e11961d82a8b7a956fabb426f4f3b09`. We have not downloaded the public binary in this environment to byte-compare it with the supplied setup. The Linux helper now records the hash and identifies whether the local setup matches this known file.
+The supplied setup file SHA-256 is `485cbd596960754590f80f5c7adb05b96e11961d82a8b7a956fabb426f4f3b09`. The payload signature line from the public updater manifest was verified using the updater public key extracted from the EXE: Ed25519 verification over the setup's BLAKE2b-512 digest passed, and the local SHA-256 matches the known setup. This establishes that the setup bytes match the payload signed by that embedded updater key. The lightweight verifier does not verify the separate trusted-comment/global signature, so this is payload-signature verification rather than a claim that the entire signature envelope was validated.
+
+The signed trusted-comment text spells the filename `Asistam_0.1.5_x64-setup.exe` (with an `m`). The payload signature itself still verifies independently of that text. Repeatable offline files are in `tools/verify_asistan_setup_signature.py` and `signatures/`.
 
 ## CodeView/PDB information
 
-A CodeView `RSDS` record was found at file offset `0x55d414` in the application EXE. It names `asistan.pdb`, age `1`, and GUID `ee39d7da-5768-ffa2-4c4c-44205044422e`. The last eight GUID bytes decode as ASCII `LLD PDB.`, so this is an unusual debug marker; do not assume it points to a recoverable full-symbol PDB without checking the symbol file's identity. A PDB was not present next to the supplied EXE. The plausible public URLs `https://gurizon.com/asistan/asistan.pdb` and `https://gurizon.com/asistan/surum/asistan.pdb` returned 404.
+A CodeView `RSDS` record was found at file offset `0x55d414` in the application EXE. It names `asistan.pdb`, age `1`, and GUID `ee39d7da-5768-ffa2-4c4c-44205044422e`. The last eight GUID bytes decode as ASCII `LLD PDB.`, so this is an unusual debug marker; do not assume it points to a recoverable full-symbol PDB without checking the symbol file's identity. A PDB was not present next to the supplied EXE. The plausible public URLs `https://gurizon.com/asistan/asistan.pdb` and `https://gurizon.com/asistan/surum/asistan.pdb` returned 404. The corresponding Microsoft public symbol-store URL also returned 404.
 
 The CodeView RSDS structure conventionally stores a GUID, age and PDB path. A symbol file is useful only if it matches the executable's identity. References: [PDB format overview](https://github.com/PascalBeyer/PDB-Documentation), [LLVM PDB Info Stream](https://llvm.org/docs/PDB/PdbStream.html), and [LLD Windows support](https://releases.llvm.org/18.1.8/tools/lld/docs/windows_support.html).
 
