@@ -1,42 +1,43 @@
 ASISTAN EXE KURTARMA DURUMU (GUNCEL: 2026-10-21)
 
-Durum: Ön yüz varlıkları kurtarıldı; tam Tauri/Rust proje kurtarımı tamamlanmadı.
+Durum: Ön yüz varlıkları ve Windows PE kaynakları kurtarıldı; tam Tauri/Rust proje kurtarımı tamamlanmadı.
 
-Brotli akışlı çözümleme sonucunda aşağıdaki gerçek ön yüz varlıkları çıkarıldı:
+Brotli akışlı çözümleme ile kurtarılan ön yüz:
 - index.html
-- kaynak.js
-- uygulama.js
-- stil.css
-- sozlesme.js
-- kopru.js
-- zeka.js
-- canli.js
-- komut.js
-- kure.js
-- yazitipi/yazitipi.css
-- 7 adet WOFF2 font
+- 8 JavaScript: kaynak.js, uygulama.js, sozlesme.js, kopru.js, zeka.js, canli.js, komut.js, kure.js
+- 2 CSS: stil.css, yazitipi/yazitipi.css
+- 7 yerel WOFF2 yazı tipi
 
 Doğrulama:
 - Kaynak EXE SHA-256: 03c71a4204fd37f240dabc008742d7ef23938cb1f8bebce24ee79c8cee0b6be8
-- 8 JavaScript dosyasının tamamı Node.js --check kontrolünden geçti.
-- index.html içindeki göreli CSS/JS yolları dosya sistemi ile eşleştirildi.
-- 7 font dosyasının WOFF2 imzası (wOF2) doğrulandı.
-- Tüm 18 varlık, yeniden çalıştırılan çıkarma aracıyla bayt bazında eşleşti.
+- 18 ön yüz dosyası bağımsız şekilde yeniden çıkarıldı ve paket çıktısıyla bayt bazında eşleşti.
+- 8 JavaScript dosyasının tümü Node.js --check kontrolünden geçti.
+- index.html içindeki yerel JS/CSS yolları mevcut dosyalarla eşleşti; yazı tiplerinin WOFF2 imzası kontrol edildi.
 
-EXE içinde tespit edilen yerel komut/ad parçaları (ayrıştırma kısmen belirsiz olabilir):
+Windows PE kaynaklarından kurtarılanlar:
+- 16x16, 24x24, 32x32, 48x48, 64x64 ve 256x256 PNG ikonları
+- Altı resmi içeren asistan.ico
+- VERSIONINFO kaynağı: Gurizon, Asistan, sürüm 0.1.5, telif metni
+- Microsoft.Windows.Common-Controls 6.0 bildirimi içeren application.manifest
+- PE kaynak çıkarıcısı dokuz çıktıyı yeniden üretti ve paketle bayt bazında karşılaştırdı.
+
+Ön yüzde görülen yerel komut/ad parçaları:
 caldim, giris, acilis_sebebi, tam_ekran, midosya_ok, dosya_yaz, verisir_okusir_yaz, deger, baglanti_ac, konus, ses, hiz, gunluk, sus, oto_baslat_oku, oto_baslat_yaz, brifing_zamani, klasorler_silme_vazgec, hatirlatici_kursaniye, hatirlaticilar, hatirlatici_sil.
 
-Hash doğrulamaları:
+Dosya hashleri:
 asistan.exe: 03c71a4204fd37f240dabc008742d7ef23938cb1f8bebce24ee79c8cee0b6be8
 setup.exe: 485cbd596960754590f80f5c7adb05b96e11961d82a8b7a956fabb426f4f3b09
 uninstall.exe: ea53e123817670550bccb072d9f61dde1ae8cc723627974ef5668b0b83f9f1c1
 
 Sınırlar:
-- Çıkarılan kaynaklar uygulamanın ön yüzüdür; tam kaynak deposu değildir.
-- Rust backend kaynak kodu, Cargo.toml, tauri.conf.json ve eksiksiz build yapılandırması bulunamadı.
-- Orijinal EXE'nin yeniden oluşturulabilirliği veya uygulamanın çalışma garantisi yoktur.
-- Kullanıcı tarayıcı geçmişi, çerezler ve genel WebView2 profil verileri kişisel veri olabileceğinden herkese açık depoya konulmamalıdır.
+- Orijinal Rust/Tauri backend kaynak kodu, Cargo.toml, tauri.conf.json ve eksiksiz derleme zinciri bulunamadı.
+- Kurulum NSIS dosyası bu ortamda çıkarılamadı; kurulum paketinin tam script decompilation'ı kaynak kurtarmayla aynı işlem değildir.
+- Kullanıcı tarayıcı geçmişi, çerezler ve WebView2 profilindeki kişisel veriler herkese açık depoya eklenmedi.
 
-Güncel teknik kayıt:
-recovery/FRONTEND_ASSET_RECOVERY_V4.md
-tools/recover_asistan_frontend_v4.py
+Raporlar/araçlar:
+- recovery/FRONTEND_ASSET_RECOVERY_V4.md
+- recovery/RECOVERED_FRONTEND_ASSET_MANIFEST.json
+- recovery/PE_RESOURCE_RECOVERY_V5.md
+- recovery/PE_RESOURCE_MANIFEST.json
+- tools/recover_asistan_frontend_v4.py
+- tools/extract_asistan_pe_resources.py
