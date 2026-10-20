@@ -17,14 +17,14 @@ Debian 13 için genellikle:
 
 ```bash
 sudo apt update
-sudo apt install python3 python3-brotli file binutils zip 7zip
+sudo apt install python3 python3-brotli python3-cryptography file binutils zip 7zip
 ```
 
 Eski Ubuntu/Debian sürümlerinde `7zip` yerine `p7zip-full` gerekebilir:
 
 ```bash
 sudo apt update
-sudo apt install python3 python3-brotli file binutils zip p7zip-full
+sudo apt install python3 python3-brotli python3-cryptography file binutils zip p7zip-full
 ```
 
 Node.js yalnızca JavaScript sözdizimi kontrolü için isteğe bağlıdır. Ghidra ile başlama; bu aşamada gerekli değil ve eski cihazı gereksiz yere yorabilir.
@@ -51,6 +51,7 @@ Kaldırıcı yoksa son argümanı çıkar. Betik:
 - `7z` veya `7zz` komutu varsa kurulum/kaldırıcı dosyasını statik olarak listeler, test eder ve çıkarmayı dener.
 - ASCII ve UTF-16LE yazdırılabilir metinleri kaydeder.
 - CodeView/PDB yolunu ve GUID/age ipuçlarını raporlar.
+- Python `cryptography` paketi varsa setup'ın Tauri updater payload imzasını çevrimdışı doğrular (`setup_signature_verification.txt`).
 - Sonuçları otomatik olarak `asistan_linux_kurtarma.zip` arşivlemeyi dener.
 
 Arşiv oluşmazsa:
@@ -59,7 +60,7 @@ Arşiv oluşmazsa:
 zip -r asistan_linux_kurtarma.zip asistan_linux_kurtarma
 ```
 
-Sonuç ZIP'ini bu sohbete yükle. En faydalı dosyalar `setup_nsis/7z_listing.txt`, `setup_nsis/7z_test.log`, `setup_nsis/7z_extract.log`, `setup_nsis/files/`, `file_fingerprints.txt` ve `pe_debug_info.txt`.
+Sonuç ZIP'ini bu sohbete yükle. En faydalı dosyalar `setup_nsis/7z_listing.txt`, `setup_nsis/7z_test.log`, `setup_nsis/7z_extract.log`, `setup_nsis/files/`, `file_fingerprints.txt`, `pe_debug_info.txt` ve `setup_signature_verification.txt`.
 
 ## NSIS hakkında
 
