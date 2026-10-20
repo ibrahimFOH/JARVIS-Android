@@ -1,0 +1,139 @@
+<!DOCTYPE html><html lang="tr"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Asistan</title>
+<link rel="stylesheet" href="yazitipi/yazitipi.css">
+<link rel="stylesheet" href="stil.css">
+</head>
+<body>
+<div id="cerceve">
+  <canvas id="arka"></canvas>
+  <i class="kose tl"></i><i class="kose tr"></i><i class="kose bl"></i><i class="kose br"></i>
+
+  <header id="ust" data-tauri-drag-region="">
+    <div class="marka" data-tauri-drag-region="">
+      <i class="isik"></i><b id="uygAd" data-tauri-drag-region="">ASİSTAN</b><em class="beta" data-tauri-drag-region="" title="Deneme sürümü">BETA</em><button class="guncel" id="btnGunc" title="Yeni sürüm hazır" type="button" hidden="">GÜNCELLEME HAZIR</button><span id="ustDurum" data-tauri-drag-region="">ÇEVRİMİÇİ</span>
+    </div>
+    <div class="dugmeler">
+      <button class="ib" id="btnBrifing" title="Brifingi yeniden ver">
+        <svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.3-5.6M20 4v5h-5"></path></svg>
+      </button>
+      <button class="ib" id="btnSes" title="Sesi aç / kapat">
+        <svg viewBox="0 0 24 24" class="acik"><path d="M4 9v6h4l5 4V5L8 9H4zM16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12"></path></svg>
+        <svg viewBox="0 0 24 24" class="kapali"><path d="M4 9v6h4l5 4V5L8 9H4zM17 9l5 6M22 9l-5 6"></path></svg>
+      </button>
+      <button class="ib" id="btnTam" title="Tam ekran (F11)">
+        <svg viewBox="0 0 24 24" class="buyut"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"></path></svg>
+        <svg viewBox="0 0 24 24" class="kucult"><path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5"></path></svg>
+      </button>
+      <button class="ib" id="btnAyar" title="Ayarlar">
+        <svg viewBox="0 0 24 24"><path d="M4 7h10M18 7h2M4 17h2M10 17h10"></path><circle cx="16" cy="7" r="2"></circle><circle cx="8" cy="17" r="2"></circle></svg>
+      </button>
+      <button class="ib kapat" id="btnKapat" title="Kapat (asistan tepside beklemeye devam eder)">
+        <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"></path></svg>
+      </button>
+    </div>
+  </header>
+
+  <main id="govde">
+    <section id="sol">
+      <div id="cekirdek" class="idle">
+        <canvas id="kureCv"></canvas>
+        <div class="ck-yazi"><b id="kureDurum">Sistem hazır</b><small id="kureAlt">komut bekleniyor</small></div>
+      </div>
+      <div id="saat">
+        <div class="sa"><b id="saatSa">--:--</b><span id="saatTarih"></span></div>
+        <div class="hv" id="gosHava" hidden=""><b></b><span></span></div>
+      </div>
+      <div id="gostergeler">
+        <div class="gos" id="gosPiyasa" hidden=""><label>PİYASA</label><div class="gv"></div></div>
+        <div class="gos" id="gosSistem" hidden=""><label>SİSTEM</label><div class="gv"></div></div>
+      </div>
+    </section>
+
+    <section id="sag">
+      <div id="akis"></div>
+      <form id="yaz" autocomplete="off">
+        <div id="kipler">
+          <button type="button" class="kip on" data-kip="sor">SOR</button>
+          <button type="button" class="kip" data-kip="gorsel">GÖRSEL ÜRET</button>
+        </div>
+        <div id="kutu">
+          <textarea id="metin" rows="1" placeholder="Bir şey sor ya da komut ver: “indirilenleri aç”…"></textarea>
+          <button id="btnCanli" type="button" title="Canlı sesli görüşme: mikrofonla konuş">
+            <svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"></rect><path d="M5 11a7 7 0 0 0 14 0M12 18v3"></path></svg>
+          </button>
+          <button id="gonder" type="submit" title="Gönder">
+            <svg viewBox="0 0 24 24"><path d="M5 12h13M12 5l7 7-7 7"></path></svg>
+          </button>
+        </div>
+        <div id="ipucu">ENTER GÖNDER · MİKROFON SESLİ GÖRÜŞME · ALT+BOŞLUK ASİSTANI ÇAĞIR</div>
+      </form>
+      <!-- canlı sesli görüşme sürerken yazma alanının yerini alır -->
+      <div id="canliDok">
+        <button class="cn-d" id="cnSessiz" title="Mikrofonu kapat / aç" type="button">
+          <svg viewBox="0 0 24 24" class="acik"><rect x="9" y="3" width="6" height="11" rx="3"></rect><path d="M5 11a7 7 0 0 0 14 0M12 18v3"></path></svg>
+          <svg viewBox="0 0 24 24" class="kapali"><rect x="9" y="3" width="6" height="11" rx="3"></rect><path d="M5 11a7 7 0 0 0 14 0M12 18v3M4 4l16 16"></path></svg>
+        </button>
+        <div class="cn-orta"><b id="cnDurum">Bağlanıyor</b><small id="cnSure">00:00</small></div>
+        <button class="cn-d bitir" id="cnBitir" title="Görüşmeyi bitir" type="button">
+          <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"></path></svg><span>BİTİR</span>
+        </button>
+      </div>
+    </section>
+  </main>
+
+  <!-- kurulum ve ayarlar: aynı panel; ilk açılışta adım adım, sonrasında sekmeli -->
+  <div id="panel" hidden="">
+    <div class="pn">
+      <div class="pn-bas">
+        <b id="pnBaslik">KURULUM</b>
+        <nav id="pnSekmeler"></nav>
+        <button class="ib" id="pnKapat" title="Kapat" type="button"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"></path></svg></button>
+      </div>
+      <div class="pn-govde" id="pnGovde"></div>
+      <div class="pn-alt">
+        <span id="pnNot"></span>
+        <button class="btn g" id="pnGeri" type="button">Geri</button>
+        <button class="btn p" id="pnIleri" type="button">İleri</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- anahtar alma rehberi: ayarların üstünde açılan küçük pencere -->
+  <div id="rehber" hidden="">
+    <div class="rh">
+      <div class="rh-bas"><b id="rhBaslik"></b><button class="ib" id="rhKapat" title="Kapat" type="button"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"></path></svg></button></div>
+      <p class="rh-giris" id="rhGiris"></p>
+      <ol id="rhAdimlar"></ol>
+      <p class="rh-not" id="rhNot"></p>
+      <div class="rh-alt">
+        <button class="btn g" id="rhTamam" type="button">Anladım</button>
+        <button class="btn p" id="rhAc" type="button">Sayfayı aç</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- sözleşme ve gizlilik metni okuyucusu -->
+  <div id="belge" hidden="">
+    <div class="belge">
+      <div class="rh-bas"><b id="blBaslik"></b><button class="ib" id="blKapat" title="Kapat" type="button"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"></path></svg></button></div>
+      <div class="bl-govde" id="blGovde"></div>
+      <div class="rh-alt"><button class="btn p" id="blTamam" type="button">Kapat</button></div>
+    </div>
+  </div>
+
+  <div id="tost" hidden=""></div>
+</div>
+
+<script src="kopru.js"></script>
+<script src="kure.js"></script>
+<script src="kaynak.js"></script>
+<script src="zeka.js"></script>
+<script src="canli.js"></script>
+<script src="komut.js"></script>
+<script src="sozlesme.js"></script>
+<script src="uygulama.js"></script>
+
+
+</body></html>
