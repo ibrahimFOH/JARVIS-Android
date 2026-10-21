@@ -47,3 +47,10 @@ Linux kurtarma eklentisi (v7): `linux/recover_linux.sh` artık `7z`/`7zz` algıl
 
 
 v7 imza doğrulaması: Yerel kurulum dosyasının payload imzası `tools/verify_asistan_setup_signature.py` ile uygulamanın içinden çıkarılan updater public key'e karşı doğrulandı. Sonuç `SIGNATURE: VALID`; kurulum SHA-256 değeri bilinen setup dosyasıyla eşleşiyor. Bu araç ayrı trusted-comment/global imzasını doğrulamaz. Kaydedilen imza/anahtar: `signatures/`. Ayrıntı: `recovery/PDB_AND_UPDATER_RESEARCH_V7.md`.
+
+
+V8 araştırma güncellemesi (2026-10-21):
+- Standart NSIS payload çıkarma ile NSIS script decompilation ayrımı belgelendi.
+- myfreeer/7z-build-nsis 26.04 özel 7-Zip derlemesi ve GitHub release arşivinin SHA-256 değeri araştırıldı.
+- Ayrıntı: recovery/NSIS_SCRIPT_DECOMPILATION_V8.md
+- Mevcut analiz konteynerinde 7z/7zz bulunmadığından kurulum dosyasının fiilî payload/script çıkarımı henüz yapılmadı.
