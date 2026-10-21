@@ -49,7 +49,7 @@ class AIBrain:
             return {"plain": ""}
         try:
             import win32crypt
-            encrypted = win32crypt.CryptProtectData(secret.encode("utf-8"), None, None, None, 0)[1]
+            encrypted = win32crypt.CryptProtectData(secret.encode("utf-8"), "Stagepulse JARVIS API Key", None, None, None, 0)[1]
             return {"dpapi": base64.b64encode(encrypted).decode("ascii")}
         except Exception:
             # Development environments without Windows DPAPI keep the key as plain text.
