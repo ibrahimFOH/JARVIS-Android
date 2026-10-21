@@ -15,7 +15,7 @@ import java.util.*;
 import java.util.concurrent.*;
 
 public class MainActivity extends Activity {
-    private static final int REQ_AUDIO=9001;
+    private static final int REQ_AUDIO=9001;\n    private static final int REQ_IMAGE=9002;\n    private android.net.Uri pendingImage;
     private final ExecutorService io=Executors.newSingleThreadExecutor();
     private EditText command;
     private TextView status,chat;
@@ -57,22 +57,51 @@ public class MainActivity extends Activity {
         command.setTextColor(white()); command.setMinLines(2); command.setBackgroundColor(panel()); command.setPadding(14,12,14,12);
         root.addView(command,new LinearLayout.LayoutParams(-1,-2));
         LinearLayout row=new LinearLayout(this); row.setOrientation(LinearLayout.HORIZONTAL);
-        Button send=button("EXECUTE"), voice=button("◉ VOICE"), agents=button("AGENTS"), host=button("HOST"), gemini=button("GEMINI");
+        Button send=button("EXECUTE"), voice=button("◉ VOICE"), agents=button("AGENTS"), host=button("HOST"), gemini=button("GEMINI"), image=button("IMAGE");
         row.addView(send,new LinearLayout.LayoutParams(0,58,1));
         row.addView(voice,new LinearLayout.LayoutParams(0,58,1));
         row.addView(agents,new LinearLayout.LayoutParams(0,58,1));
         row.addView(host,new LinearLayout.LayoutParams(0,58,1));
-        row.addView(gemini,new LinearLayout.LayoutParams(0,58,1));
+        row.addView(gemini,new LinearLayout.LayoutParams(0,58,1));\n        row.addView(image,new LinearLayout.LayoutParams(0,58,1));
         root.addView(row);
         setContentView(root);
         send.setOnClickListener(v->sendCommand(command.getText().toString()));
         voice.setOnClickListener(v->listen());
         agents.setOnClickListener(v->showAgents());
         host.setOnClickListener(v->showHostSettings());
-        gemini.setOnClickListener(v->showGeminiSettings());
+        gemini.setOnClickListener(v->showGeminiSettings());\n        image.setOnClickListener(v->chooseImage());
     }
 
     private Button button(String s){Button b=new Button(this);b.setText(s);b.setTextColor(gold());b.setTextSize(11);b.setBackgroundColor(panel());return b;}
+
+    private void chooseImage(){
+        Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+        intent.setType("image/*"); intent.addCategory(Intent.CATEGORY_OPENABLE);
+        startActivityForResult(intent, REQ_IMAGE);
+    }
+
+    @Override protected void onActivityResult(int requestCode, int resultCode, Intent data){
+        super.onActivityResult(requestCode, resultCode, data);
+        if(requestCode != REQ_IMAGE || resultCode != RESULT_OK || data == null || data.getData() == null) return;
+        pendingImage = data.getData();
+        command.setText("Bu görseli analiz et: ");
+        append("JARVIS", "Görsel seçildi. Analiz etmek için komut alanına talimat yazıp EXECUTE düğmesine bas.");
+    }
+
+    private String analyzeSelectedImage(String prompt, String apiKey, String model) throws Exception {
+        if(pendingImage == null) return GeminiClient.ask(apiKey, model, prompt);
+        byte[] bytes;
+        try(java.io.InputStream in=getContentResolver().openInputStream(pendingImage);
+            java.io.ByteArrayOutputStream out=new java.io.ByteArrayOutputStream()){
+            if(in==null) throw new java.io.IOException("Görsel dosyası açılamadı.");
+            byte[] buffer=new byte[8192]; int n; while((n=in.read(buffer))!=-1){out.write(buffer,0,n); if(out.size()>12*1024*1024) throw new java.io.IOException("Görsel 12 MB sınırını aşıyor.");}
+            bytes=out.toByteArray();
+        }
+        String type=getContentResolver().getType(pendingImage);
+        String answer=GeminiClient.analyzeImage(apiKey,model,prompt,bytes,(type==null||!type.startsWith("image/"))?"image/jpeg":type);
+        pendingImage=null;
+        return answer;
+    }
 
     private void showGeminiSettings(){
         LinearLayout box = new LinearLayout(this);
@@ -226,7 +255,7 @@ public class MainActivity extends Activity {
                     a = remote.response;
                 } else if (!geminiKey.isEmpty()) {
                     statusPost("● GEMINI");
-                    a = GeminiClient.ask(geminiKey, geminiModel, cmd);
+                    a = analyzeSelectedImage(cmd, geminiKey, geminiModel);
                 } else {
                 AgencyAgent requested=detectAgent(cmd);
                 if(requested!=null && (cmd.toLowerCase(new Locale("tr","TR")).contains("aktif") || cmd.toLowerCase(new Locale("tr","TR")).contains("agent") || cmd.toLowerCase(new Locale("tr","TR")).contains("mühendis") || cmd.toLowerCase(new Locale("tr","TR")).contains("uzman"))){
