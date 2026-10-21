@@ -103,6 +103,20 @@ class AIBrainTests(unittest.TestCase):
             "Stagepulse.com.tr sitesini araştır", "", use_web=True
         )
 
+    def test_explicit_groq_does_not_fall_back_to_gemini(self):
+        brain = self.make_brain()
+        brain.provider = "groq"
+        brain.groq_key = "test-groq-key"
+        brain._groq = Mock(side_effect=RuntimeError("Groq test failure"))
+        brain._gemini = Mock(return_value="Gemini should not run")
+
+        result = brain.ask("Stagepulse.com.tr sitesini araştır")
+        self.assertIn("groq: Groq test failure", result)
+        brain._groq.assert_called_once_with(
+            "Stagepulse.com.tr sitesini araştır", "", use_web=True
+        )
+        brain._gemini.assert_not_called()
+
     def test_auto_prefers_groq_for_plain_chat(self):
         brain = self.make_brain()
         brain.groq_key = "test-groq-key"
