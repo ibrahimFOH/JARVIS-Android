@@ -1,0 +1,92 @@
+{
+  "report_version": "V9",
+  "date_utc": "2026-10-21",
+  "binaries": {
+    "asistan.exe": {
+      "size_bytes": 5869056,
+      "sha256": "03c71a4204fd37f240dabc008742d7ef23938cb1f8bebce24ee79c8cee0b6be8"
+    },
+    "Asistan_0.1.5_x64-setup.exe": {
+      "size_bytes": 2304183,
+      "sha256": "485cbd596960754590f80f5c7adb05b96e11961d82a8b7a956fabb426f4f3b09"
+    },
+    "uninstall.exe": {
+      "size_bytes": 79508,
+      "sha256": "ea53e123817670550bccb072d9f61dde1ae8cc723627974ef5668b0b83f9f1c1"
+    }
+  },
+  "recovered_frontend_files": 18,
+  "javascript_syntax_checks": {
+    "passed": 8,
+    "total": 8
+  },
+  "tauri_bridge_command_count": 34,
+  "tauri_bridge_commands": [
+    "dosya_oku",
+    "dosya_yaz",
+    "sir_oku",
+    "sir_yaz",
+    "http_istek",
+    "baglanti_ac",
+    "sistem",
+    "konus",
+    "sus",
+    "sesler",
+    "yerel_zeka",
+    "oto_baslat_oku",
+    "oto_baslat_yaz",
+    "brifing_zamani",
+    "acilis_sebebi",
+    "tam_ekran",
+    "tam_ekran_mi",
+    "gunluk",
+    "klasorler",
+    "uygulamalar",
+    "uygulama_ac",
+    "dosya_ara",
+    "yol_ac",
+    "cop_ac",
+    "silme_hazirla",
+    "silme_onayla",
+    "silme_vazgec",
+    "guc",
+    "mikrofon_izni",
+    "hatirlatici_kur",
+    "hatirlaticilar",
+    "hatirlatici_sil",
+    "guncelleme_denetle",
+    "guncelleme_kur"
+  ],
+  "native_dependency_markers": {
+    "tauri": "2.12.1",
+    "reqwest": "0.13.5",
+    "keyring": "3.6.3",
+    "sysinfo": "0.33.1",
+    "tauri-plugin-updater": "2.13.1",
+    "tauri-plugin-autostart": "2.7.0",
+    "tauri-plugin-notification": "2.5.1",
+    "tauri-plugin-opener": "2.7.0",
+    "tauri-plugin-global-shortcut": "2.4.0"
+  },
+  "app_identifier": "com.gurizon.kisiselasistan",
+  "external_services": [
+    "api.openai.com",
+    "generativelanguage.googleapis.com",
+    "api.anthropic.com",
+    "api.kie.ai",
+    "news.google.com",
+    "api.open-meteo.com",
+    "geocoding-api.open-meteo.com",
+    "finans.truncgil.com",
+    "api.frankfurter.dev",
+    "api.gold-api.com",
+    "api.coingecko.com",
+    "gurizon.com"
+  ],
+  "limitations": [
+    "Rust/Tauri source bodies and build configuration not recovered.",
+    "No matching PDB found.",
+    "NSIS payload and script were not extracted in the current environment.",
+    "Personal WebView profile archive is intentionally excluded."
+  ]
+}
