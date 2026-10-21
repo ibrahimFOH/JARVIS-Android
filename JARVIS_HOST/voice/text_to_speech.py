@@ -223,6 +223,14 @@ class TextToSpeech:
         if os.name != "nt":
             raise RuntimeError("Edge MP3 oynatımı şu anda Windows masaüstü için yapılandırıldı.")
         winmm = ctypes.WinDLL("winmm")
+        winmm.mciSendStringW.argtypes = [
+            ctypes.c_wchar_p, ctypes.c_wchar_p, ctypes.c_uint, ctypes.c_void_p
+        ]
+        winmm.mciSendStringW.restype = ctypes.c_uint
+        winmm.mciGetErrorStringW.argtypes = [
+            ctypes.c_uint, ctypes.c_wchar_p, ctypes.c_uint
+        ]
+        winmm.mciGetErrorStringW.restype = ctypes.c_int
         alias = "jarvis_tts_" + str(threading.get_ident())
         open_cmd = f'open "{str(Path(path).resolve())}" type mpegvideo alias {alias}'
         code = winmm.mciSendStringW(open_cmd, None, 0, None)
@@ -266,7 +274,7 @@ class TextToSpeech:
 
         speed = max(0.75, min(1.3, self.rate / 165.0))
         audio = self._piper_engine.generate(text=text, sid=0, speed=speed)
-        if not audio.samples:
+        if len(audio.samples) == 0:
             raise RuntimeError("Piper Türkçe TTS ses üretemedi.")
         samples = np.asarray(audio.samples, dtype=np.float32)
         pcm = np.clip(samples * 32767.0, -32768, 32767).astype("<i2").tobytes()
