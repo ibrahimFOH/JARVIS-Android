@@ -265,23 +265,29 @@ class AIBrain:
         data = self._gemini_post(self.gemini_model, payload)
         return self._response_text(data) or "Gemini metin yanıtı döndürmedi."
 
-    def _groq(self, prompt, context=""):
+    def _groq(self, prompt, context="", use_web=False):
         if not self.groq_key:
             raise RuntimeError("Groq API anahtarı ayarlanmamış. AI SETTINGS bölümünden ekleyin.")
         content = prompt + (("\n\nWEB VERİSİ (harici kaynak):\n" + context) if context else "")
+        if use_web and "stagepulse" in content.lower() and "https://stagepulse.com.tr" not in content.lower():
+            content += "\nHedef web sitesi (tam URL): https://stagepulse.com.tr/"
+        payload = {
+            "model": self.groq_model,
+            "messages": [
+                {"role": "system", "content": "Sen JARVIS'sin. Türkçe konuş. Kısa, doğrudan ve işe yarar cevap ver. Web araştırmasında bulduğun kaynakları kullan, bilmediğin bilgiyi uydurma."},
+                {"role": "user", "content": content},
+            ],
+            "max_completion_tokens": 600,
+            "reasoning_effort": "low",
+            "stream": False,
+        }
+        if use_web:
+            payload["tools"] = [{"type": "browser_search"}]
+            payload["tool_choice"] = "required"
         response = self.session.post(
             "https://api.groq.com/openai/v1/chat/completions",
             headers={"Authorization": "Bearer " + self.groq_key, "Content-Type": "application/json"},
-            json={
-                "model": self.groq_model,
-                "messages": [
-                    {"role": "system", "content": "Sen JARVIS'sin. Türkçe konuş. Kısa, doğrudan ve işe yarar cevap ver. Bilmediğin web bilgisini uydurma."},
-                    {"role": "user", "content": content},
-                ],
-                "temperature": 0.2,
-                "max_tokens": 600,
-                "stream": False,
-            },
+            json=payload,
             timeout=min(self.timeout, 30),
         )
         if not response.ok:
@@ -430,9 +436,7 @@ class AIBrain:
                 if provider == "gemini":
                     return self._gemini(prompt, context, use_web=needs_web)
                 if provider == "groq":
-                    if needs_web and not context:
-                        context = self._web(prompt)
-                    return self._groq(prompt, context)
+                    return self._groq(prompt, context, use_web=needs_web)
                 if provider == "ollama":
                     if needs_web and not context:
                         context = self._web(prompt)
