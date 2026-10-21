@@ -391,6 +391,37 @@ class AIBrain:
         out.write_bytes(raw)
         return str(out)
 
+    def test_web_provider(self, provider=None):
+        """Exercise the actual web-search tool, not just the model's text endpoint."""
+        provider = (provider or self.provider).strip().lower()
+        prompt = (
+            "Araştır ve kaynak göster: https://stagepulse.com.tr/ . "
+            "Sitede listelenen ana hizmetleri kısa maddeler halinde özetle. "
+            "Sayfaya erişemiyorsan bunu açıkça belirt; tahmin yürütme."
+        )
+        try:
+            if provider == "gemini":
+                if not self.gemini_key:
+                    return {"success": False, "message": "Gemini API anahtarı boş. AI SETTINGS bölümünden ekleyin."}
+                answer = self._gemini(prompt, use_web=True)
+                if not answer:
+                    return {"success": False, "message": "Gemini web araması boş yanıt döndürdü."}
+                grounded = "Kaynaklar:" in answer or "stagepulse.com.tr" in answer.lower()
+                status = "Gemini web araması yanıt verdi." if grounded else "Gemini yanıt verdi ancak kaynak doğrulaması görünmüyor."
+                return {"success": grounded, "message": status + "\n\n" + answer[:1800]}
+            if provider == "groq":
+                if not self.groq_key:
+                    return {"success": False, "message": "Groq API anahtarı boş. AI SETTINGS bölümünden ekleyin."}
+                answer = self._groq(prompt, use_web=True)
+                if not answer:
+                    return {"success": False, "message": "Groq Browser Search boş yanıt döndürdü."}
+                grounded = "stagepulse.com.tr" in answer.lower() or "〖" in answer or "http://" in answer.lower() or "https://" in answer.lower()
+                status = "Groq Browser Search yanıt verdi." if grounded else "Groq yanıt verdi ancak kaynak işareti bulunamadı."
+                return {"success": grounded, "message": status + "\n\n" + answer[:1800]}
+            return {"success": False, "message": "Web testi için sağlayıcı gemini veya groq olmalı."}
+        except Exception as exc:
+            return {"success": False, "message": provider.upper() + " web araması hatası: " + str(exc)}
+
     def test_provider(self, provider=None):
         """Test a real request to the selected provider and return actionable diagnostics."""
         provider = (provider or self.provider).strip().lower()
