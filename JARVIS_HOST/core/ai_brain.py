@@ -434,7 +434,14 @@ class AIBrain:
         for provider in order:
             try:
                 if provider == "gemini":
-                    return self._gemini(prompt, context, use_web=needs_web)
+                    answer = self._gemini(prompt, context, use_web=needs_web)
+                    # If Gemini returns no citations for a research request, try Groq's independent browser search.
+                    if needs_web and self.provider == "auto" and "Kaynaklar:" not in answer:
+                        try:
+                            return self._groq(prompt, context, use_web=True)
+                        except Exception:
+                            pass
+                    return answer
                 if provider == "groq":
                     return self._groq(prompt, context, use_web=needs_web)
                 if provider == "ollama":
