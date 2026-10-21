@@ -128,7 +128,12 @@ class AIBrain:
 
     def _needs_web(self, text):
         t = (text or "").lower()
-        return any(x in t for x in ("internetten", "internette", "webde", "web'de", "araştır", "bul", "internete gir", "webde ara", "güncel", "şu an", "bugün", "son haber", "haberler", "fiyat", "site", "github", "youtube", "instagram", "stagepulse", "http://", "https://"))
+        discovery_intent = re.search(r"\b(?:araştır|ara|bul|incele|tara)\b", t) is not None
+        return discovery_intent or any(x in t for x in (
+            "internetten", "internette", "webde", "web'de", "internete gir",
+            "güncel", "şu an", "bugün", "son haber", "haberler", "fiyat",
+            "site", "github", "youtube", "instagram", "stagepulse", "http://", "https://"
+        ))
 
     def _clean(self, raw):
         raw = re.sub(r"(?is)<script.*?</script>|<style.*?</style>|<noscript.*?</noscript>", " ", raw)
@@ -193,8 +198,8 @@ class AIBrain:
 
     def _gemini(self, prompt, context="", use_web=False):
         lower_prompt = (prompt or "").lower()
-        if use_web and "stagepulse" in lower_prompt and "stagepulse.com.tr" not in lower_prompt:
-            prompt = prompt + "\nHedef web sitesi: https://stagepulse.com.tr/"
+        if use_web and "stagepulse" in lower_prompt and "https://stagepulse.com.tr" not in lower_prompt:
+            prompt = prompt + "\nHedef web sitesi (tam URL): https://stagepulse.com.tr/"
         contents = prompt + (("\n\nWEB VERİSİ:\n" + context) if context else "")
         payload = {
             "systemInstruction": {"parts": [{"text": "Sen JARVIS'sin. Türkçe konuş. Kısa, doğrudan ve işe yarar cevap ver. Web araştırmasında kaynakları kontrol et; bulamadığın site için kesin hüküm verme, tarama başarısızsa açıkça belirt."}]},
