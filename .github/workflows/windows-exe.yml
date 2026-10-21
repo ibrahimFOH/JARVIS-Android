@@ -1,5 +1,9 @@
 name: JARVIS Windows EXE Build
 
+concurrency:
+  group: stagepulse-jarvis-windows-${{ github.ref }}
+  cancel-in-progress: true
+
 on:
   workflow_dispatch:
   push:
