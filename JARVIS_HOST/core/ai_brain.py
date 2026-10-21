@@ -287,4 +287,3 @@ class AIBrain:
     respond = ask
     generate = ask
     process = ask
-}
