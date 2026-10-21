@@ -2,49 +2,40 @@
 
 This folder stores verified findings, recovered frontend assets, reproducible extraction tools, and Android porting notes for Asistan 0.1.5.
 
-## Recovery records
+## Reports
 
 - `ASISTAN_EXE_KURTARMA_RAPORU.md`: initial binary analysis.
-- `ASISTAN_EXE_KURTARMA_DURUMU.txt`: current Turkish status and known command names.
-- `RECOVERED_SOURCE_FILES.md` and `FRONTEND_ASSET_RECOVERY_V4.md`: recovered frontend resource inventory and validation.
-- `RECOVERED_FRONTEND_ASSET_MANIFEST.json`: frontend sizes and SHA-256 values.
-- `TAURI_COMMAND_SURFACE.md`: desktop native command API inferred from the recovered bridge.
-- `PE_RESOURCE_RECOVERY_V5.md` and `PE_RESOURCE_MANIFEST.json`: extracted Windows icons, version info, manifest and hashes.
-- `PDB_AND_UPDATER_RESEARCH_V7.md`: public updater metadata and PDB/debug findings.
-- `FRONTEND_API_SURFACE_V7.md`: external services and native command surface found in the recovered frontend.
-- `NSIS_SCRIPT_DECOMPILATION_V8.md`: difference between payload extraction and script decompilation.
-- `PE_STATIC_TRIAGE_V8.md`: PE format, section layout and imported Windows library inventory.
-- `LOCAL_RECOVERY_VERIFICATION_V8.md`: rerun confirms 18/18 frontend files byte-identical to the V5 archive and all 8 JavaScript files pass syntax checks.
-- `NATIVE_BACKEND_STATIC_FINDINGS_V9.md`: 34 Tauri bridge commands, dependency/version traces and credential-storage evidence.
-- `STATIC_FINDINGS_MANIFEST_V9.json`: machine-readable V9 findings.
-- `RECOVERY_AND_ANDROID_PORTING_V10.md`: asset scan, Rust crate/version path inventory, PDB identity and Android porting matrix.
-- `REVERSE_ENGINEERING_MANIFEST_V10.json`: machine-readable V10 findings.
-- `SETUP_SIGNATURE_VALIDATION_V11.md`: local Tauri updater payload-signature verification result.
-- `REVERSE_ENGINEERING_MANIFEST_V11.json`: V11 setup-signature and latest Android CI metadata.
+- `RECOVERED_SOURCE_FILES.md`, `FRONTEND_ASSET_RECOVERY_V4.md`, `RECOVERED_FRONTEND_ASSET_MANIFEST.json`: recovered frontend inventory and hashes.
+- `TAURI_COMMAND_SURFACE.md`: native command surface inferred from the JS bridge.
+- `PE_RESOURCE_RECOVERY_V5.md`, `PE_RESOURCE_MANIFEST.json`: extracted Windows icons, version info, manifest and hashes.
+- `PDB_AND_UPDATER_RESEARCH_V7.md`, `FRONTEND_API_SURFACE_V7.md`: debug and external-service findings.
+- `NSIS_SCRIPT_DECOMPILATION_V8.md`, `PE_STATIC_TRIAGE_V8.md`, `LOCAL_RECOVERY_VERIFICATION_V8.md`: installer format and repeatable static verification.
+- `NATIVE_BACKEND_STATIC_FINDINGS_V9.md`, `STATIC_FINDINGS_MANIFEST_V9.json`: Tauri commands, dependencies and credential-storage clues.
+- `RECOVERY_AND_ANDROID_PORTING_V10.md`, `REVERSE_ENGINEERING_MANIFEST_V10.json`: Rust crate path inventory, PDB identity and Android porting matrix.
+- `SETUP_SIGNATURE_VALIDATION_V11.md`, `REVERSE_ENGINEERING_MANIFEST_V11.json`: Tauri updater payload signature verification.
+- `SETUP_SIGNATURE_VALIDATION_V12.md`, `REVERSE_ENGINEERING_MANIFEST_V12.json`: independent Minisign global-signature check.
 
 ## Tools
 
-- `../tools/verify_asistan_setup_signature.py`: verifies the v0.1.5 setup payload signature offline when Python `cryptography` is installed.
-- `../signatures/`: public updater key and detached signature for the 0.1.5 setup.
+- `../tools/verify_asistan_setup_signature.py`: verifies the setup's payload signature.
+- `../tools/verify_asistan_minisign_full.py`: also checks Minisign's trusted-comment/global signature.
+- `../signatures/`: public updater key and signature file.
 - `../tools/inspect_asistan_pe_debug.py`: reads CodeView RSDS/PDB metadata.
-- `../linux/recover_linux.sh`: static extraction workflow for EXE and NSIS setup package.
-- `../linux/README_TR.md`: low-resource Linux instructions, including the Linux-specific NSIS script-decompilation build path.
+- `../linux/recover_linux.sh`, `../linux/README_TR.md`: static recovery and low-resource Linux workflow.
 - `../tools/recover_asistan_frontend_v4.py`: decompresses frontend Brotli streams.
-- `../tools/extract_asistan_pe_resources.py`: extracts Windows icons, icon group, version info and manifest.
+- `../tools/extract_asistan_pe_resources.py`: extracts Windows icons, version info and manifest.
 
 ## Latest verified findings
 
-- Original EXE SHA-256: `03c71a4204fd37f240dabc008742d7ef23938cb1f8bebce24ee79c8cee0b6be8`.
-- 18 frontend resources were extracted and compared byte-for-byte with the V5 archive; 8/8 JavaScript syntax checks passed.
-- The EXE has 98 distinct Rust crate/version source-path pairs in debug strings. These are not a recovered `Cargo.toml` and must not be interpreted as direct dependencies only.
-- CodeView references `asistan.pdb`; no matching PDB or Rust source files were recovered.
-- The local setup file's Tauri updater payload signature is `VALID`, and its SHA-256 matches the recorded value. The separate trusted-comment/global signature is not covered by the repo's standard verifier.
-- Latest checked GitHub Actions build: [run #129](https://github.com/ibrahimFOH/JARVIS-Android/actions/runs/39582942609), successful for the separate `JARVIS_ANDROID` app `com.stagepulse.jarvis`, version `2.2.0-piper`. The APK passed archive integrity checks but has not been tested on a physical device/emulator.
+- EXE SHA-256: `03c71a4204fd37f240dabc008742d7ef23938cb1f8bebce24ee79c8cee0b6be8`.
+- 18 frontend files were extracted and compared byte-for-byte with the V5 archive; 8/8 JavaScript syntax checks passed.
+- The EXE contains 98 distinct Rust crate/version source-path pairs. These are not a recovered `Cargo.toml` and do not prove all are direct dependencies.
+- CodeView references `asistan.pdb`; matching PDB and Rust source files were not recovered.
+- The setup payload signature is valid and the SHA-256 matches the recorded hash. A separate standard Minisign trusted-comment/global-signature check failed. This does **not** invalidate the payload signature, but the comment's integrity remains unverified. Details are in V12.
+- The separate Android app `JARVIS_ANDROID`, package `com.stagepulse.jarvis`, version `2.2.0-piper`, built successfully in [GitHub Actions run #129](https://github.com/ibrahimFOH/JARVIS-Android/actions/runs/39582942609). The APK passed ZIP integrity checks; it has not been tested on a physical device/emulator and is not an automatic conversion of the Asistan Windows EXE.
 
-## Important limitations
+## Limitations
 
-This is not the complete original Tauri/Rust project. The full Rust backend function bodies, `Cargo.toml`, `tauri.conf.json`, and original build pipeline were not recovered. The NSIS setup payload and `[NSIS].nsi` also remain unextracted in this environment; there is no `7z/7zz` binary here and shell DNS/network access failed.
+The original Rust/Tauri function bodies, `Cargo.toml`, `tauri.conf.json`, and exact build pipeline were not recovered. The NSIS setup payload and `[NSIS].nsi` also remain unextracted here: no `7z/7zz` binary is installed and shell DNS/network access failed. A Linux-only 7-Zip NSIS build path is documented in `../linux/README_TR.md`, but is not built/tested in this environment.
 
-The original EXE's exact frontend sources and assets are in the local V11 recovery ZIP produced for this investigation. Binary fonts/icons are not all committed as individual source files here. Earlier files in `recovered_frontend/` are manually curated/transcribed excerpts and are not guaranteed byte-identical; use the validated local recovery package and its manifests as canonical.
-
-The user's supplied `Asistan.zip` includes a WebView/Edge profile with history/cache/metrics. Personal profile contents are excluded from recovery bundles and repository commits.
+The local V12 recovery ZIP contains the verified frontend assets, PE resources, signature material and reports. Earlier files in `recovered_frontend/` are manually curated/transcribed excerpts and are not guaranteed byte-identical; use the validated local package and its manifest as canonical. User WebView/Edge profile data, history, cookies and cache are excluded.
