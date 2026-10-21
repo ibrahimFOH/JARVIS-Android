@@ -95,26 +95,55 @@ public final class GeminiClient {
     }
 
     public static byte[] generateImage(String apiKey, String model, String prompt) throws Exception {
-        JSONObject body = baseRequest(prompt);
-        body.put("generationConfig", new JSONObject()
-                .put("responseModalities", new JSONArray().put("TEXT").put("IMAGE")));
-        JSONObject json = post(apiKey,
-                (model == null || model.trim().isEmpty()) ? "gemini-3.1-flash-image" : model,
-                body);
-        JSONArray candidates = json.optJSONArray("candidates");
-        if (candidates != null) for (int i = 0; i < candidates.length(); i++) {
-            JSONObject content = candidates.getJSONObject(i).optJSONObject("content");
-            if (content == null) continue;
-            JSONArray parts = content.optJSONArray("parts");
-            if (parts == null) continue;
-            for (int j = 0; j < parts.length(); j++) {
-                JSONObject part = parts.getJSONObject(j);
-                JSONObject data = part.optJSONObject("inlineData");
-                if (data == null) data = part.optJSONObject("inline_data");
-                if (data != null && data.has("data"))
-                    return Base64.decode(data.getString("data"), Base64.DEFAULT);
+        if (apiKey == null || apiKey.trim().isEmpty()) throw new IOException("Gemini API anahtarı ayarlanmamış.");
+        String selected = (model == null || model.trim().isEmpty()) ? "gemini-3.1-flash-image" : model.trim();
+        URL url = new URL("https://generativelanguage.googleapis.com/v1beta/interactions");
+        JSONObject body = new JSONObject()
+                .put("model", selected)
+                .put("input", prompt)
+                .put("response_format", new JSONObject().put("type", "image").put("mime_type", "image/png"));
+        HttpURLConnection c = (HttpURLConnection) url.openConnection();
+        c.setRequestMethod("POST");
+        c.setConnectTimeout(15000);
+        c.setReadTimeout(120000);
+        c.setDoOutput(true);
+        c.setRequestProperty("Content-Type", "application/json; charset=utf-8");
+        c.setRequestProperty("x-goog-api-key", apiKey.trim());
+        byte[] request = body.toString().getBytes(StandardCharsets.UTF_8);
+        c.setFixedLengthStreamingMode(request.length);
+        try (OutputStream out = c.getOutputStream()) { out.write(request); }
+        int code = c.getResponseCode();
+        InputStream stream = code >= 200 && code < 300 ? c.getInputStream() : c.getErrorStream();
+        StringBuilder response = new StringBuilder();
+        if (stream != null) try (BufferedReader reader = new BufferedReader(new InputStreamReader(stream, StandardCharsets.UTF_8))) {
+            String line;
+            while ((line = reader.readLine()) != null) response.append(line);
+        }
+        c.disconnect();
+        JSONObject json;
+        try { json = new JSONObject(response.toString()); }
+        catch (Exception e) { throw new IOException("Gemini görsel yanıtı okunamadı (HTTP " + code + ")."); }
+        if (code < 200 || code >= 300) {
+            JSONObject error = json.optJSONObject("error");
+            throw new IOException("Gemini API HTTP " + code + ": " +
+                    (error == null ? response.toString() : error.optString("message", response.toString())));
+        }
+        JSONObject image = json.optJSONObject("output_image");
+        if (image != null && image.has("data")) return Base64.decode(image.getString("data"), Base64.DEFAULT);
+        JSONArray steps = json.optJSONArray("steps");
+        if (steps != null) for (int i = 0; i < steps.length(); i++) {
+            JSONObject step = steps.getJSONObject(i);
+            JSONArray blocks = step.optJSONArray("content");
+            if (blocks == null) continue;
+            for (int j = 0; j < blocks.length(); j++) {
+                JSONObject block = blocks.getJSONObject(j);
+                JSONObject blockImage = block.optJSONObject("image");
+                if (blockImage != null && blockImage.has("data"))
+                    return Base64.decode(blockImage.getString("data"), Base64.DEFAULT);
+                if ("image".equals(block.optString("type")) && block.has("data"))
+                    return Base64.decode(block.getString("data"), Base64.DEFAULT);
             }
         }
-        throw new IOException("Gemini yanıtında görsel yok. Görsel üretimini destekleyen model seç.");
-    }
+        String text = json.optString("output_text", "");
+        throw new IOException("Gemini görsel üretmedi. " + text);
 }
