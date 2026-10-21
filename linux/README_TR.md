@@ -74,3 +74,13 @@ Sonuç ZIP'ini bu sohbete yükle. En faydalı dosyalar `setup_nsis/7z_listing.tx
 - Ön yüzün 18 varlığı ve PE'den çıkan 9 kaynak doğrulandı.
 - Özgün Rust/Tauri backend, `Cargo.toml`, `tauri.conf.json` ve eksiksiz derleme zinciri kurtarılmadı.
 - Kişisel tarayıcı geçmişi/çerezleri kurtarma akışına dahil edilmez.
+
+
+## Ek araştırma: NSIS script çıkarma
+
+Standart 7-Zip ile payload dosyalarını çıkarmak ve derlenmiş NSIS kurulum betiğini decompile etmek farklı işlemlerdir. Script çıkarma için özel derleme seçeneği araştırıldı. Ayrıntılı, doğrulanabilir komutlar ve GitHub release hash'i:
+[NSIS_SCRIPT_DECOMPILATION_V8.md](../recovery/NSIS_SCRIPT_DECOMPILATION_V8.md)
+
+Özel 7-Zip NSIS derlemesi: https://github.com/myfreeer/7z-build-nsis/releases/tag/26.04
+
+Not: Bu ortamda 7z/7zz kurulu olmadığı için kurulum payload'ı ve `[NSIS].nsi` fiilen çıkarılmış değil. Bu adım, Linux makinede yapılacak sonraki doğrulama olarak duruyor.
