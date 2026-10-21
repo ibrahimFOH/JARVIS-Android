@@ -305,6 +305,8 @@ class TextToSpeech:
         return True
 
     def _speak_sync(self, text):
+        # Sanitize here too so every backend receives cleaned speech, even if a caller bypasses speak().
+        text = self._clean_spoken_text(text)
         if not text:
             return False
         with self._speak_lock:
@@ -350,6 +352,15 @@ class TextToSpeech:
         value = re.sub(r"(?is)```.*?```", "Kod bloğu atlandı.", value)
         value = re.sub(r"https?://\S+|www\.\S+", " bağlantı ", value)
         value = re.sub(r"(?m)^\s{0,3}#{1,6}\s*", "", value)
+        # Remove common spoken descriptions of punctuation that models sometimes emit.
+        value = re.sub(
+            r"(?i)\b(?:parantez(?:i)?\s+(?:aç|kapa|kapat|açılış|kapanış)|"
+            r"(?:aç|kapa|kapat)\s+parantez(?:i)?|"
+            r"köşeli\s+parantez\s+(?:aç|kapa|kapat)|"
+            r"süslü\s+parantez\s+(?:aç|kapa|kapat))\b",
+            " ",
+            value,
+        )
         value = re.sub(r"[*_~|<>\[\]{}()\x60\\/]+", " ", value)
         value = re.sub(r"[:;=+@#$%^&]+", " ", value)
         value = re.sub(r"\s+", " ", value).strip()
