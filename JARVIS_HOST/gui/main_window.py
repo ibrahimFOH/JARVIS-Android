@@ -92,8 +92,9 @@ class JarvisGUI:
         left.grid(row=1, column=0, sticky="ns", padx=(18, 7), pady=5)
 
         self._section(left, "SYSTEMS")
-        self._telemetry(left, "AI CORE", "OLLAMA", GREEN)
-        self._telemetry(left, "LOCAL CORE", "OLLAMA", GREEN)
+        brain = self.jarvis.command_processor.ai_brain
+        self.ai_core_value = self._telemetry(left, "AI CORE", brain.provider.upper(), GREEN)
+        self.local_core_value = self._telemetry(left, "LOCAL CORE", "OLLAMA " + brain.model, GREEN)
         self._telemetry(left, "VOICE", "READY", GREEN)
         self._telemetry(left, "NETWORK", "ONLINE", GREEN)
 
@@ -249,9 +250,11 @@ class JarvisGUI:
         ctk.CTkLabel(
             row, text=label, text_color=MUTED, font=("Consolas", 9)
         ).pack(side="left")
-        ctk.CTkLabel(
+        value_label = ctk.CTkLabel(
             row, text=value, text_color=color, font=("Consolas", 9, "bold")
-        ).pack(side="right")
+        )
+        value_label.pack(side="right")
+        return value_label
 
     def _meter(self, parent, label):
         ctk.CTkLabel(
@@ -488,6 +491,8 @@ class JarvisGUI:
                     ollama_host=ollama_host.get(),
                     ollama_model=ollama_model.get(),
                 )
+                self.ai_core_value.configure(text=brain.provider.upper())
+                self.local_core_value.configure(text="OLLAMA " + brain.model)
                 self._activity("AI PROVIDER SAVED: " + brain.provider.upper())
                 self._append_to_chat("JARVIS", "AI ayarları kaydedildi. Sağlayıcı: " + brain.provider.upper(), "green")
                 win.destroy()
