@@ -174,7 +174,7 @@ class AIBrain:
         )
         response = self.session.post(
             url, headers={"x-goog-api-key": self.gemini_key, "Content-Type": "application/json"},
-            json=payload, timeout=self.timeout
+            json=payload, timeout=min(self.timeout, 30)
         )
         if not response.ok:
             try:
