@@ -104,11 +104,17 @@ class SpeechRecognizer:
         except sr.UnknownValueError:
             return None
         except sr.RequestError as exc:
-            logger.error("Speech recognition service error: %s", exc)
-            return None
+            # Keep network/API failures distinct from an unclear recording so the GUI
+            # can tell the user why cloud recognition failed.
+            logger.error("Speech recognition service/network error: %s", exc)
+            raise RuntimeError(
+                "Türkçe ses tanıma servisine bağlanılamadı. İnternet bağlantısını "
+                "kontrol edin; güvenlik duvarı veya servis geçici olarak engelliyor olabilir. "
+                "Ayrıntı: " + str(exc)
+            ) from exc
         except Exception as exc:
             logger.exception("Speech recognition error: %s", exc)
-            return None
+            raise RuntimeError("Ses tanıma hatası: " + str(exc)) from exc
 
     def test_microphone(self):
         if self.microphone is None:
