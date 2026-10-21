@@ -196,10 +196,67 @@ class AIBrain:
                     chunks.append(part["text"])
         return "\n".join(chunks).strip()
 
-    def _gemini(self, prompt, context="", use_web=False):
+    def _gemini_research(self, prompt, context=""):
+        """Use Gemini Interactions API for supported native web search and URL context tools."""
+        if not self.gemini_key:
+            raise RuntimeError("Gemini API anahtarı ayarlanmamış. AI SETTINGS bölümünden ekleyin.")
         lower_prompt = (prompt or "").lower()
-        if use_web and "stagepulse" in lower_prompt and "https://stagepulse.com.tr" not in lower_prompt:
+        if "stagepulse" in lower_prompt and "https://stagepulse.com.tr" not in lower_prompt:
             prompt = prompt + "\nHedef web sitesi (tam URL): https://stagepulse.com.tr/"
+        contents = prompt + (("\n\nWEB VERİSİ:\n" + context) if context else "")
+        payload = {
+            "model": self.gemini_model,
+            "input": contents,
+            "system_instruction": (
+                "Sen JARVIS'sin. Türkçe konuş. Kısa ve işe yarar yanıt ver. "
+                "Web araştırmasında Google Search ve verilen URL'leri gerçekten kullan. "
+                "Kaynaklardan doğrulanmayan iddiaları kesin gerçek gibi sunma. "
+                "Web araması başarısızsa bunu açıkça belirt."
+            ),
+            "tools": [{"type": "url_context"}, {"type": "google_search"}],
+            "generation_config": {"max_output_tokens": 700, "thinking_level": "low"},
+            "store": False,
+        }
+        response = self.session.post(
+            "https://generativelanguage.googleapis.com/v1beta/interactions",
+            headers={"x-goog-api-key": self.gemini_key, "Content-Type": "application/json"},
+            json=payload,
+            timeout=min(self.timeout, 45),
+        )
+        if not response.ok:
+            try:
+                message = response.json().get("error", {}).get("message", response.text[:400])
+            except ValueError:
+                message = response.text[:400]
+            raise RuntimeError("Gemini web araştırması HTTP {}: {}".format(response.status_code, message))
+        data = response.json()
+        if data.get("status") in ("failed", "cancelled", "incomplete"):
+            raise RuntimeError("Gemini web araştırması tamamlanamadı: " + str(data.get("status")))
+        answers = []
+        sources = []
+        for step in data.get("steps", []):
+            if step.get("type") != "model_output":
+                continue
+            for block in step.get("content", []) or []:
+                if block.get("type") == "text" and block.get("text"):
+                    answers.append(block["text"])
+                    for annotation in block.get("annotations", []) or []:
+                        if annotation.get("type") == "url_citation":
+                            uri = annotation.get("url") or ""
+                            title = annotation.get("title") or uri
+                            if uri and all(uri != existing[1] for existing in sources):
+                                sources.append((title, uri))
+        answer = "\n".join(answers).strip() or str(data.get("output_text", "")).strip()
+        if not answer:
+            raise RuntimeError("Gemini web araştırması boş yanıt döndürdü.")
+        if sources:
+            answer += "\n\nKaynaklar:\n" + "\n".join("- {}: {}".format(title, uri) for title, uri in sources[:6])
+        return answer
+
+    def _gemini(self, prompt, context="", use_web=False):
+        if use_web:
+            return self._gemini_research(prompt, context)
+        lower_prompt = (prompt or "").lower()
         contents = prompt + (("\n\nWEB VERİSİ:\n" + context) if context else "")
         payload = {
             "systemInstruction": {"parts": [{"text": "Sen JARVIS'sin. Türkçe konuş. Kısa, doğrudan ve işe yarar cevap ver. Web araştırmasında kaynakları kontrol et; bulamadığın site için kesin hüküm verme, tarama başarısızsa açıkça belirt."}]},
