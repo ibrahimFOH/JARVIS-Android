@@ -46,3 +46,10 @@ Note: files in `recovered_frontend/` on GitHub include manually curated/transcri
 - `NSIS_SCRIPT_DECOMPILATION_V8.md`: separates ordinary NSIS payload extraction from script decompilation and documents the specialized 7-Zip option.
 - `PE_STATIC_TRIAGE_V8.md`: PE format, section layout and imported Windows library inventory for the verified EXE hash.
 - `LOCAL_RECOVERY_VERIFICATION_V8.md`: fresh local rerun confirms 18/18 frontend files byte-identical to the V5 archive and all eight JS files pass Node syntax checks.
+- `NATIVE_BACKEND_STATIC_FINDINGS_V9.md`: 34 Tauri bridge commands, dependency/version traces, credential-storage evidence, and explicit limits of native-source recovery.
+- `STATIC_FINDINGS_MANIFEST_V9.json`: machine-readable file hashes, command names, dependency markers, and known limitations.
+
+
+## V9 local validation
+
+The V9 local bundle contains the 18 exact recovered frontend resources, PE icons/version/manifest resources, verification logs and static-analysis report. It deliberately omits the original executable, setup executable and personal WebView profile. It is a local download artifact, not an automatically attached GitHub release. The Rust/Tauri backend source and NSIS installer payload remain unrecovered in this environment.
