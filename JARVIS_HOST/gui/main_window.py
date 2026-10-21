@@ -658,11 +658,30 @@ class JarvisGUI:
         self.activity.configure(state="disabled")
 
     def _toggle_wake_word(self):
-        if self.wake_word_var.get():
-            self.jarvis.start_wake_word_detection()
-            self._activity("WAKE WORD ENABLED")
-        elif self.jarvis.wake_word_detector:
-            self.jarvis.wake_word_detector.stop()
+        enabled = bool(self.wake_word_var.get())
+        if enabled:
+            started = self.jarvis.start_wake_word_detection()
+            if started:
+                config.set("voice.wake_word_enabled", True)
+                self._activity("WAKE WORD ENABLED (INTERNET REQUIRED FOR FALLBACK)")
+            else:
+                self.wake_word_var.set(False)
+                config.set("voice.wake_word_enabled", False)
+                self._append_to_chat(
+                    "SYSTEM",
+                    "Wake word başlatılamadı. Voice ayarını, mikrofonu ve internet bağlantısını kontrol edin.",
+                    "red"
+                )
+                self._activity("WAKE WORD START FAILED")
+        else:
+            detector = getattr(self.jarvis, "wake_word_detector", None)
+            if detector:
+                try:
+                    detector.stop()
+                except Exception as exc:
+                    logger.warning("Wake word stop failed: %s", exc)
+            self.jarvis.wake_word_enabled = False
+            config.set("voice.wake_word_enabled", False)
             self._activity("WAKE WORD DISABLED")
 
     def _toggle_voice(self):
