@@ -525,7 +525,7 @@ class JarvisGUI:
         ollama_model = field("OLLAMA MODEL", brain.model)
 
         ctk.CTkLabel(
-            win, text="AUTO: önce Gemini, hata olursa Ollama. Windows anahtarı desteklenen sistemlerde DPAPI ile şifrelenir.",
+            win, text="AUTO: normal sohbette hızlı Groq; web araştırmasında Gemini Google Search + URL Context; hata olursa diğer sağlayıcılar. Gemini ve Groq ayrı API anahtarı ister. Anahtarlar desteklenen Windows sistemlerinde DPAPI ile korunur.",
             text_color=MUTED, font=("Consolas", 9), wraplength=490, justify="left"
         ).pack(anchor="w", padx=22, pady=(12, 6))
 
