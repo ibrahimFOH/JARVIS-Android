@@ -41,3 +41,7 @@ This is not the complete original Tauri/Rust project. The full Rust backend sour
 
 
 Note: files in `recovered_frontend/` on GitHub include manually curated/transcribed excerpts from earlier steps and are not guaranteed byte-identical. Use the v7 recovery ZIP's `recovered_frontend/` folder as the canonical recovered frontend and its SHA-256 manifest for verification.
+
+
+- `NSIS_SCRIPT_DECOMPILATION_V8.md`: separates ordinary NSIS payload extraction from script decompilation and documents the specialized 7-Zip option.
+- `PE_STATIC_TRIAGE_V8.md`: PE format, section layout and imported Windows library inventory for the verified EXE hash.
