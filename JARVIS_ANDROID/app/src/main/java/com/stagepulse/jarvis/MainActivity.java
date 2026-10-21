@@ -18,7 +18,8 @@ import java.util.concurrent.*;
 
 public class MainActivity extends Activity {
     private static final int REQ_AUDIO=9001;
-    private static final int REQ_IMAGE=9002;\n    private android.net.Uri pendingImage;
+    private static final int REQ_IMAGE=9002;
+    private android.net.Uri pendingImage;
     private final ExecutorService io=Executors.newSingleThreadExecutor();
     private EditText command;
     private TextView status,chat;
