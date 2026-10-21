@@ -17,7 +17,8 @@ import java.util.*;
 import java.util.concurrent.*;
 
 public class MainActivity extends Activity {
-    private static final int REQ_AUDIO=9001;\n    private static final int REQ_IMAGE=9002;\n    private android.net.Uri pendingImage;
+    private static final int REQ_AUDIO=9001;
+    private static final int REQ_IMAGE=9002;\n    private android.net.Uri pendingImage;
     private final ExecutorService io=Executors.newSingleThreadExecutor();
     private EditText command;
     private TextView status,chat;
@@ -64,14 +65,16 @@ public class MainActivity extends Activity {
         row.addView(voice,new LinearLayout.LayoutParams(0,58,1));
         row.addView(agents,new LinearLayout.LayoutParams(0,58,1));
         row.addView(host,new LinearLayout.LayoutParams(0,58,1));
-        row.addView(gemini,new LinearLayout.LayoutParams(0,58,1));\n        row.addView(image,new LinearLayout.LayoutParams(0,58,1));
+        row.addView(gemini,new LinearLayout.LayoutParams(0,58,1));
+        row.addView(image,new LinearLayout.LayoutParams(0,58,1));
         root.addView(row);
         setContentView(root);
         send.setOnClickListener(v->sendCommand(command.getText().toString()));
         voice.setOnClickListener(v->listen());
         agents.setOnClickListener(v->showAgents());
         host.setOnClickListener(v->showHostSettings());
-        gemini.setOnClickListener(v->showGeminiSettings());\n        image.setOnClickListener(v->chooseImage());
+        gemini.setOnClickListener(v->showGeminiSettings());
+        image.setOnClickListener(v->chooseImage());
     }
 
     private Button button(String s){Button b=new Button(this);b.setText(s);b.setTextColor(gold());b.setTextSize(11);b.setBackgroundColor(panel());return b;}
