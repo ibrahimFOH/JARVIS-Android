@@ -215,27 +215,54 @@ class AIBrain:
         return self._response_text(data) or "Gemini görsel analizi için metin yanıtı döndürmedi."
 
     def generate_image(self, prompt):
+        if not self.gemini_key:
+            raise RuntimeError("Gemini API anahtarı ayarlanmamış. AI SETTINGS bölümünden ekleyin.")
         if not prompt or not prompt.strip():
             raise ValueError("Görsel için bir açıklama yazın.")
+        url = "https://generativelanguage.googleapis.com/v1beta/interactions"
         payload = {
-            "contents": [{"role": "user", "parts": [{"text": prompt.strip()}]}],
-            "generationConfig": {"responseModalities": ["TEXT", "IMAGE"]},
+            "model": self.gemini_image_model,
+            "input": prompt.strip(),
+            "response_format": {"type": "image", "mime_type": "image/png"},
         }
-        data = self._gemini_post(self.gemini_image_model, payload)
-        for candidate in data.get("candidates", []):
-            for part in candidate.get("content", {}).get("parts", []):
-                inline = part.get("inlineData") or part.get("inline_data") or {}
-                encoded = inline.get("data")
+        response = self.session.post(
+            url,
+            headers={"x-goog-api-key": self.gemini_key, "Content-Type": "application/json"},
+            json=payload,
+            timeout=180,
+        )
+        if not response.ok:
+            try:
+                message = response.json().get("error", {}).get("message", response.text[:400])
+            except ValueError:
+                message = response.text[:400]
+            raise RuntimeError("Gemini görsel API HTTP {}: {}".format(response.status_code, message))
+        data = response.json()
+        image_data = data.get("output_image") or {}
+        encoded = image_data.get("data")
+        mime_type = image_data.get("mime_type", image_data.get("mimeType", "image/png"))
+        if not encoded:
+            for step in data.get("steps", []):
+                for block in step.get("content", []) or []:
+                    if block.get("type") == "image":
+                        encoded = block.get("data") or (block.get("image") or {}).get("data")
+                        mime_type = block.get("mime_type", mime_type)
+                        if encoded:
+                            break
                 if encoded:
-                    raw = base64.b64decode(encoded)
-                    ext = "jpg" if inline.get("mimeType", inline.get("mime_type", "image/png")) == "image/jpeg" else "png"
-                    base = Path.home() / "Pictures" / "StagepulseJARVIS"
-                    base.mkdir(parents=True, exist_ok=True)
-                    out = base / ("JARVIS_" + datetime.now().strftime("%Y%m%d_%H%M%S_%f") + "." + ext)
-                    out.write_bytes(raw)
-                    return str(out)
-        text = self._response_text(data)
-        raise RuntimeError("Gemini görsel üretmedi. Model/erişim durumunu kontrol edin." + ((" Yanıt: " + text[:250]) if text else ""))
+                    break
+        if not encoded:
+            raise RuntimeError(
+                "Gemini görsel üretmedi. Model erişimini ve API limitlerini kontrol edin. "
+                + str(data.get("output_text", ""))[:300]
+            )
+        raw = base64.b64decode(encoded)
+        ext = "jpg" if mime_type == "image/jpeg" else "png"
+        base = Path.home() / "Pictures" / "StagepulseJARVIS"
+        base.mkdir(parents=True, exist_ok=True)
+        out = base / ("JARVIS_" + datetime.now().strftime("%Y%m%d_%H%M%S_%f") + "." + ext)
+        out.write_bytes(raw)
+        return str(out)
 
     def ask(self, prompt):
         instant = self._instant(prompt)
