@@ -41,6 +41,64 @@ class AIBrainTests(unittest.TestCase):
         brain._gemini.assert_called_once()
         brain._ollama.assert_called_once()
 
+    def test_stagepulse_query_uses_gemini_search_and_url_context(self):
+        brain = self.make_brain()
+        brain.session.post = Mock(return_value=FakeResponse({
+            "status": "completed",
+            "steps": [{
+                "type": "model_output",
+                "content": [{
+                    "type": "text",
+                    "text": "Stagepulse profesyonel ses ve sahne çözümleri sunuyor.",
+                    "annotations": [{
+                        "type": "url_citation",
+                        "title": "Stagepulse",
+                        "url": "https://stagepulse.com.tr/"
+                    }]
+                }]
+            }]
+        }))
+
+        result = brain.ask("Stagepulse.com.tr sitesini araştır")
+        request = brain.session.post.call_args
+        self.assertEqual(
+            request.args[0],
+            "https://generativelanguage.googleapis.com/v1beta/interactions"
+        )
+        self.assertEqual(
+            request.kwargs["json"]["tools"],
+            [{"type": "url_context"}, {"type": "google_search"}]
+        )
+        self.assertIn("https://stagepulse.com.tr/", request.kwargs["json"]["input"])
+        self.assertIn("Stagepulse profesyonel ses", result)
+        self.assertIn("https://stagepulse.com.tr/", result)
+
+    def test_groq_browser_search_payload(self):
+        brain = self.make_brain()
+        brain.groq_key = "test-groq-key"
+        brain.session.post = Mock(return_value=FakeResponse({
+            "choices": [{"message": {"content": "Stagepulse araştırma sonucu."}}]
+        }))
+
+        result = brain._groq("Stagepulse sitesini araştır", use_web=True)
+        request = brain.session.post.call_args
+        self.assertEqual(
+            request.args[0],
+            "https://api.groq.com/openai/v1/chat/completions"
+        )
+        self.assertEqual(request.kwargs["json"]["tools"], [{"type": "browser_search"}])
+        self.assertEqual(request.kwargs["json"]["tool_choice"], "required")
+        self.assertIn("Stagepulse araştırma sonucu", result)
+
+    def test_auto_prefers_groq_for_plain_chat(self):
+        brain = self.make_brain()
+        brain.groq_key = "test-groq-key"
+        brain._groq = Mock(return_value="Hızlı yanıt")
+        brain._gemini = Mock(return_value="Gemini yanıtı")
+        self.assertEqual(brain.ask("Kısa bir test sorusu"), "Hızlı yanıt")
+        brain._groq.assert_called_once_with("Kısa bir test sorusu", "", use_web=False)
+        brain._gemini.assert_not_called()
+
     def test_generate_image_uses_interactions_api_and_saves_png(self):
         brain = self.make_brain()
         png_bytes = b"fake-png-payload"
