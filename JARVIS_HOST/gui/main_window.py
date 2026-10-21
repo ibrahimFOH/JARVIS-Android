@@ -138,6 +138,13 @@ class JarvisGUI:
             border_width=1, border_color=GOLD2, text_color=GOLD,
             font=("Consolas", 9, "bold"),
             command=self._test_tts_voice,
+        ).pack(fill="x", padx=10, pady=(0, 4))
+        ctk.CTkButton(
+            left, text="TEST MICROPHONE", height=28,
+            fg_color="#090B0D", hover_color="#15181C",
+            border_width=1, border_color=GOLD2, text_color=GOLD,
+            font=("Consolas", 9, "bold"),
+            command=self._test_microphone,
         ).pack(fill="x", padx=10, pady=(0, 6))
 
         self._section(left, "CONTROL")
@@ -491,7 +498,7 @@ class JarvisGUI:
         brain = self.jarvis.command_processor.ai_brain
         win = ctk.CTkToplevel(self.root)
         win.title("STAGEPULSE // AI SETTINGS")
-        win.geometry("540x570")
+        win.geometry("540x690")
         win.resizable(False, False)
         win.transient(self.root)
         win.grab_set()
@@ -521,6 +528,42 @@ class JarvisGUI:
             text_color=MUTED, font=("Consolas", 9), wraplength=490, justify="left"
         ).pack(anchor="w", padx=22, pady=(12, 6))
 
+        def test_backend(provider_name):
+            try:
+                brain.configure(
+                    provider=provider.get(),
+                    gemini_key=api_key.get(),
+                    gemini_model=text_model.get(),
+                    gemini_image_model=image_model.get(),
+                    ollama_host=ollama_host.get(),
+                    ollama_model=ollama_model.get(),
+                )
+            except Exception as exc:
+                messagebox.showerror("AI ayarı", str(exc), parent=win)
+                return
+
+            self._append_to_chat("SYSTEM", provider_name.upper() + " bağlantısı test ediliyor...", "yellow")
+            def worker():
+                result = brain.test_provider(provider_name)
+                def show_result():
+                    message = result.get("message", "Test tamamlandı.")
+                    if result.get("success"):
+                        messagebox.showinfo(provider_name.upper() + " bağlantı testi", message, parent=win)
+                    else:
+                        messagebox.showerror(provider_name.upper() + " bağlantı testi", message, parent=win)
+                    self._append_to_chat(
+                        "SYSTEM", message,
+                        "green" if result.get("success") else "red"
+                    )
+                try:
+                    self.root.after(0, show_result)
+                except Exception:
+                    pass
+            threading.Thread(
+                target=worker, daemon=True,
+                name="JARVIS-AI-Test-" + provider_name
+            ).start()
+
         def save():
             try:
                 brain.configure(
@@ -538,6 +581,21 @@ class JarvisGUI:
                 win.destroy()
             except Exception as exc:
                 messagebox.showerror("Ayarlar kaydedilemedi", str(exc), parent=win)
+
+        ctk.CTkButton(
+            win, text="TEST GEMINI CONNECTION",
+            command=lambda: test_backend("gemini"),
+            fg_color="#090B0D", hover_color="#15181C",
+            border_width=1, border_color=GOLD2, text_color=GOLD,
+            font=("Consolas", 10, "bold")
+        ).pack(fill="x", padx=22, pady=(8, 4))
+        ctk.CTkButton(
+            win, text="TEST OLLAMA CONNECTION",
+            command=lambda: test_backend("ollama"),
+            fg_color="#090B0D", hover_color="#15181C",
+            border_width=1, border_color=GOLD2, text_color=GOLD,
+            font=("Consolas", 10, "bold")
+        ).pack(fill="x", padx=22, pady=(0, 4))
 
         ctk.CTkButton(win, text="SAVE SETTINGS", command=save,
                       fg_color=GOLD2, hover_color=GOLD, text_color="#050505",
@@ -736,6 +794,30 @@ class JarvisGUI:
                 )
         except Exception as exc:
             self._append_to_chat("SYSTEM", "TTS ayarı hatası: " + str(exc), "red")
+
+    def _test_microphone(self):
+        self._activity("MICROPHONE TEST")
+        def worker():
+            try:
+                result = self.jarvis.test_microphone()
+            except Exception as exc:
+                result = {"success": False, "message": "Mikrofon testi hatası: " + str(exc)}
+            def show_result():
+                message = result.get("message", "Mikrofon testi tamamlandı.")
+                self._append_to_chat(
+                    "SYSTEM", message,
+                    "green" if result.get("success") else "red"
+                )
+                self._activity("MIC TEST: " + message[:60])
+                if result.get("success"):
+                    messagebox.showinfo("Mikrofon testi", message, parent=self.root)
+                else:
+                    messagebox.showerror("Mikrofon testi", message, parent=self.root)
+            try:
+                self.root.after(0, show_result)
+            except Exception:
+                pass
+        threading.Thread(target=worker, daemon=True, name="JARVIS-Mic-Test").start()
 
     def _test_tts_voice(self):
         self._activity("TTS VOICE TEST")
