@@ -85,6 +85,8 @@ class AIBrain:
             self.gemini_key = gemini_key.strip()
         if gemini_model is not None and gemini_model.strip():
             self.gemini_model = gemini_model.strip()
+        if self.gemini_model.strip() == "gemini-2.5-flash":
+            self.gemini_model = "gemini-3.8-flash"
         if gemini_image_model is not None and gemini_image_model.strip():
             self.gemini_image_model = gemini_image_model.strip()
         if ollama_host is not None and ollama_host.strip():
@@ -145,6 +147,9 @@ class AIBrain:
         return ""
 
     def _gemini_post(self, model, payload):
+        # Last-resort migration for legacy settings, environment variables or stale UI state.
+        if str(model).strip() == "gemini-2.5-flash":
+            model = "gemini-3.8-flash"
         if not self.gemini_key:
             raise RuntimeError("Gemini API anahtarı ayarlanmamış. AI SETTINGS bölümünden ekleyin.")
         url = "https://generativelanguage.googleapis.com/v1beta/models/{}:generateContent".format(
