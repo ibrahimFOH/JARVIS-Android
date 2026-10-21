@@ -7,6 +7,8 @@ import android.content.*;
 import android.content.pm.PackageManager;
 import android.os.*;
 import android.provider.Settings;
+import android.provider.MediaStore;
+import android.content.ContentValues;
 import android.speech.*;
 import android.view.Gravity;
 import android.widget.*;
@@ -16,6 +18,8 @@ import java.util.concurrent.*;
 
 public class MainActivity extends Activity {
     private static final int REQ_AUDIO=9001;
+    private static final int REQ_IMAGE=9002;
+    private android.net.Uri pendingImage;
     private final ExecutorService io=Executors.newSingleThreadExecutor();
     private EditText command;
     private TextView status,chat;
@@ -33,6 +37,8 @@ public class MainActivity extends Activity {
     @Override public void onCreate(Bundle b){
         super.onCreate(b);
         bridgePrefs = getSharedPreferences("jarvis_bridge", MODE_PRIVATE);
+        SecureStore.migrate(bridgePrefs, "gemini_key");
+        SecureStore.migrate(bridgePrefs, "token");
         buildUi();
         initPiper();
         initSpeech();
@@ -57,20 +63,93 @@ public class MainActivity extends Activity {
         command.setTextColor(white()); command.setMinLines(2); command.setBackgroundColor(panel()); command.setPadding(14,12,14,12);
         root.addView(command,new LinearLayout.LayoutParams(-1,-2));
         LinearLayout row=new LinearLayout(this); row.setOrientation(LinearLayout.HORIZONTAL);
-        Button send=button("EXECUTE"), voice=button("◉ VOICE"), agents=button("AGENTS"), host=button("HOST");
+        Button send=button("EXECUTE"), voice=button("◉ VOICE"), agents=button("AGENTS"), host=button("HOST"), gemini=button("GEMINI"), image=button("IMAGE");
         row.addView(send,new LinearLayout.LayoutParams(0,58,1));
         row.addView(voice,new LinearLayout.LayoutParams(0,58,1));
         row.addView(agents,new LinearLayout.LayoutParams(0,58,1));
         row.addView(host,new LinearLayout.LayoutParams(0,58,1));
+        row.addView(gemini,new LinearLayout.LayoutParams(0,58,1));
+        row.addView(image,new LinearLayout.LayoutParams(0,58,1));
         root.addView(row);
         setContentView(root);
         send.setOnClickListener(v->sendCommand(command.getText().toString()));
         voice.setOnClickListener(v->listen());
         agents.setOnClickListener(v->showAgents());
         host.setOnClickListener(v->showHostSettings());
+        gemini.setOnClickListener(v->showGeminiSettings());
+        image.setOnClickListener(v->chooseImage());
     }
 
     private Button button(String s){Button b=new Button(this);b.setText(s);b.setTextColor(gold());b.setTextSize(11);b.setBackgroundColor(panel());return b;}
+
+    private void chooseImage(){
+        Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+        intent.setType("image/*"); intent.addCategory(Intent.CATEGORY_OPENABLE);
+        startActivityForResult(intent, REQ_IMAGE);
+    }
+
+    @Override protected void onActivityResult(int requestCode, int resultCode, Intent data){
+        super.onActivityResult(requestCode, resultCode, data);
+        if(requestCode != REQ_IMAGE || resultCode != RESULT_OK || data == null || data.getData() == null) return;
+        pendingImage = data.getData();
+        command.setText("Bu görseli analiz et: ");
+        append("JARVIS", "Görsel seçildi. Analiz etmek için komut alanına talimat yazıp EXECUTE düğmesine bas.");
+    }
+
+
+    private boolean isImageGenerationCommand(String commandText) {
+        String x = commandText.toLowerCase(new Locale("tr", "TR"));
+        return x.contains("görsel oluştur") || x.contains("resim oluştur")
+                || x.contains("görsel üret") || x.contains("resim üret")
+                || x.contains("fotoğraf oluştur") || x.contains("fotoğraf üret");
+    }
+
+    private String generateImageFromPrompt(String prompt, String apiKey) throws Exception {
+        byte[] bytes = GeminiClient.generateImage(apiKey, "gemini-3.1-flash-image", prompt);
+        ContentValues values = new ContentValues();
+        values.put(MediaStore.Images.Media.DISPLAY_NAME, "JARVIS_Generated_" + System.currentTimeMillis() + ".png");
+        values.put(MediaStore.Images.Media.MIME_TYPE, "image/png");
+        values.put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/StagepulseJARVIS");
+        android.net.Uri uri = getContentResolver().insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values);
+        if (uri == null) throw new java.io.IOException("Üretilen görsel Galeriye kaydedilemedi.");
+        try (java.io.OutputStream out = getContentResolver().openOutputStream(uri)) {
+            if (out == null) throw new java.io.IOException("Görsel dosyası açılamadı.");
+            out.write(bytes);
+        } catch (Exception e) {
+            getContentResolver().delete(uri, null, null);
+            throw e;
+        }
+        return "Gemini görseli oluşturdu ve Galeri > Pictures/StagepulseJARVIS klasörüne kaydetti.";
+    }
+
+    private String analyzeSelectedImage(String prompt, String apiKey, String model) throws Exception {
+        if(pendingImage == null) return GeminiClient.ask(apiKey, model, prompt);
+        byte[] bytes;
+        try(java.io.InputStream in=getContentResolver().openInputStream(pendingImage);
+            java.io.ByteArrayOutputStream out=new java.io.ByteArrayOutputStream()){
+            if(in==null) throw new java.io.IOException("Görsel dosyası açılamadı.");
+            byte[] buffer=new byte[8192]; int n; while((n=in.read(buffer))!=-1){out.write(buffer,0,n); if(out.size()>12*1024*1024) throw new java.io.IOException("Görsel 12 MB sınırını aşıyor.");}
+            bytes=out.toByteArray();
+        }
+        String type=getContentResolver().getType(pendingImage);
+        String answer=GeminiClient.analyzeImage(apiKey,model,prompt,bytes,(type==null||!type.startsWith("image/"))?"image/jpeg":type);
+        pendingImage=null;
+        return answer;
+    }
+
+    private void showGeminiSettings(){
+        LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL); box.setPadding(20, 8, 20, 0);
+        EditText key = new EditText(this); key.setSingleLine(true); key.setInputType(129); key.setHint("Gemini API key"); key.setText(SecureStore.get(bridgePrefs, "gemini_key"));
+        EditText model = new EditText(this); model.setSingleLine(true); model.setHint("gemini-2.5-flash"); model.setText(bridgePrefs.getString("gemini_model", "gemini-2.5-flash"));
+        box.addView(key); box.addView(model);
+        new AlertDialog.Builder(this).setTitle("GEMINI API").setMessage("Gemini internet ve geçerli API erişimi gerektirir. Anahtarını paylaşma.")
+            .setView(box).setPositiveButton("KAYDET", (d, w) -> {
+                SecureStore.put(bridgePrefs, "gemini_key", key.getText().toString().trim());
+                bridgePrefs.edit().putString("gemini_model", model.getText().toString().trim()).apply();
+                append("JARVIS", "Gemini ayarları kaydedildi.");
+            }).setNegativeButton("İPTAL", null).show();
+    }
 
     private void showHostSettings(){
         LinearLayout box = new LinearLayout(this);
@@ -84,7 +163,7 @@ public class MainActivity extends Activity {
         token.setSingleLine(true);
         token.setHint("Windows JARVIS bridge token");
         token.setInputType(129);
-        token.setText(bridgePrefs.getString("token", ""));
+        token.setText(SecureStore.get(bridgePrefs, "token"));
         box.addView(address);
         box.addView(token);
         new AlertDialog.Builder(this)
@@ -94,7 +173,8 @@ public class MainActivity extends Activity {
             .setPositiveButton("KAYDET VE TEST ET", (d, which) -> {
                 String url = address.getText().toString().trim();
                 String secret = token.getText().toString().trim();
-                bridgePrefs.edit().putString("url", url).putString("token", secret).apply();
+                bridgePrefs.edit().putString("url", url).apply();
+                SecureStore.put(bridgePrefs, "token", secret);
                 if (url.isEmpty() || secret.isEmpty()) {
                     append("JARVIS", "Ortak Windows çekirdeği kapalı. Yerel Android komutları kullanılacak.");
                     return;
@@ -202,11 +282,40 @@ public class MainActivity extends Activity {
             String a;
             try{
                 String hostUrl = bridgePrefs.getString("url", "").trim();
-                String hostToken = bridgePrefs.getString("token", "").trim();
-                if (!hostUrl.isEmpty() && !hostToken.isEmpty()) {
+                String hostToken = SecureStore.get(bridgePrefs, "token").trim();
+                String geminiKey = SecureStore.get(bridgePrefs, "gemini_key").trim();
+                String geminiModel = bridgePrefs.getString("gemini_model", "gemini-2.5-flash").trim();
+                if (pendingImage != null || isImageGenerationCommand(cmd)) {
+                    if (geminiKey.isEmpty()) {
+                        a = "Görsel analizi ve telefona görsel üretmek için Android'de GEMINI bölümüne API anahtarını girin. Görseller Windows köprüsünden aktarılmıyor.";
+                    } else {
+                        statusPost(isImageGenerationCommand(cmd) ? "● GEMINI IMAGE" : "● GEMINI VISION");
+                        if (isImageGenerationCommand(cmd)) {
+                            String prompt = cmd.replaceAll("(?i)görsel oluştur|resim oluştur|görsel üret|resim üret|fotoğraf oluştur|fotoğraf üret", "").trim();
+                            if (prompt.isEmpty()) prompt = cmd;
+                            a = generateImageFromPrompt(prompt, geminiKey);
+                        } else {
+                            a = analyzeSelectedImage(cmd, geminiKey, geminiModel);
+                        }
+                    }
+                } else if (!hostUrl.isEmpty() && !hostToken.isEmpty()) {
                     statusPost("● WINDOWS JARVIS");
-                    BridgeClient.Result remote = BridgeClient.command(hostUrl, hostToken, cmd);
-                    a = remote.response;
+                    try {
+                        BridgeClient.Result remote = BridgeClient.command(hostUrl, hostToken, cmd);
+                        a = remote.success ? remote.response : "Windows JARVIS işlemi başarısız oldu: " + remote.response;
+                    } catch (Exception hostError) {
+                        statusPost("● ANDROID FALLBACK");
+                        if (!geminiKey.isEmpty()) {
+                            a = "Windows bağlantısı kapalı; Android bağımsız olarak devam ediyor. " + analyzeSelectedImage(cmd, geminiKey, geminiModel);
+                        } else if (isResearchCommand(cmd)) {
+                            a = "Windows bağlantısı kapalı; Android yerel araştırma motorunu kullanıyor. " + ResearchEngine.research(extractResearchQuery(cmd)).text;
+                        } else {
+                            a = "Windows bağlantısı kapalı. Android'in çevrimdışı komutlarıyla devam ediyorum. " + processLocal(cmd);
+                        }
+                    }
+                } else if (!geminiKey.isEmpty()) {
+                    statusPost("● GEMINI");
+                    a = analyzeSelectedImage(cmd, geminiKey, geminiModel);
                 } else {
                 AgencyAgent requested=detectAgent(cmd);
                 if(requested!=null && (cmd.toLowerCase(new Locale("tr","TR")).contains("aktif") || cmd.toLowerCase(new Locale("tr","TR")).contains("agent") || cmd.toLowerCase(new Locale("tr","TR")).contains("mühendis") || cmd.toLowerCase(new Locale("tr","TR")).contains("uzman"))){
@@ -222,7 +331,7 @@ public class MainActivity extends Activity {
                 }
                 }
             }catch(Exception e){
-                a="İşlem tamamlanamadı Patron. Teknik bilgi: "+e.getClass().getSimpleName();
+                a="İşlem tamamlanamadı Patron. "+e.getClass().getSimpleName()+(e.getMessage()!=null?": "+e.getMessage():"");
             }
             final String answer=a;
             runOnUiThread(()->{hud.setActive(false);if(!status.getText().toString().startsWith("● AGENT"))refreshVoiceStatus();append("JARVIS",answer);speak(answer);});

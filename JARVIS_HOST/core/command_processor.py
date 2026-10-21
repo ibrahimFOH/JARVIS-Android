@@ -585,9 +585,13 @@ _JARVIS_ORIGINAL_PROCESS = CommandProcessor.process
 
 def _jarvis_ai_fallback(self, command):
     try:
-        if not hasattr(self, "_jarvis_ai_brain"):
-            self._jarvis_ai_brain = AIBrain()
-        answer = self._jarvis_ai_brain.ask(command)
+        # Reuse the exact AIBrain instance the AI SETTINGS window configures.
+        # A second cached instance keeps stale provider/API settings and can route Groq back to Gemini.
+        brain = getattr(self, "ai_brain", None)
+        if brain is None:
+            brain = AIBrain()
+            self.ai_brain = brain
+        answer = brain.ask(command)
         return {
             "success": True,
             "response": answer,
@@ -613,6 +617,11 @@ def _jarvis_process_with_ai(self, command):
     intent = str(result.get("intent", "") or "").lower()
     success = bool(result.get("success", False))
 
+    # The original processor already called AIBrain for intent="ai". Returning here avoids
+    # sending the same prompt twice and prevents a duplicate provider fallback/error.
+    if success and intent == "ai":
+        return result
+
     if success and intent not in ("unknown", "ai", "ai_error"):
         old_markers = (
             "haven't implemented",
@@ -637,7 +646,7 @@ CommandProcessor.process = _jarvis_process_with_ai
 _JARVIS_FAST_LOCAL_PATCH = True
 
 try:
-    _jarvis_original_process_command = CommandProcessor.process_command
+    _jarvis_original_process_command = CommandProcessor.process
 
     def _jarvis_fast_local_response(command):
         s = str(command or "").strip().lower()
@@ -719,7 +728,7 @@ try:
             return local
         return _jarvis_original_process_command(self, command)
 
-    CommandProcessor.process_command = _jarvis_fast_process_command
+    CommandProcessor.process = _jarvis_fast_process_command
 
 except Exception as _jarvis_fast_patch_error:
     print("JARVIS fast patch uyarısı:", _jarvis_fast_patch_error)

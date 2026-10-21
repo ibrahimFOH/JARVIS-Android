@@ -1,5 +1,6 @@
 
 import tkinter as tk
+from tkinter import filedialog, messagebox
 import customtkinter as ctk
 import threading
 import math
@@ -44,6 +45,15 @@ class JarvisGUI:
 
         self._animate_hud()
         self._clock_tick()
+        self._start_android_bridge()
+
+    def _start_android_bridge(self):
+        try:
+            from android_bridge import start_in_background
+            start_in_background()
+            self._activity("ANDROID BRIDGE: AUTHENTICATED LAN READY")
+        except Exception as exc:
+            self._activity("ANDROID BRIDGE ERROR: " + str(exc)[:70])
 
     def _setup_ui(self):
         self.root.grid_columnconfigure(1, weight=1)
@@ -82,8 +92,9 @@ class JarvisGUI:
         left.grid(row=1, column=0, sticky="ns", padx=(18, 7), pady=5)
 
         self._section(left, "SYSTEMS")
-        self._telemetry(left, "AI CORE", "OLLAMA", GREEN)
-        self._telemetry(left, "LOCAL CORE", "OLLAMA", GREEN)
+        brain = self.jarvis.command_processor.ai_brain
+        self.ai_core_value = self._telemetry(left, "AI CORE", brain.provider.upper(), GREEN)
+        self.local_core_value = self._telemetry(left, "LOCAL CORE", "OLLAMA " + brain.model, GREEN)
         self._telemetry(left, "VOICE", "READY", GREEN)
         self._telemetry(left, "NETWORK", "ONLINE", GREEN)
 
@@ -91,6 +102,50 @@ class JarvisGUI:
         self._meter(left, "MIC INPUT")
         self._meter(left, "TTS OUTPUT")
         self._meter(left, "SIGNAL")
+
+        self._section(left, "TTS VOICE")
+        self.tts_voice_choices = {
+            "Emel • Kadın / Online": "tr-TR-EmelNeural",
+            "Ahmet • Erkek / Online": "tr-TR-AhmetNeural",
+            "DFKI • Türkçe / Offline": "piper:dfki",
+            "Fahrettin • Türkçe / Offline": "piper:fahrettin",
+            "Fettah • Türkçe / Offline": "piper:fettah",
+        }
+        stored_voice = str(config.get("voice.tts_voice", "tr-TR-EmelNeural")).lower()
+        current_voice = "Emel • Kadın / Online"
+        for label, voice_id in self.tts_voice_choices.items():
+            if stored_voice == voice_id.lower() or stored_voice == voice_id.lower().replace("tr-tr-", ""):
+                current_voice = label
+            elif stored_voice in ("auto-turkish", "emel", "emelneural") and voice_id == "tr-TR-EmelNeural":
+                current_voice = label
+        if stored_voice.startswith("piper:"):
+            for label, voice_id in self.tts_voice_choices.items():
+                if voice_id.lower() == stored_voice:
+                    current_voice = label
+        self.tts_voice_var = ctk.StringVar(value=current_voice)
+        ctk.CTkOptionMenu(
+            left, variable=self.tts_voice_var,
+            values=list(self.tts_voice_choices.keys()),
+            command=self._on_tts_voice_changed,
+            width=178, height=30,
+            fg_color="#15181C", button_color=GOLD2,
+            button_hover_color=GOLD, text_color=WHITE,
+            font=("Consolas", 9),
+        ).pack(fill="x", padx=10, pady=(2, 4))
+        ctk.CTkButton(
+            left, text="TEST VOICE", height=28,
+            fg_color="#090B0D", hover_color="#15181C",
+            border_width=1, border_color=GOLD2, text_color=GOLD,
+            font=("Consolas", 9, "bold"),
+            command=self._test_tts_voice,
+        ).pack(fill="x", padx=10, pady=(0, 4))
+        ctk.CTkButton(
+            left, text="TEST MICROPHONE", height=28,
+            fg_color="#090B0D", hover_color="#15181C",
+            border_width=1, border_color=GOLD2, text_color=GOLD,
+            font=("Consolas", 9, "bold"),
+            command=self._test_microphone,
+        ).pack(fill="x", padx=10, pady=(0, 6))
 
         self._section(left, "CONTROL")
         self.voice_var = ctk.BooleanVar(
@@ -103,14 +158,17 @@ class JarvisGUI:
             button_hover_color=WHITE, text_color=WHITE
         ).pack(anchor="w", padx=12, pady=4)
 
-        if self.jarvis.wake_word_detector:
-            self.wake_word_var = ctk.BooleanVar(value=False)
-            ctk.CTkSwitch(
-                left, text="Wake word", variable=self.wake_word_var,
-                command=self._toggle_wake_word,
-                progress_color=GOLD2, button_color=GOLD,
-                text_color=WHITE
-            ).pack(anchor="w", padx=12, pady=4)
+        # Keep the wake-word control visible even when it is not configured yet.
+        # Detection starts only after the user explicitly enables this switch.
+        self.wake_word_var = ctk.BooleanVar(
+            value=config.get("voice.wake_word_enabled", False)
+        )
+        ctk.CTkSwitch(
+            left, text="Wake word", variable=self.wake_word_var,
+            command=self._toggle_wake_word,
+            progress_color=GOLD2, button_color=GOLD,
+            text_color=WHITE
+        ).pack(anchor="w", padx=12, pady=4)
 
         center = ctk.CTkFrame(self.root, fg_color=BG, corner_radius=0)
         center.grid(row=1, column=1, sticky="nsew", padx=7, pady=5)
@@ -168,14 +226,14 @@ class JarvisGUI:
         self.command_entry.bind("<Return>", self._on_enter_pressed)
 
         ctk.CTkButton(
-            bottom, text="EXECUTE", width=105, height=44,
+            bottom, text="EXECUTE", width=85, height=44,
             fg_color=GOLD2, hover_color=GOLD, text_color="#050505",
             font=("Consolas", 10, "bold"),
             command=self._on_send_clicked
         ).grid(row=0, column=1, padx=4)
 
         self.voice_button = ctk.CTkButton(
-            bottom, text="◉ VOICE", width=105, height=44,
+            bottom, text="◉ VOICE", width=85, height=44,
             fg_color="#0A0D10", hover_color="#171B20",
             border_width=1, border_color=GOLD, text_color=GOLD,
             font=("Consolas", 10, "bold"),
@@ -184,11 +242,32 @@ class JarvisGUI:
         self.voice_button.grid(row=0, column=2, padx=4)
 
         ctk.CTkButton(
-            bottom, text="CLEAR", width=80, height=44,
+            bottom, text="CLEAR", width=64, height=44,
             fg_color="#090B0D", hover_color="#15181C",
             border_width=1, border_color="#34383D",
             text_color=MUTED, command=self._clear_chat
         ).grid(row=0, column=3, padx=(4, 0))
+
+        ctk.CTkButton(
+            bottom, text="IMAGE", width=68, height=44,
+            fg_color="#090B0D", hover_color="#15181C",
+            border_width=1, border_color=GOLD, text_color=GOLD,
+            font=("Consolas", 9, "bold"), command=self._on_image_clicked
+        ).grid(row=0, column=4, padx=4)
+
+        ctk.CTkButton(
+            bottom, text="AI SETUP", width=82, height=44,
+            fg_color="#090B0D", hover_color="#15181C",
+            border_width=1, border_color=GOLD, text_color=GOLD,
+            font=("Consolas", 9, "bold"), command=self._open_ai_settings
+        ).grid(row=0, column=5, padx=4)
+
+        ctk.CTkButton(
+            bottom, text="ANDROID", width=82, height=44,
+            fg_color="#090B0D", hover_color="#15181C",
+            border_width=1, border_color=GOLD, text_color=GOLD,
+            font=("Consolas", 9, "bold"), command=self._open_android_link
+        ).grid(row=0, column=6, padx=(4, 0))
 
         self.chat_display = ctk.CTkTextbox(
             center, width=1, height=1, fg_color=BG,
@@ -202,8 +281,9 @@ class JarvisGUI:
             "JARVIS", "PATRON, JARVIS çevrimiçi. Sistemler hazır.", "green"
         )
         self._activity("SYSTEM INITIALIZED")
-        self._activity("AI CORE: OLLAMA ONLY")
-        self._activity("LOCAL CORE: OLLAMA")
+        brain = self.jarvis.command_processor.ai_brain
+        self._activity("AI CORE: " + brain.provider.upper() + " (GEMINI / OLLAMA)")
+        self._activity("LOCAL CORE: OLLAMA " + brain.model)
 
     def _section(self, parent, text):
         ctk.CTkLabel(
@@ -217,9 +297,11 @@ class JarvisGUI:
         ctk.CTkLabel(
             row, text=label, text_color=MUTED, font=("Consolas", 9)
         ).pack(side="left")
-        ctk.CTkLabel(
+        value_label = ctk.CTkLabel(
             row, text=value, text_color=color, font=("Consolas", 9, "bold")
-        ).pack(side="right")
+        )
+        value_label.pack(side="right")
+        return value_label
 
     def _meter(self, parent, label):
         ctk.CTkLabel(
@@ -349,6 +431,244 @@ class JarvisGUI:
     def _on_enter_pressed(self, event):
         self._on_send_clicked()
 
+
+    def _image_prompt_from_command(self, command):
+        import re
+        prompt = re.sub(
+            r"(?i)(?:görsel|resim|fotoğraf)\\s+(?:oluştur|üret)|(?:create|generate)\\s+(?:an?\\s+)?image",
+            "", command
+        ).strip(" \\t:,-")
+        return prompt or command.strip()
+
+    def _is_image_generation_request(self, command):
+        import re
+        return bool(re.search(
+            r"(?i)(?:görsel|resim|fotoğraf)\\s+(?:oluştur|üret)|(?:create|generate)\\s+(?:an?\\s+)?image",
+            command
+        ))
+
+    def _run_ai_task(self, title, task, should_speak=False):
+        self.task.configure(text=title)
+        self.phase.configure(text="PROCESSING")
+        self.status.configure(text="● GEMINI", text_color=GOLD)
+        self._activity(title.upper())
+
+        def worker():
+            try:
+                result = str(task())
+                success = True
+            except Exception as exc:
+                result = "İşlem tamamlanamadı: " + str(exc)
+                success = False
+
+            def finish():
+                self._append_to_chat("JARVIS", result, "green" if success else "red")
+                self.task.configure(text="Ready")
+                self.phase.configure(text="IDLE")
+                self.status.configure(text="● ONLINE" if success else "● ERROR",
+                                      text_color=GREEN if success else RED)
+                self._activity(("OK  " if success else "ERR ") + result.replace("\\n", " ")[:70])
+                if should_speak and success and self.voice_var.get():
+                    speak_text = "Görsel oluşturuldu ve kaydedildi." if result.lower().endswith((".png", ".jpg", ".jpeg", ".webp")) else result
+                    threading.Thread(target=lambda: self.jarvis.speak(speak_text, wait=False), daemon=True).start()
+
+            self.root.after(0, finish)
+
+        threading.Thread(target=worker, daemon=True, name="JARVIS-AI-Task").start()
+
+    def _on_image_clicked(self):
+        brain = self.jarvis.command_processor.ai_brain
+        if not brain.gemini_key:
+            messagebox.showwarning("Gemini ayarı gerekli", "Önce AI SETUP bölümünden Gemini API anahtarını ekleyin.", parent=self.root)
+            return
+        path = filedialog.askopenfilename(
+            parent=self.root, title="Analiz edilecek görseli seç",
+            filetypes=[("Görseller", "*.png *.jpg *.jpeg *.webp *.bmp"), ("Tüm dosyalar", "*.*")]
+        )
+        if not path:
+            return
+        dialog = ctk.CTkInputDialog(title="Gemini görsel analizi", text="Görsel hakkında ne analiz edilsin?")
+        prompt = dialog.get_input()
+        if prompt is None:
+            return
+        self._append_to_chat("YOU", "Görsel analizi: " + path, "gold")
+        self._run_ai_task("Görsel analiz ediliyor", lambda: brain.analyze_image(prompt.strip(), path), should_speak=True)
+
+    def _open_ai_settings(self):
+        brain = self.jarvis.command_processor.ai_brain
+        win = ctk.CTkToplevel(self.root)
+        win.title("STAGEPULSE // AI SETTINGS")
+        win.geometry("540x770")
+        win.resizable(False, False)
+        win.transient(self.root)
+        win.grab_set()
+
+        ctk.CTkLabel(win, text="AI PROVIDER", text_color=GOLD,
+                     font=("Consolas", 12, "bold")).pack(anchor="w", padx=22, pady=(20, 6))
+        provider = ctk.StringVar(value=brain.provider)
+        ctk.CTkOptionMenu(win, variable=provider, values=["auto", "gemini", "groq", "ollama"],
+                          width=490).pack(padx=22, pady=(0, 10))
+
+        def field(label, value, secret=False):
+            ctk.CTkLabel(win, text=label, text_color=WHITE,
+                         font=("Consolas", 10)).pack(anchor="w", padx=22, pady=(8, 3))
+            entry = ctk.CTkEntry(win, width=490, show="*" if secret else "")
+            entry.pack(padx=22)
+            entry.insert(0, value or "")
+            return entry
+
+        api_key = field("GEMINI API KEY", brain.gemini_key, secret=True)
+        groq_key = field("GROQ API KEY", brain.groq_key, secret=True)
+        text_model = field("GEMINI CHAT / VISION MODEL", brain.gemini_model)
+        image_model = field("GEMINI IMAGE MODEL", brain.gemini_image_model)
+        ollama_host = field("OLLAMA URL", brain.host)
+        ollama_model = field("OLLAMA MODEL", brain.model)
+
+        ctk.CTkLabel(
+            win, text="AUTO: normal sohbette hızlı Groq; web araştırmasında Gemini Google Search + URL Context; hata olursa diğer sağlayıcılar. Gemini ve Groq ayrı API anahtarı ister. Anahtarlar desteklenen Windows sistemlerinde DPAPI ile korunur.",
+            text_color=MUTED, font=("Consolas", 9), wraplength=490, justify="left"
+        ).pack(anchor="w", padx=22, pady=(12, 6))
+
+        def test_backend(provider_name):
+            try:
+                brain.configure(
+                    provider=provider.get(),
+                    gemini_key=api_key.get(),
+                    groq_key=groq_key.get(),
+                    gemini_model=text_model.get(),
+                    gemini_image_model=image_model.get(),
+                    ollama_host=ollama_host.get(),
+                    ollama_model=ollama_model.get(),
+                )
+            except Exception as exc:
+                messagebox.showerror("AI ayarı", str(exc), parent=win)
+                return
+
+            self._append_to_chat("SYSTEM", provider_name.upper() + " bağlantısı test ediliyor...", "yellow")
+            def worker():
+                result = (brain.test_web_provider(provider_name) if provider_name in ("gemini", "groq") else brain.test_provider(provider_name))
+                def show_result():
+                    message = result.get("message", "Test tamamlandı.")
+                    if result.get("success"):
+                        messagebox.showinfo(provider_name.upper() + " bağlantı testi", message, parent=win)
+                    else:
+                        messagebox.showerror(provider_name.upper() + " bağlantı testi", message, parent=win)
+                    self._append_to_chat(
+                        "SYSTEM", message,
+                        "green" if result.get("success") else "red"
+                    )
+                try:
+                    self.root.after(0, show_result)
+                except Exception:
+                    pass
+            threading.Thread(
+                target=worker, daemon=True,
+                name="JARVIS-AI-Test-" + provider_name
+            ).start()
+
+        def save():
+            try:
+                brain.configure(
+                    provider=provider.get(),
+                    gemini_key=api_key.get(),
+                    groq_key=groq_key.get(),
+                    gemini_model=text_model.get(),
+                    gemini_image_model=image_model.get(),
+                    ollama_host=ollama_host.get(),
+                    ollama_model=ollama_model.get(),
+                )
+                self.ai_core_value.configure(text=brain.provider.upper())
+                self.local_core_value.configure(text="OLLAMA " + brain.model)
+                self._activity("AI PROVIDER SAVED: " + brain.provider.upper())
+                self._append_to_chat("JARVIS", "AI ayarları kaydedildi. Sağlayıcı: " + brain.provider.upper(), "green")
+                win.destroy()
+            except Exception as exc:
+                messagebox.showerror("Ayarlar kaydedilemedi", str(exc), parent=win)
+
+        ctk.CTkButton(
+            win, text="TEST GEMINI WEB SEARCH",
+            command=lambda: test_backend("gemini"),
+            fg_color="#090B0D", hover_color="#15181C",
+            border_width=1, border_color=GOLD2, text_color=GOLD,
+            font=("Consolas", 10, "bold")
+        ).pack(fill="x", padx=22, pady=(8, 4))
+        ctk.CTkButton(
+            win, text="TEST GROQ WEB SEARCH",
+            command=lambda: test_backend("groq"),
+            fg_color="#090B0D", hover_color="#15181C",
+            border_width=1, border_color=GOLD2, text_color=GOLD,
+            font=("Consolas", 10, "bold")
+        ).pack(fill="x", padx=22, pady=(0, 4))
+        ctk.CTkButton(
+            win, text="TEST OLLAMA CONNECTION",
+            command=lambda: test_backend("ollama"),
+            fg_color="#090B0D", hover_color="#15181C",
+            border_width=1, border_color=GOLD2, text_color=GOLD,
+            font=("Consolas", 10, "bold")
+        ).pack(fill="x", padx=22, pady=(0, 4))
+
+        ctk.CTkButton(win, text="SAVE SETTINGS", command=save,
+                      fg_color=GOLD2, hover_color=GOLD, text_color="#050505",
+                      font=("Consolas", 10, "bold")).pack(fill="x", padx=22, pady=(8, 18))
+
+    def _open_android_link(self):
+        try:
+            import socket
+            import android_bridge
+            android_bridge.start_in_background()
+            ip = ""
+            try:
+                probe = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+                probe.connect(("8.8.8.8", 80))
+                ip = probe.getsockname()[0]
+                probe.close()
+            except OSError:
+                for candidate in socket.gethostbyname_ex(socket.gethostname())[2]:
+                    if not candidate.startswith("127.") and ":" not in candidate:
+                        ip = candidate
+                        break
+            if not ip:
+                ip = "WINDOWS-LAN-IP"
+            url = "http://" + ip + ":8765"
+            token = android_bridge.TOKEN
+
+            win = ctk.CTkToplevel(self.root)
+            win.title("STAGEPULSE // ANDROID LINK")
+            win.geometry("620x360")
+            win.resizable(False, False)
+            win.transient(self.root)
+            win.grab_set()
+            ctk.CTkLabel(win, text="ANDROID CLIENT LINK", text_color=GOLD,
+                         font=("Consolas", 15, "bold")).pack(anchor="w", padx=22, pady=(20, 5))
+            ctk.CTkLabel(win, text="Android uygulamasında HOST bölümüne aşağıdaki adresi ve token'ı gir.",
+                         text_color=WHITE, wraplength=570, justify="left").pack(anchor="w", padx=22, pady=(0, 14))
+
+            def entry_row(label, value):
+                ctk.CTkLabel(win, text=label, text_color=MUTED,
+                             font=("Consolas", 9, "bold")).pack(anchor="w", padx=22, pady=(5, 3))
+                row = ctk.CTkFrame(win, fg_color="transparent")
+                row.pack(fill="x", padx=22)
+                entry = ctk.CTkEntry(row, height=34)
+                entry.pack(side="left", fill="x", expand=True, padx=(0, 8))
+                entry.insert(0, value)
+                entry.configure(state="readonly")
+                def copy_value(v=value):
+                    self.root.clipboard_clear()
+                    self.root.clipboard_append(v)
+                    self.root.update()
+                    self._activity("ANDROID LINK VALUE COPIED")
+                ctk.CTkButton(row, text="COPY", width=75, height=34,
+                              fg_color=GOLD2, hover_color=GOLD, text_color="#050505",
+                              command=copy_value).pack(side="right")
+            entry_row("WINDOWS HOST URL", url)
+            entry_row("AUTHENTICATION TOKEN", token)
+            ctk.CTkLabel(
+                win, text="Güvenlik: Bu bağlantıyı internete açma. Yalnızca güvendiğin aynı yerel ağda kullan.",
+                text_color=RED, wraplength=570, justify="left"
+            ).pack(anchor="w", padx=22, pady=(12, 6))
+        except Exception as exc:
+            messagebox.showerror("Android bağlantısı başlatılamadı", str(exc), parent=self.root)
+
     def _on_send_clicked(self):
         command = self.command_entry.get().strip()
         if not command:
@@ -359,9 +679,14 @@ class JarvisGUI:
         self.phase.configure(text="PROCESSING")
         self.status.configure(text="● PROCESSING", text_color=GOLD)
         self._activity("CMD > " + command[:46])
-        self.jarvis.process_command(
-            command, speak_response=self.voice_var.get()
-        )
+        if self._is_image_generation_request(command):
+            brain = self.jarvis.command_processor.ai_brain
+            prompt = self._image_prompt_from_command(command)
+            self._run_ai_task("Gemini görsel üretiyor", lambda: brain.generate_image(prompt), should_speak=True)
+        else:
+            self.jarvis.process_command(
+                command, speak_response=self.voice_var.get()
+            )
 
     def _on_voice_clicked(self):
         if self._voice_busy:
@@ -438,12 +763,90 @@ class JarvisGUI:
         self.activity.configure(state="disabled")
 
     def _toggle_wake_word(self):
-        if self.wake_word_var.get():
-            self.jarvis.start_wake_word_detection()
-            self._activity("WAKE WORD ENABLED")
-        elif self.jarvis.wake_word_detector:
-            self.jarvis.wake_word_detector.stop()
+        enabled = bool(self.wake_word_var.get())
+        if enabled:
+            started = self.jarvis.start_wake_word_detection()
+            if started:
+                config.set("voice.wake_word_enabled", True)
+                self._activity("WAKE WORD ENABLED (INTERNET REQUIRED FOR FALLBACK)")
+            else:
+                self.wake_word_var.set(False)
+                config.set("voice.wake_word_enabled", False)
+                self._append_to_chat(
+                    "SYSTEM",
+                    "Wake word başlatılamadı. Voice ayarını, mikrofonu ve internet bağlantısını kontrol edin.",
+                    "red"
+                )
+                self._activity("WAKE WORD START FAILED")
+        else:
+            detector = getattr(self.jarvis, "wake_word_detector", None)
+            if detector:
+                try:
+                    detector.stop()
+                except Exception as exc:
+                    logger.warning("Wake word stop failed: %s", exc)
+            self.jarvis.wake_word_enabled = False
+            config.set("voice.wake_word_enabled", False)
             self._activity("WAKE WORD DISABLED")
+
+    def _on_tts_voice_changed(self, label):
+        voice_id = self.tts_voice_choices.get(label)
+        if not voice_id:
+            return
+        try:
+            if self.jarvis.set_voice(voice_id):
+                self._activity("TTS VOICE SELECTED: " + label)
+                self._append_to_chat("SYSTEM", "Konuşma sesi seçildi: " + label, "green")
+            else:
+                self._append_to_chat(
+                    "SYSTEM", "Ses seçilemedi. TTS bağımlılıklarını ve ayarları kontrol edin.",
+                    "red"
+                )
+        except Exception as exc:
+            self._append_to_chat("SYSTEM", "TTS ayarı hatası: " + str(exc), "red")
+
+    def _test_microphone(self):
+        self._activity("MICROPHONE TEST")
+        def worker():
+            try:
+                result = self.jarvis.test_microphone()
+            except Exception as exc:
+                result = {"success": False, "message": "Mikrofon testi hatası: " + str(exc)}
+            def show_result():
+                message = result.get("message", "Mikrofon testi tamamlandı.")
+                self._append_to_chat(
+                    "SYSTEM", message,
+                    "green" if result.get("success") else "red"
+                )
+                self._activity("MIC TEST: " + message[:60])
+                if result.get("success"):
+                    messagebox.showinfo("Mikrofon testi", message, parent=self.root)
+                else:
+                    messagebox.showerror("Mikrofon testi", message, parent=self.root)
+            try:
+                self.root.after(0, show_result)
+            except Exception:
+                pass
+        threading.Thread(target=worker, daemon=True, name="JARVIS-Mic-Test").start()
+
+    def _test_tts_voice(self):
+        self._activity("TTS VOICE TEST")
+        def worker():
+            result = self.jarvis.speak(
+                "Merhaba Patron. Türkçe ses testi. JARVIS konuşma sistemi hazır.",
+                wait=True
+            )
+            if not result:
+                try:
+                    self.root.after(
+                        0, lambda: self._append_to_chat(
+                            "SYSTEM", "Ses testi başarısız. İnternet veya yerel TTS modelini kontrol edin.",
+                            "red"
+                        )
+                    )
+                except Exception:
+                    pass
+        threading.Thread(target=worker, daemon=True, name="JARVIS-TTS-Test").start()
 
     def _toggle_voice(self):
         enabled = self.voice_var.get()
@@ -472,6 +875,13 @@ def _jarvis_gui_response(self, result):
     except Exception:
         pass
 
+def _jarvis_gui_command(self, command):
+    # Command callbacks run on worker threads; all Tk updates must go via after().
+    try:
+        self.root.after(0, lambda c=str(command): self._append_to_chat("YOU", c, "gold"))
+    except Exception:
+        pass
+
 def _render_response_safe(self, result):
     response = result.get("response", "")
     success = result.get("success", False)
@@ -495,6 +905,9 @@ def _render_response_safe(self, result):
 def _jarvis_gui_voice(self):
     if getattr(self, "_voice_busy", False):
         return
+    if not self.voice_var.get():
+        self._append_to_chat("SYSTEM", "Önce Voice anahtarını açın.", "yellow")
+        return
 
     self._voice_busy = True
     try:
@@ -512,9 +925,19 @@ def _jarvis_gui_voice(self):
     def worker():
         try:
             result = self.jarvis.process_voice_command()
+            # A successful return may only mean the command was queued. The actual
+            # recognized command is surfaced through Jarvis.on_command.
             self.root.after(0, lambda r=result: self._voice_result_safe(r))
         except Exception as e:
-            self.root.after(0, lambda e=e: self._voice_error_safe(e))
+            try:
+                self.root.after(0, lambda e=e: self._voice_error_safe(e))
+            except Exception:
+                pass
+        finally:
+            try:
+                self.root.after(0, self._voice_finished_safe)
+            except Exception:
+                pass
 
     threading.Thread(
         target=worker,
@@ -524,20 +947,23 @@ def _jarvis_gui_voice(self):
 
 def _voice_result_safe(self, result):
     if isinstance(result, dict) and result.get("success"):
-        text = result.get("text")
-        if text:
-            self._append_to_chat("YOU", text, "gold")
-        self._activity("VOICE COMMAND RECEIVED")
+        recognized = result.get("text")
+        if recognized:
+            self._append_to_chat("YOU", recognized, "gold")
+        if result.get("async") or result.get("intent") == "processing":
+            self._activity("VOICE COMMAND QUEUED")
+        else:
+            self._activity("VOICE INPUT COMPLETE")
     else:
         if isinstance(result, dict):
-            msg = result.get("message") or result.get("error") or "Ses anlaşılamadı."
+            msg = result.get("message") or result.get("response") or result.get("error") or "Ses anlaşılamadı."
         else:
             msg = "Ses anlaşılamadı."
-        if msg == "timeout":
-            msg = "Ses algılanmadı. Mikrofonu kontrol edin."
+        if msg == "timeout" or (isinstance(result, dict) and result.get("error") == "timeout"):
+            msg = "Ses algılanmadı. Mikrofonu ve giriş seviyesini kontrol edin."
         self._append_to_chat("SYSTEM", str(msg), "yellow")
         self._activity("VOICE ERROR: " + str(msg)[:50])
-    self._voice_finished()
+    self._voice_finished_safe()
 
 def _voice_error_safe(self, error):
     self._append_to_chat("SYSTEM", "Ses hatası: " + str(error), "red")
@@ -557,6 +983,8 @@ def _voice_finished_safe(self):
     except Exception:
         pass
 
+JarvisGUI._render_response_safe = _render_response_safe
 JarvisGUI._on_response = _jarvis_gui_response
+JarvisGUI._on_command = _jarvis_gui_command
 JarvisGUI._on_voice_clicked = _jarvis_gui_voice
 JarvisGUI._voice_finished = _voice_finished_safe

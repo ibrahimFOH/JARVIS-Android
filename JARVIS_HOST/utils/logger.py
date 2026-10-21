@@ -75,26 +75,31 @@ class JarvisLogger:
         file_handler.setFormatter(file_formatter)
         self.logger.addHandler(file_handler)
     
-    def debug(self, message, **kwargs):
-        """Log debug message"""
-        self.logger.debug(message, **kwargs)
-    
-    def info(self, message, **kwargs):
-        """Log info message"""
-        self.logger.info(message, **kwargs)
-    
-    def warning(self, message, **kwargs):
-        """Log warning message"""
-        self.logger.warning(message, **kwargs)
-    
-    def error(self, message, **kwargs):
-        """Log error message"""
-        self.logger.error(message, **kwargs)
-    
-    def critical(self, message, **kwargs):
-        """Log critical message"""
-        self.logger.critical(message, **kwargs)
-    
+    def debug(self, message, *args, **kwargs):
+        """Log debug message with stdlib logging-compatible formatting arguments."""
+        self.logger.debug(message, *args, **kwargs)
+
+    def info(self, message, *args, **kwargs):
+        """Log info message with stdlib logging-compatible formatting arguments."""
+        self.logger.info(message, *args, **kwargs)
+
+    def warning(self, message, *args, **kwargs):
+        """Log warning message with stdlib logging-compatible formatting arguments."""
+        self.logger.warning(message, *args, **kwargs)
+
+    def error(self, message, *args, **kwargs):
+        """Log error message with stdlib logging-compatible formatting arguments."""
+        self.logger.error(message, *args, **kwargs)
+
+    def critical(self, message, *args, **kwargs):
+        """Log critical message with stdlib logging-compatible formatting arguments."""
+        self.logger.critical(message, *args, **kwargs)
+
+    def exception(self, message, *args, **kwargs):
+        """Log an exception traceback with stdlib-compatible formatting arguments."""
+        kwargs.setdefault("exc_info", True)
+        self.logger.error(message, *args, **kwargs)
+
     def command(self, command, status="EXECUTED"):
         """Log command execution"""
         self.info(f"[COMMAND {status}] {command}")
