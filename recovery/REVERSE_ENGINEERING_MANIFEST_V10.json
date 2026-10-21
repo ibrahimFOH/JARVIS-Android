@@ -1,0 +1,50 @@
+{
+  "report_version": "V10",
+  "date": "2026-10-21",
+  "desktop_exe_sha256": "03c71a4204fd37f240dabc008742d7ef23938cb1f8bebce24ee79c8cee0b6be8",
+  "frontend": {
+    "recovered_files": 18,
+    "byte_identical_to_v5": 18,
+    "javascript_passed": 8,
+    "javascript_total": 8,
+    "asset_path_markers": 22,
+    "index_html_marker_occurrences": 5,
+    "distinct_crate_version_pairs": 98
+  },
+  "pdb": {
+    "file": "asistan.pdb",
+    "age": 1,
+    "guid_windows": "ee39d7da-5768-ffa2-4c4c-44205044422e",
+    "guid_raw": "dad739ee6857a2ff4c4c44205044422e",
+    "matching_file_found": false
+  },
+  "android_ci": {
+    "workflow": "JARVIS Android Build",
+    "run_id": 39581658900,
+    "run_number": 126,
+    "conclusion": "success",
+    "tested_commit": "94e1f72941b17c299bf6c2d1c2b3c8d760b84cb1",
+    "artifact_zip_sha256": "479e8454df92e10bef866c738c5171b2cfba134358e1acf3c09d92b695aa6058",
+    "apk": "JARVIS-Android-PIPER-debug-2026-10-21.apk",
+    "apk_size_bytes": 97511083,
+    "apk_sha256": "e1bd184c84eaa148beaab03b23568088601f16a5365356b67669245444b78835",
+    "application_id": "com.stagepulse.jarvis",
+    "version_name": "2.2.0-piper",
+    "version_code": 220,
+    "min_sdk": 26,
+    "target_sdk": 35,
+    "abis": [
+      "arm64-v8a",
+      "armeabi-v7a"
+    ],
+    "piper_onnx_bytes": 63201294,
+    "apk_zip_integrity": "passed",
+    "device_test": "not performed"
+  },
+  "limitations": [
+    "Rust/Tauri source functions and build config not recovered",
+    "NSIS payload/script not extracted locally",
+    "Android APK is a separate app, not an EXE conversion",
+    "No device/emulator test in this environment"
+  ]
+}
