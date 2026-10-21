@@ -31,9 +31,9 @@ _EDGE_VOICES = {
     "tr-tr-ahmetneural": ("tr-TR-AhmetNeural", "Ahmet (Türkçe, erkek, çevrimiçi)"),
 }
 _PIPER_VOICES = {
-    "dfki": ("vits-piper-tr_TR-dfki-medium", "DFKI (Türkçe, nötr, çevrimdışı)"),
-    "fahrettin": ("vits-piper-tr_TR-fahrettin-medium", "Fahrettin (Türkçe, erkek, çevrimdışı)"),
-    "fettah": ("vits-piper-tr_TR-fettah-medium", "Fettah (Türkçe, erkek, çevrimdışı)"),
+    "dfki": ("vits-piper-tr_TR-dfki-medium", "DFKI (Türkçe, çevrimdışı)"),
+    "fahrettin": ("vits-piper-tr_TR-fahrettin-medium", "Fahrettin (Türkçe, çevrimdışı)"),
+    "fettah": ("vits-piper-tr_TR-fettah-medium", "Fettah (Türkçe, çevrimdışı)"),
 }
 _PIPER_RELEASE = "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models"
 
@@ -381,9 +381,9 @@ class TextToSpeech:
         voices = [
             {"id": "tr-TR-EmelNeural", "name": "Emel (Türkçe, kadın, çevrimiçi)"},
             {"id": "tr-TR-AhmetNeural", "name": "Ahmet (Türkçe, erkek, çevrimiçi)"},
-            {"id": "piper:dfki", "name": "DFKI (Türkçe, nötr, çevrimdışı; ilk kullanımda indirilir)"},
-            {"id": "piper:fahrettin", "name": "Fahrettin (Türkçe, erkek, çevrimdışı; ilk kullanımda indirilir)"},
-            {"id": "piper:fettah", "name": "Fettah (Türkçe, erkek, çevrimdışı; ilk kullanımda indirilir)"},
+            {"id": "piper:dfki", "name": "DFKI (Türkçe / Offline; ilk kullanımda indirilir)"},
+            {"id": "piper:fahrettin", "name": "Fahrettin (Türkçe / Offline; ilk kullanımda indirilir)"},
+            {"id": "piper:fettah", "name": "Fettah (Türkçe / Offline; ilk kullanımda indirilir)"},
         ]
         try:
             if self.engine:
