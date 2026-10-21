@@ -114,14 +114,17 @@ class JarvisGUI:
             button_hover_color=WHITE, text_color=WHITE
         ).pack(anchor="w", padx=12, pady=4)
 
-        if self.jarvis.wake_word_detector:
-            self.wake_word_var = ctk.BooleanVar(value=False)
-            ctk.CTkSwitch(
-                left, text="Wake word", variable=self.wake_word_var,
-                command=self._toggle_wake_word,
-                progress_color=GOLD2, button_color=GOLD,
-                text_color=WHITE
-            ).pack(anchor="w", padx=12, pady=4)
+        # Keep the wake-word control visible even when it is not configured yet.
+        # Detection starts only after the user explicitly enables this switch.
+        self.wake_word_var = ctk.BooleanVar(
+            value=config.get("voice.wake_word_enabled", False)
+        )
+        ctk.CTkSwitch(
+            left, text="Wake word", variable=self.wake_word_var,
+            command=self._toggle_wake_word,
+            progress_color=GOLD2, button_color=GOLD,
+            text_color=WHITE
+        ).pack(anchor="w", padx=12, pady=4)
 
         center = ctk.CTkFrame(self.root, fg_color=BG, corner_radius=0)
         center.grid(row=1, column=1, sticky="nsew", padx=7, pady=5)
@@ -689,6 +692,13 @@ def _jarvis_gui_response(self, result):
     except Exception:
         pass
 
+def _jarvis_gui_command(self, command):
+    # Command callbacks run on worker threads; all Tk updates must go via after().
+    try:
+        self.root.after(0, lambda c=str(command): self._append_to_chat("YOU", c, "gold"))
+    except Exception:
+        pass
+
 def _render_response_safe(self, result):
     response = result.get("response", "")
     success = result.get("success", False)
@@ -712,6 +722,9 @@ def _render_response_safe(self, result):
 def _jarvis_gui_voice(self):
     if getattr(self, "_voice_busy", False):
         return
+    if not self.voice_var.get():
+        self._append_to_chat("SYSTEM", "Önce Voice anahtarını açın.", "yellow")
+        return
 
     self._voice_busy = True
     try:
@@ -729,9 +742,19 @@ def _jarvis_gui_voice(self):
     def worker():
         try:
             result = self.jarvis.process_voice_command()
+            # A successful return may only mean the command was queued. The actual
+            # recognized command is surfaced through Jarvis.on_command.
             self.root.after(0, lambda r=result: self._voice_result_safe(r))
         except Exception as e:
-            self.root.after(0, lambda e=e: self._voice_error_safe(e))
+            try:
+                self.root.after(0, lambda e=e: self._voice_error_safe(e))
+            except Exception:
+                pass
+        finally:
+            try:
+                self.root.after(0, self._voice_finished_safe)
+            except Exception:
+                pass
 
     threading.Thread(
         target=worker,
@@ -741,20 +764,23 @@ def _jarvis_gui_voice(self):
 
 def _voice_result_safe(self, result):
     if isinstance(result, dict) and result.get("success"):
-        text = result.get("text")
-        if text:
-            self._append_to_chat("YOU", text, "gold")
-        self._activity("VOICE COMMAND RECEIVED")
+        recognized = result.get("text")
+        if recognized:
+            self._append_to_chat("YOU", recognized, "gold")
+        if result.get("async") or result.get("intent") == "processing":
+            self._activity("VOICE COMMAND QUEUED")
+        else:
+            self._activity("VOICE INPUT COMPLETE")
     else:
         if isinstance(result, dict):
-            msg = result.get("message") or result.get("error") or "Ses anlaşılamadı."
+            msg = result.get("message") or result.get("response") or result.get("error") or "Ses anlaşılamadı."
         else:
             msg = "Ses anlaşılamadı."
-        if msg == "timeout":
-            msg = "Ses algılanmadı. Mikrofonu kontrol edin."
+        if msg == "timeout" or (isinstance(result, dict) and result.get("error") == "timeout"):
+            msg = "Ses algılanmadı. Mikrofonu ve giriş seviyesini kontrol edin."
         self._append_to_chat("SYSTEM", str(msg), "yellow")
         self._activity("VOICE ERROR: " + str(msg)[:50])
-    self._voice_finished()
+    self._voice_finished_safe()
 
 def _voice_error_safe(self, error):
     self._append_to_chat("SYSTEM", "Ses hatası: " + str(error), "red")
@@ -775,5 +801,6 @@ def _voice_finished_safe(self):
         pass
 
 JarvisGUI._on_response = _jarvis_gui_response
+JarvisGUI._on_command = _jarvis_gui_command
 JarvisGUI._on_voice_clicked = _jarvis_gui_voice
 JarvisGUI._voice_finished = _voice_finished_safe
