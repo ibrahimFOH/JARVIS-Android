@@ -28,6 +28,7 @@ class AIBrainTests(unittest.TestCase):
     def make_brain(self):
         brain = AIBrain()
         brain.gemini_key = "test-api-key"
+        brain.groq_key = ""
         brain.provider = "auto"
         brain._instant = lambda _text: None
         brain._web = lambda _query: ""
