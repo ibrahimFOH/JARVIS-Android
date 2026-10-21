@@ -1,0 +1,76 @@
+{
+  "report_version": "V11",
+  "date": "2026-10-21",
+  "source_exe_sha256": "03c71a4204fd37f240dabc008742d7ef23938cb1f8bebce24ee79c8cee0b6be8",
+  "setup_signature": {
+    "file": "Asistan_0.1.5_x64-setup.exe",
+    "result": "VALID",
+    "algorithm": "Ed25519 over BLAKE2b-512 digest",
+    "key_id": "13ADF2DB829F075A",
+    "sha256": "485cbd596960754590f80f5c7adb05b96e11961d82a8b7a956fabb426f4f3b09",
+    "expected_hash": "MATCH",
+    "trusted_comment_global_signature_checked": false,
+    "report": "SETUP_SIGNATURE_VALIDATION_V11.md"
+  },
+  "frontend": {
+    "exact_resources_recovered": 18,
+    "byte_identical_to_v5": 18,
+    "javascript_syntax_passed": 8,
+    "javascript_syntax_total": 8,
+    "tauri_bridge_command_count": 34,
+    "rust_crate_version_debug_path_pairs": 98
+  },
+  "pdb": {
+    "filename": "asistan.pdb",
+    "age": 1,
+    "guid_windows_format": "ee39d7da-5768-ffa2-4c4c-44205044422e",
+    "matching_pdb_found": false
+  },
+  "android_ci": {
+    "workflow": "JARVIS Android Build",
+    "run_number": 129,
+    "run_id": 39582942609,
+    "result": "success",
+    "html_url": "https://github.com/ibrahimFOH/JARVIS-Android/actions/runs/39582942609",
+    "commit": "8b60da90183341e47f1e12205b21e883cdc9cda1",
+    "artifact_name": "JARVIS-Android-PIPER-debug",
+    "artifact_sha256": "3c8f25d276d94a8afd2538426de7e165df9257f5d88a406526d8f1516eaf7662",
+    "apk_filename": "JARVIS-Android-PIPER-debug-latest.apk",
+    "apk_size_bytes": 97511083,
+    "apk_sha256": "85c255ed5ae7f4c0b6bc6a8ef18294b200f3571dea71d7730215f4eda5d004cc",
+    "app_id": "com.stagepulse.jarvis",
+    "version_name": "2.2.0-piper",
+    "version_code": 220,
+    "min_sdk": 26,
+    "target_sdk": 35,
+    "abis": [
+      "arm64-v8a",
+      "armeabi-v7a"
+    ],
+    "piper_turkish_model_bytes": 63201294,
+    "apk_zip_integrity": "passed",
+    "device_test": "not performed",
+    "distinct_from_desktop_exe": true
+  },
+  "transient_ci_failure": {
+    "run_number": 124,
+    "run_id": 39581570415,
+    "step": "Install Android native build tools",
+    "error": "Error on ZipFile unknown archive while preparing NDK 27.2.12479018",
+    "reached_build_step": false,
+    "subsequent_successful_runs": [
+      125,
+      126,
+      127,
+      128,
+      129
+    ],
+    "interpretation": "SDK/NDK download/package extraction issue; not evidence of a source compile error"
+  },
+  "remaining_limits": [
+    "The original Rust/Tauri source function bodies and Cargo.toml/tauri.conf.json were not recovered.",
+    "The NSIS installer payload and [NSIS].nsi have not been extracted here because this shell has no 7z/7zz and cannot resolve external download hosts.",
+    "The APK is a debug build of the separate JARVIS_ANDROID app, not an automatic conversion of the Asistan Windows EXE.",
+    "Physical-device or emulator testing has not been performed."
+  ]
+}
