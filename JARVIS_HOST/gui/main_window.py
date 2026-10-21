@@ -492,9 +492,14 @@ class JarvisGUI:
         self.phase.configure(text="PROCESSING")
         self.status.configure(text="● PROCESSING", text_color=GOLD)
         self._activity("CMD > " + command[:46])
-        self.jarvis.process_command(
-            command, speak_response=self.voice_var.get()
-        )
+        if self._is_image_generation_request(command):
+            brain = self.jarvis.command_processor.ai_brain
+            prompt = self._image_prompt_from_command(command)
+            self._run_ai_task("Gemini görsel üretiyor", lambda: brain.generate_image(prompt), should_speak=True)
+        else:
+            self.jarvis.process_command(
+                command, speak_response=self.voice_var.get()
+            )
 
     def _on_voice_clicked(self):
         if self._voice_busy:
