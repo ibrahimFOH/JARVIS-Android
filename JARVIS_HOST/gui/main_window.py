@@ -103,6 +103,43 @@ class JarvisGUI:
         self._meter(left, "TTS OUTPUT")
         self._meter(left, "SIGNAL")
 
+        self._section(left, "TTS VOICE")
+        self.tts_voice_choices = {
+            "Emel • Kadın / Online": "tr-TR-EmelNeural",
+            "Ahmet • Erkek / Online": "tr-TR-AhmetNeural",
+            "DFKI • Nötr / Offline": "piper:dfki",
+            "Fahrettin • Erkek / Offline": "piper:fahrettin",
+            "Fettah • Erkek / Offline": "piper:fettah",
+        }
+        stored_voice = str(config.get("voice.tts_voice", "tr-TR-EmelNeural")).lower()
+        current_voice = "Emel • Kadın / Online"
+        for label, voice_id in self.tts_voice_choices.items():
+            if stored_voice == voice_id.lower() or stored_voice == voice_id.lower().replace("tr-tr-", ""):
+                current_voice = label
+            elif stored_voice in ("auto-turkish", "emel", "emelneural") and voice_id == "tr-TR-EmelNeural":
+                current_voice = label
+        if stored_voice.startswith("piper:"):
+            for label, voice_id in self.tts_voice_choices.items():
+                if voice_id.lower() == stored_voice:
+                    current_voice = label
+        self.tts_voice_var = ctk.StringVar(value=current_voice)
+        ctk.CTkOptionMenu(
+            left, variable=self.tts_voice_var,
+            values=list(self.tts_voice_choices.keys()),
+            command=self._on_tts_voice_changed,
+            width=178, height=30,
+            fg_color="#15181C", button_color=GOLD2,
+            button_hover_color=GOLD, text_color=WHITE,
+            font=("Consolas", 9),
+        ).pack(fill="x", padx=10, pady=(2, 4))
+        ctk.CTkButton(
+            left, text="TEST VOICE", height=28,
+            fg_color="#090B0D", hover_color="#15181C",
+            border_width=1, border_color=GOLD2, text_color=GOLD,
+            font=("Consolas", 9, "bold"),
+            command=self._test_tts_voice,
+        ).pack(fill="x", padx=10, pady=(0, 6))
+
         self._section(left, "CONTROL")
         self.voice_var = ctk.BooleanVar(
             value=config.get("voice.enabled", True)
@@ -683,6 +720,41 @@ class JarvisGUI:
             self.jarvis.wake_word_enabled = False
             config.set("voice.wake_word_enabled", False)
             self._activity("WAKE WORD DISABLED")
+
+    def _on_tts_voice_changed(self, label):
+        voice_id = self.tts_voice_choices.get(label)
+        if not voice_id:
+            return
+        try:
+            if self.jarvis.set_voice(voice_id):
+                self._activity("TTS VOICE SELECTED: " + label)
+                self._append_to_chat("SYSTEM", "Konuşma sesi seçildi: " + label, "green")
+            else:
+                self._append_to_chat(
+                    "SYSTEM", "Ses seçilemedi. TTS bağımlılıklarını ve ayarları kontrol edin.",
+                    "red"
+                )
+        except Exception as exc:
+            self._append_to_chat("SYSTEM", "TTS ayarı hatası: " + str(exc), "red")
+
+    def _test_tts_voice(self):
+        self._activity("TTS VOICE TEST")
+        def worker():
+            result = self.jarvis.speak(
+                "Merhaba Patron. Türkçe ses testi. JARVIS konuşma sistemi hazır.",
+                wait=True
+            )
+            if not result:
+                try:
+                    self.root.after(
+                        0, lambda: self._append_to_chat(
+                            "SYSTEM", "Ses testi başarısız. İnternet veya yerel TTS modelini kontrol edin.",
+                            "red"
+                        )
+                    )
+                except Exception:
+                    pass
+        threading.Thread(target=worker, daemon=True, name="JARVIS-TTS-Test").start()
 
     def _toggle_voice(self):
         enabled = self.voice_var.get()
