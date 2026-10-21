@@ -350,7 +350,7 @@ class TextToSpeech:
         value = re.sub(r"(?is)```.*?```", "Kod bloğu atlandı.", value)
         value = re.sub(r"https?://\S+|www\.\S+", " bağlantı ", value)
         value = re.sub(r"(?m)^\s{0,3}#{1,6}\s*", "", value)
-        value = re.sub(r"[*_~|<>\[\]{}()\\/]+", " ", value)
+        value = re.sub(r"[*_~|<>\[\]{}()\x60\\/]+", " ", value)
         value = re.sub(r"[:;=+@#$%^&]+", " ", value)
         value = re.sub(r"\s+", " ", value).strip()
         return value
