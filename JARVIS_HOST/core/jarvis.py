@@ -190,18 +190,35 @@ class Jarvis:
         logger.info("Stopping continuous listening...")
     
     def start_wake_word_detection(self):
-        """Start wake word detection"""
+        """Start wake-word detection after explicit user activation."""
+        if not self.voice_enabled:
+            logger.warning("Wake word requires voice input to be enabled")
+            return False
+
         if not self.wake_word_detector:
-            logger.warning("Wake word detection not available")
-            return
-        
+            # Porcupine requires a Picovoice access key. The fallback uses
+            # cloud speech recognition, so it needs a working internet connection.
+            self.wake_word_detector = SimpleWakeWordDetector()
+
         def on_wake_word():
             logger.info("Wake word detected - processing command")
-            self.speak("Evet, Patron?")
-            self.process_voice_command()
-        
-        self.wake_word_detector.start(on_wake_word)
-    
+            try:
+                self.speak("Evet, Patron?", wait=False)
+                self.process_voice_command()
+            except Exception as exc:
+                logger.error("Wake-word command handling failed: %s", exc)
+
+        try:
+            self.wake_word_detector.start(on_wake_word)
+            self.wake_word_enabled = True
+            config.set("voice.wake_word_enabled", True)
+            logger.info("Wake-word detection started")
+            return True
+        except Exception as exc:
+            logger.exception("Could not start wake-word detection")
+            self.wake_word_enabled = False
+            return False
+
     def speak(self, text: str, wait: bool = True):
         """Speak text using text-to-speech"""
         if self.text_to_speech and self.text_to_speech.available:
