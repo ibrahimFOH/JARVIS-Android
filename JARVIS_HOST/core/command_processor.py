@@ -617,6 +617,11 @@ def _jarvis_process_with_ai(self, command):
     intent = str(result.get("intent", "") or "").lower()
     success = bool(result.get("success", False))
 
+    # The original processor already called AIBrain for intent="ai". Returning here avoids
+    # sending the same prompt twice and prevents a duplicate provider fallback/error.
+    if success and intent == "ai":
+        return result
+
     if success and intent not in ("unknown", "ai", "ai_error"):
         old_markers = (
             "haven't implemented",
