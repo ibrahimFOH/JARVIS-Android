@@ -4,6 +4,8 @@
 # Speech Recognition & TTS
 SpeechRecognition>=3.10.0
 pyttsx3>=2.90
+edge-tts>=7.3.1  # Turkish online neural voices (Emel/Ahmet)
+sherpa-onnx>=1.13.8  # Optional Turkish Piper offline voices
 pyaudio>=0.2.14
 pvporcupine>=3.0.0  # Wake word detection
 
