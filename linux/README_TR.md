@@ -83,4 +83,37 @@ Standart 7-Zip ile payload dosyalarını çıkarmak ve derlenmiş NSIS kurulum b
 
 Özel 7-Zip NSIS derlemesi: https://github.com/myfreeer/7z-build-nsis/releases/tag/26.04
 
-Not: Bu ortamda 7z/7zz kurulu olmadığı için kurulum payload'ı ve `[NSIS].nsi` fiilen çıkarılmış değil. Bu adım, Linux makinede yapılacak sonraki doğrulama olarak duruyor.
+Not: Bu çalışma ortamında 7z/7zz bulunmadığı ve dış ağ/DNS erişimi başarısız olduğu için kurulum payload'ı ve [NSIS].nsi fiilen çıkarılmadı.
+
+### Linux'ta NSIS script decompilation için alternatif yol
+
+Yeni araştırmada Linux'a özel bir derleme deposu bulundu: https://github.com/Nalinium/7zz-build-nsis-linux. Depo resmi 7-Zip kaynak ağacını klonlar, NSIS_SCRIPT özelliğini açar ve 7zz oluşturur. Bu, hazır ikili indirmek değil, yerel derleme işlemidir. Kurulum betiği varsayılan olarak tüm işlemcileri kullanır; eski/düşük RAM'li cihazda derlemeden önce betikteki -j"$(nproc)" ifadesini -j2 olarak değiştirerek kaynak tüketimini sınırlamak daha temkinlidir.
+
+Ubuntu/Debian'da, internet erişimi olan bir bilgisayarda:
+
+```bash
+sudo apt update
+sudo apt install build-essential git
+git clone https://github.com/Nalinium/7zz-build-nsis-linux.git
+cd 7zz-build-nsis-linux
+# İsteğe bağlı: build-7zz-nsis.sh içindeki -j"$(nproc)" değerini -j2 yap.
+chmod +x build-7zz-nsis.sh
+./build-7zz-nsis.sh 26.02
+```
+
+Derleme tamamlanınca ./release/7zz oluşur. Önce yalnızca payload listesini/çıkarımını ayrı klasörde dene:
+
+```bash
+mkdir -p "$HOME/asistan-payload"
+./release/7zz l "/tam/yol/Asistan_0.1.5_x64-setup.exe"
+./release/7zz x "/tam/yol/Asistan_0.1.5_x64-setup.exe" -o"$HOME/asistan-payload"
+```
+
+Script decompilation denemesi için ayrı klasör kullan:
+
+```bash
+mkdir -p "$HOME/asistan-script"
+./release/7zz x "/tam/yol/Asistan_0.1.5_x64-setup.exe" '[NSIS].nsi' '[LICENSE].txt' -o"$HOME/asistan-script"
+```
+
+Bu özel derleme burada oluşturulup çalıştırılmadı. [NSIS'in resmi açıklaması](https://nsis.sourceforge.io/Can_I_decompile_an_existing_installer) tam özgün kurulum betiğinin geri elde edilmesini garanti etmez.
