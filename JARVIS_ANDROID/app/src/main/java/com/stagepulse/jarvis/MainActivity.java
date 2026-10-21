@@ -37,6 +37,8 @@ public class MainActivity extends Activity {
     @Override public void onCreate(Bundle b){
         super.onCreate(b);
         bridgePrefs = getSharedPreferences("jarvis_bridge", MODE_PRIVATE);
+        SecureStore.migrate(bridgePrefs, "gemini_key");
+        SecureStore.migrate(bridgePrefs, "token");
         buildUi();
         initPiper();
         initSpeech();
@@ -138,12 +140,13 @@ public class MainActivity extends Activity {
     private void showGeminiSettings(){
         LinearLayout box = new LinearLayout(this);
         box.setOrientation(LinearLayout.VERTICAL); box.setPadding(20, 8, 20, 0);
-        EditText key = new EditText(this); key.setSingleLine(true); key.setInputType(129); key.setHint("Gemini API key"); key.setText(bridgePrefs.getString("gemini_key", ""));
+        EditText key = new EditText(this); key.setSingleLine(true); key.setInputType(129); key.setHint("Gemini API key"); key.setText(SecureStore.get(bridgePrefs, "gemini_key"));
         EditText model = new EditText(this); model.setSingleLine(true); model.setHint("gemini-2.5-flash"); model.setText(bridgePrefs.getString("gemini_model", "gemini-2.5-flash"));
         box.addView(key); box.addView(model);
         new AlertDialog.Builder(this).setTitle("GEMINI API").setMessage("Gemini internet ve geçerli API erişimi gerektirir. Anahtarını paylaşma.")
             .setView(box).setPositiveButton("KAYDET", (d, w) -> {
-                bridgePrefs.edit().putString("gemini_key", key.getText().toString().trim()).putString("gemini_model", model.getText().toString().trim()).apply();
+                SecureStore.put(bridgePrefs, "gemini_key", key.getText().toString().trim());
+                bridgePrefs.edit().putString("gemini_model", model.getText().toString().trim()).apply();
                 append("JARVIS", "Gemini ayarları kaydedildi.");
             }).setNegativeButton("İPTAL", null).show();
     }
@@ -160,7 +163,7 @@ public class MainActivity extends Activity {
         token.setSingleLine(true);
         token.setHint("Windows JARVIS bridge token");
         token.setInputType(129);
-        token.setText(bridgePrefs.getString("token", ""));
+        token.setText(SecureStore.get(bridgePrefs, "token"));
         box.addView(address);
         box.addView(token);
         new AlertDialog.Builder(this)
@@ -170,7 +173,8 @@ public class MainActivity extends Activity {
             .setPositiveButton("KAYDET VE TEST ET", (d, which) -> {
                 String url = address.getText().toString().trim();
                 String secret = token.getText().toString().trim();
-                bridgePrefs.edit().putString("url", url).putString("token", secret).apply();
+                bridgePrefs.edit().putString("url", url).apply();
+                SecureStore.put(bridgePrefs, "token", secret);
                 if (url.isEmpty() || secret.isEmpty()) {
                     append("JARVIS", "Ortak Windows çekirdeği kapalı. Yerel Android komutları kullanılacak.");
                     return;
@@ -278,8 +282,8 @@ public class MainActivity extends Activity {
             String a;
             try{
                 String hostUrl = bridgePrefs.getString("url", "").trim();
-                String hostToken = bridgePrefs.getString("token", "").trim();
-                String geminiKey = bridgePrefs.getString("gemini_key", "").trim();
+                String hostToken = SecureStore.get(bridgePrefs, "token").trim();
+                String geminiKey = SecureStore.get(bridgePrefs, "gemini_key").trim();
                 String geminiModel = bridgePrefs.getString("gemini_model", "gemini-2.5-flash").trim();
                 if (!geminiKey.isEmpty() && (pendingImage != null || isImageGenerationCommand(cmd))) {
                     statusPost(isImageGenerationCommand(cmd) ? "● GEMINI IMAGE" : "● GEMINI VISION");
@@ -292,8 +296,19 @@ public class MainActivity extends Activity {
                     }
                 } else if (!hostUrl.isEmpty() && !hostToken.isEmpty()) {
                     statusPost("● WINDOWS JARVIS");
-                    BridgeClient.Result remote = BridgeClient.command(hostUrl, hostToken, cmd);
-                    a = remote.success ? remote.response : "Windows JARVIS işlemi başarısız oldu: " + remote.response;
+                    try {
+                        BridgeClient.Result remote = BridgeClient.command(hostUrl, hostToken, cmd);
+                        a = remote.success ? remote.response : "Windows JARVIS işlemi başarısız oldu: " + remote.response;
+                    } catch (Exception hostError) {
+                        statusPost("● ANDROID FALLBACK");
+                        if (!geminiKey.isEmpty()) {
+                            a = "Windows bağlantısı kapalı; Android bağımsız olarak devam ediyor. " + analyzeSelectedImage(cmd, geminiKey, geminiModel);
+                        } else if (isResearchCommand(cmd)) {
+                            a = "Windows bağlantısı kapalı; Android yerel araştırma motorunu kullanıyor. " + ResearchEngine.research(extractResearchQuery(cmd)).text;
+                        } else {
+                            a = "Windows bağlantısı kapalı. Android'in çevrimdışı komutlarıyla devam ediyorum. " + processLocal(cmd);
+                        }
+                    }
                 } else if (!geminiKey.isEmpty()) {
                     statusPost("● GEMINI");
                     a = analyzeSelectedImage(cmd, geminiKey, geminiModel);
