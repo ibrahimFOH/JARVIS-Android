@@ -82,9 +82,11 @@ class TextToSpeech:
             self.edge_available or self.sherpa_available or self.engine is not None
         )
         logger.info(
-            "TTS ready: engine=%s edge_available=%s sherpa_available=%s windows_fallback=%s voice=%s",
-            self.tts_engine, self.edge_available, self.sherpa_available,
-            self.engine is not None, self.edge_voice if self.tts_engine == "edge" else self.piper_voice
+            "TTS ready: engine={} edge_available={} sherpa_available={} windows_fallback={} voice={}".format(
+                self.tts_engine, self.edge_available, self.sherpa_available,
+                self.engine is not None,
+                self.edge_voice if self.tts_engine == "edge" else self.piper_voice,
+            )
         )
 
     def _init_windows_fallback(self):
@@ -103,7 +105,7 @@ class TextToSpeech:
             logger.info("Windows SAPI fallback is ready.")
         except Exception as exc:
             self.engine = None
-            logger.warning("Windows SAPI fallback unavailable: %s", exc)
+            logger.warning("Windows SAPI fallback unavailable: " + str(exc))
 
     @staticmethod
     def _cache_root():
@@ -149,7 +151,7 @@ class TextToSpeech:
         archive_path = cache / archive_name
         url = f"{_PIPER_RELEASE}/{archive_name}"
         temporary_archive = archive_path.with_suffix(archive_path.suffix + ".part")
-        logger.info("Downloading Turkish offline TTS model %s from %s", voice, url)
+        logger.info("Downloading Turkish offline TTS model " + voice + " from " + url)
         request = Request(url, headers={"User-Agent": "JARVIS-Stagepulse/1.0"})
         try:
             with urlopen(request, timeout=45) as response, open(temporary_archive, "wb") as target:
@@ -179,7 +181,7 @@ class TextToSpeech:
                 pass
             if not (model_file.is_file() and (directory / "tokens.txt").is_file() and (directory / "espeak-ng-data").is_dir()):
                 raise RuntimeError("Model indirildi ancak gerekli ONNX/tokens/espeak dosyaları bulunamadı.")
-            logger.info("Turkish offline TTS model installed: %s", directory)
+            logger.info("Turkish offline TTS model installed: " + str(directory))
             return directory
         except Exception:
             for candidate in (temporary_archive, archive_path):
@@ -310,18 +312,18 @@ class TextToSpeech:
                 try:
                     return self._speak_piper_sync(text)
                 except Exception as exc:
-                    logger.warning("Offline Piper TTS failed; trying online Turkish voice: %s", exc)
+                    logger.warning("Offline Piper TTS failed; trying online Turkish voice: " + str(exc))
                     if self.edge_available:
                         try:
                             return self._speak_edge_sync(text)
                         except Exception as edge_exc:
-                            logger.warning("Online Turkish TTS fallback failed: %s", edge_exc)
+                            logger.warning("Online Turkish TTS fallback failed: " + str(edge_exc))
             elif self.tts_engine in ("edge", "edge-tts", "auto"):
                 if self.edge_available:
                     try:
                         return self._speak_edge_sync(text)
                     except Exception as exc:
-                        logger.warning("Online Turkish TTS failed; trying available local voice: %s", exc)
+                        logger.warning("Online Turkish TTS failed; trying available local voice: " + str(exc))
                 # Avoid an unexpected 60+ MB download just because the internet TTS
                 # service is temporarily unavailable. Use a cached Piper model only.
                 if self.sherpa_available:
@@ -330,14 +332,14 @@ class TextToSpeech:
                             try:
                                 return self._speak_piper_sync(text, candidate)
                             except Exception as exc:
-                                logger.warning("Cached Piper fallback failed: %s", exc)
+                                logger.warning("Cached Piper fallback failed: " + str(exc))
                                 break
             # SAPI/Tolga fallback. If the Turkish neural service is unavailable,
             # this preserves speech instead of making JARVIS silent.
             try:
                 return self._speak_windows_sync(text)
             except Exception as exc:
-                logger.error("All TTS backends failed: %s", exc)
+                logger.error("All TTS backends failed: " + str(exc))
                 return False
 
     def speak(self, text, wait=True):
@@ -433,7 +435,7 @@ class TextToSpeech:
                     self.engine.setProperty("voice", voice.id)
                     return True
         except Exception as exc:
-            logger.warning("Could not set Windows voice: %s", exc)
+            logger.warning("Could not set Windows voice: " + str(exc))
         return False
 
     def save_to_file(self, text, filename):
@@ -463,7 +465,7 @@ class TextToSpeech:
                     wav.writeframes(np.clip(np.asarray(audio.samples) * 32767, -32768, 32767).astype("<i2").tobytes())
                 return True
             except Exception as exc:
-                logger.error("Could not save Piper speech to file: %s", exc)
+                logger.error("Could not save Piper speech to file: " + str(exc))
                 return False
         if self.engine and self.tts_engine == "pyttsx3":
             try:
@@ -471,5 +473,5 @@ class TextToSpeech:
                 self.engine.runAndWait()
                 return True
             except Exception as exc:
-                logger.error("Could not save Windows TTS to file: %s", exc)
+                logger.error("Could not save Windows TTS to file: " + str(exc))
         return False
