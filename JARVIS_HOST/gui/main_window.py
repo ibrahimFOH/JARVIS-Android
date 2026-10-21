@@ -973,6 +973,7 @@ def _voice_finished_safe(self):
     except Exception:
         pass
 
+JarvisGUI._render_response_safe = _render_response_safe
 JarvisGUI._on_response = _jarvis_gui_response
 JarvisGUI._on_command = _jarvis_gui_command
 JarvisGUI._on_voice_clicked = _jarvis_gui_voice
