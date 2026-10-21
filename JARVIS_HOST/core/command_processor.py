@@ -637,7 +637,7 @@ CommandProcessor.process = _jarvis_process_with_ai
 _JARVIS_FAST_LOCAL_PATCH = True
 
 try:
-    _jarvis_original_process_command = CommandProcessor.process_command
+    _jarvis_original_process_command = CommandProcessor.process
 
     def _jarvis_fast_local_response(command):
         s = str(command or "").strip().lower()
@@ -719,7 +719,7 @@ try:
             return local
         return _jarvis_original_process_command(self, command)
 
-    CommandProcessor.process_command = _jarvis_fast_process_command
+    CommandProcessor.process = _jarvis_fast_process_command
 
 except Exception as _jarvis_fast_patch_error:
     print("JARVIS fast patch uyarısı:", _jarvis_fast_patch_error)
