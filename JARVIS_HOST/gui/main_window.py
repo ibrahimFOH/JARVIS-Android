@@ -45,6 +45,15 @@ class JarvisGUI:
 
         self._animate_hud()
         self._clock_tick()
+        self._start_android_bridge()
+
+    def _start_android_bridge(self):
+        try:
+            from android_bridge import start_in_background
+            start_in_background()
+            self._activity("ANDROID BRIDGE: AUTHENTICATED LAN READY")
+        except Exception as exc:
+            self._activity("ANDROID BRIDGE ERROR: " + str(exc)[:70])
 
     def _setup_ui(self):
         self.root.grid_columnconfigure(1, weight=1)
@@ -203,7 +212,14 @@ class JarvisGUI:
             fg_color="#090B0D", hover_color="#15181C",
             border_width=1, border_color=GOLD, text_color=GOLD,
             font=("Consolas", 9, "bold"), command=self._open_ai_settings
-        ).grid(row=0, column=5, padx=(4, 0))
+        ).grid(row=0, column=5, padx=4)
+
+        ctk.CTkButton(
+            bottom, text="ANDROID", width=82, height=44,
+            fg_color="#090B0D", hover_color="#15181C",
+            border_width=1, border_color=GOLD, text_color=GOLD,
+            font=("Consolas", 9, "bold"), command=self._open_android_link
+        ).grid(row=0, column=6, padx=(4, 0))
 
         self.chat_display = ctk.CTkTextbox(
             center, width=1, height=1, fg_color=BG,
@@ -481,6 +497,64 @@ class JarvisGUI:
         ctk.CTkButton(win, text="SAVE SETTINGS", command=save,
                       fg_color=GOLD2, hover_color=GOLD, text_color="#050505",
                       font=("Consolas", 10, "bold")).pack(fill="x", padx=22, pady=(8, 18))
+
+    def _open_android_link(self):
+        try:
+            import socket
+            import android_bridge
+            android_bridge.start_in_background()
+            ip = ""
+            try:
+                probe = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+                probe.connect(("8.8.8.8", 80))
+                ip = probe.getsockname()[0]
+                probe.close()
+            except OSError:
+                for candidate in socket.gethostbyname_ex(socket.gethostname())[2]:
+                    if not candidate.startswith("127.") and ":" not in candidate:
+                        ip = candidate
+                        break
+            if not ip:
+                ip = "WINDOWS-LAN-IP"
+            url = "http://" + ip + ":8765"
+            token = android_bridge.TOKEN
+
+            win = ctk.CTkToplevel(self.root)
+            win.title("STAGEPULSE // ANDROID LINK")
+            win.geometry("620x360")
+            win.resizable(False, False)
+            win.transient(self.root)
+            win.grab_set()
+            ctk.CTkLabel(win, text="ANDROID CLIENT LINK", text_color=GOLD,
+                         font=("Consolas", 15, "bold")).pack(anchor="w", padx=22, pady=(20, 5))
+            ctk.CTkLabel(win, text="Android uygulamasında HOST bölümüne aşağıdaki adresi ve token'ı gir.",
+                         text_color=WHITE, wraplength=570, justify="left").pack(anchor="w", padx=22, pady=(0, 14))
+
+            def entry_row(label, value):
+                ctk.CTkLabel(win, text=label, text_color=MUTED,
+                             font=("Consolas", 9, "bold")).pack(anchor="w", padx=22, pady=(5, 3))
+                row = ctk.CTkFrame(win, fg_color="transparent")
+                row.pack(fill="x", padx=22)
+                entry = ctk.CTkEntry(row, height=34)
+                entry.pack(side="left", fill="x", expand=True, padx=(0, 8))
+                entry.insert(0, value)
+                entry.configure(state="readonly")
+                def copy_value(v=value):
+                    self.root.clipboard_clear()
+                    self.root.clipboard_append(v)
+                    self.root.update()
+                    self._activity("ANDROID LINK VALUE COPIED")
+                ctk.CTkButton(row, text="COPY", width=75, height=34,
+                              fg_color=GOLD2, hover_color=GOLD, text_color="#050505",
+                              command=copy_value).pack(side="right")
+            entry_row("WINDOWS HOST URL", url)
+            entry_row("AUTHENTICATION TOKEN", token)
+            ctk.CTkLabel(
+                win, text="Güvenlik: Bu bağlantıyı internete açma. Yalnızca güvendiğin aynı yerel ağda kullan.",
+                text_color=RED, wraplength=570, justify="left"
+            ).pack(anchor="w", padx=22, pady=(12, 6))
+        except Exception as exc:
+            messagebox.showerror("Android bağlantısı başlatılamadı", str(exc), parent=self.root)
 
     def _on_send_clicked(self):
         command = self.command_entry.get().strip()
