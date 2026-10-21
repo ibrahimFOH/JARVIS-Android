@@ -146,6 +146,5 @@ public final class GeminiClient {
         }
         String text = json.optString("output_text", "");
         throw new IOException("Gemini görsel üretmedi. " + text);
-}
     }
 }
