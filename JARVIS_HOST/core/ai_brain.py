@@ -431,16 +431,15 @@ class AIBrain:
             order = [self.provider]
         context = ""
         errors = []
+        unverified_web_answer = None
         for provider in order:
             try:
                 if provider == "gemini":
                     answer = self._gemini(prompt, context, use_web=needs_web)
-                    # If Gemini returns no citations for a research request, try Groq's independent browser search.
+                    # If Gemini has no source citations, continue through independent search/fallback providers.
                     if needs_web and self.provider == "auto" and "Kaynaklar:" not in answer:
-                        try:
-                            return self._groq(prompt, context, use_web=True)
-                        except Exception:
-                            pass
+                        unverified_web_answer = answer
+                        continue
                     return answer
                 if provider == "groq":
                     return self._groq(prompt, context, use_web=needs_web)
@@ -453,6 +452,10 @@ class AIBrain:
                 errors.append("{}: {}".format(provider, exc))
                 if self.provider != "auto":
                     break
+        if unverified_web_answer:
+            if errors:
+                return unverified_web_answer + "\n\nYedek arama motorları da başarısız oldu: " + " | ".join(errors)
+            return unverified_web_answer
         return "Yapay zekâ yanıtı alınamadı. " + " | ".join(errors)
 
     respond = ask
