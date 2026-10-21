@@ -21,10 +21,10 @@ class AIBrain:
         saved = self._read_settings()
         self.host = os.environ.get("OLLAMA_HOST", saved.get("ollama_host", "http://127.0.0.1:11434")).rstrip("/")
         self.model = os.environ.get("OLLAMA_MODEL", saved.get("ollama_model", "qwen3:0.6b"))
-        self.gemini_model = os.environ.get("GEMINI_MODEL", saved.get("gemini_model", "gemini-2.5-flash"))
+        self.gemini_model = os.environ.get("GEMINI_MODEL", saved.get("gemini_model", "gemini-3.8-flash"))
         self.gemini_image_model = os.environ.get("GEMINI_IMAGE_MODEL", saved.get("gemini_image_model", "gemini-3.1-flash-image"))
         self.gemini_key = os.environ.get("GEMINI_API_KEY", self._unprotect_key(saved.get("gemini_api_key", ""))).strip()
-        self.provider = os.environ.get("JARVIS_AI_PROVIDER", saved.get("provider", "auto")).strip().lower()
+        self.provider = saved.get("provider", os.environ.get("JARVIS_AI_PROVIDER", "auto")).strip().lower()
         if self.provider not in ("auto", "gemini", "ollama"):
             self.provider = "auto"
 
@@ -263,6 +263,29 @@ class AIBrain:
         out = base / ("JARVIS_" + datetime.now().strftime("%Y%m%d_%H%M%S_%f") + "." + ext)
         out.write_bytes(raw)
         return str(out)
+
+    def test_provider(self, provider=None):
+        """Test a real request to Gemini or Ollama and return actionable diagnostics."""
+        provider = (provider or self.provider).strip().lower()
+        try:
+            if provider == "ollama":
+                response = self.session.get(self.host + "/api/tags", timeout=8)
+                response.raise_for_status()
+                models = [item.get("name", "") for item in response.json().get("models", [])]
+                if not models:
+                    return {"success": False, "message": "Ollama erişilebilir ancak model yüklü değil. CMD'de ollama pull " + self.model + " çalıştırın."}
+                if not any(name == self.model or name.startswith(self.model + ":") for name in models):
+                    return {"success": False, "message": "Ollama model bulunamadı: " + self.model + ". Yüklü modeller: " + ", ".join(models)}
+                self._ollama("Sadece 'Bağlantı başarılı' yaz.")
+                return {"success": True, "message": "Ollama bağlantısı başarılı: " + self.model}
+            if provider == "gemini":
+                if not self.gemini_key:
+                    return {"success": False, "message": "Gemini API anahtarı boş. AI SETTINGS bölümünden ekleyin."}
+                self._gemini("Sadece 'Bağlantı başarılı' yaz.")
+                return {"success": True, "message": "Gemini API bağlantısı başarılı: " + self.gemini_model}
+            return {"success": False, "message": "Sağlayıcı 'gemini' veya 'ollama' olmalı."}
+        except Exception as exc:
+            return {"success": False, "message": provider.upper() + " bağlantı hatası: " + str(exc)}
 
     def ask(self, prompt):
         instant = self._instant(prompt)
