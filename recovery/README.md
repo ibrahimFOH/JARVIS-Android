@@ -45,3 +45,4 @@ Note: files in `recovered_frontend/` on GitHub include manually curated/transcri
 
 - `NSIS_SCRIPT_DECOMPILATION_V8.md`: separates ordinary NSIS payload extraction from script decompilation and documents the specialized 7-Zip option.
 - `PE_STATIC_TRIAGE_V8.md`: PE format, section layout and imported Windows library inventory for the verified EXE hash.
+- `LOCAL_RECOVERY_VERIFICATION_V8.md`: fresh local rerun confirms 18/18 frontend files byte-identical to the V5 archive and all eight JS files pass Node syntax checks.
