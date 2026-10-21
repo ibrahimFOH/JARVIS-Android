@@ -546,7 +546,7 @@ class JarvisGUI:
 
             self._append_to_chat("SYSTEM", provider_name.upper() + " bağlantısı test ediliyor...", "yellow")
             def worker():
-                result = brain.test_provider(provider_name)
+                result = (brain.test_web_provider(provider_name) if provider_name in ("gemini", "groq") else brain.test_provider(provider_name))
                 def show_result():
                     message = result.get("message", "Test tamamlandı.")
                     if result.get("success"):
@@ -586,14 +586,14 @@ class JarvisGUI:
                 messagebox.showerror("Ayarlar kaydedilemedi", str(exc), parent=win)
 
         ctk.CTkButton(
-            win, text="TEST GEMINI CONNECTION",
+            win, text="TEST GEMINI WEB SEARCH",
             command=lambda: test_backend("gemini"),
             fg_color="#090B0D", hover_color="#15181C",
             border_width=1, border_color=GOLD2, text_color=GOLD,
             font=("Consolas", 10, "bold")
         ).pack(fill="x", padx=22, pady=(8, 4))
         ctk.CTkButton(
-            win, text="TEST GROQ CONNECTION",
+            win, text="TEST GROQ WEB SEARCH",
             command=lambda: test_backend("groq"),
             fg_color="#090B0D", hover_color="#15181C",
             border_width=1, border_color=GOLD2, text_color=GOLD,
