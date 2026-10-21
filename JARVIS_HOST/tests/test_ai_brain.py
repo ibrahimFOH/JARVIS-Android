@@ -1,11 +1,16 @@
 import base64
+import importlib.util
 import json
 import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import Mock, patch
 
-from core.ai_brain import AIBrain
+_MODULE_PATH = Path(__file__).resolve().parents[1] / "core" / "ai_brain.py"
+_SPEC = importlib.util.spec_from_file_location("stagepulse_test_ai_brain", _MODULE_PATH)
+_AI_MODULE = importlib.util.module_from_spec(_SPEC)
+_SPEC.loader.exec_module(_AI_MODULE)
+AIBrain = _AI_MODULE.AIBrain
 
 
 class FakeResponse:
