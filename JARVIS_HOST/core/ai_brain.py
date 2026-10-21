@@ -28,8 +28,10 @@ class AIBrain:
             self.gemini_model = "gemini-3.8-flash"
         self.gemini_image_model = os.environ.get("GEMINI_IMAGE_MODEL", saved.get("gemini_image_model", "gemini-3.1-flash-image"))
         self.gemini_key = os.environ.get("GEMINI_API_KEY", self._unprotect_key(saved.get("gemini_api_key", ""))).strip()
+        self.groq_key = os.environ.get("GROQ_API_KEY", self._unprotect_key(saved.get("groq_api_key", ""))).strip()
+        self.groq_model = os.environ.get("GROQ_MODEL", saved.get("groq_model", "openai/gpt-oss-20b"))
         self.provider = saved.get("provider", os.environ.get("JARVIS_AI_PROVIDER", "auto")).strip().lower()
-        if self.provider not in ("auto", "gemini", "ollama"):
+        if self.provider not in ("auto", "gemini", "groq", "ollama"):
             self.provider = "auto"
 
     @staticmethod
@@ -75,11 +77,12 @@ class AIBrain:
         return str(value.get("plain", ""))
 
     def configure(self, provider=None, gemini_key=None, gemini_model=None,
-                  gemini_image_model=None, ollama_host=None, ollama_model=None):
+                  gemini_image_model=None, ollama_host=None, ollama_model=None,
+                  groq_key=None, groq_model=None):
         if provider is not None:
             provider = provider.strip().lower()
-            if provider not in ("auto", "gemini", "ollama"):
-                raise ValueError("Sağlayıcı auto, gemini veya ollama olmalı.")
+            if provider not in ("auto", "gemini", "groq", "ollama"):
+                raise ValueError("Sağlayıcı auto, gemini, groq veya ollama olmalı.")
             self.provider = provider
         if gemini_key is not None:
             self.gemini_key = gemini_key.strip()
@@ -87,6 +90,10 @@ class AIBrain:
             self.gemini_model = gemini_model.strip()
         if self.gemini_model.strip() == "gemini-2.5-flash":
             self.gemini_model = "gemini-3.8-flash"
+        if groq_key is not None:
+            self.groq_key = groq_key.strip()
+        if groq_model is not None and groq_model.strip():
+            self.groq_model = groq_model.strip()
         if gemini_image_model is not None and gemini_image_model.strip():
             self.gemini_image_model = gemini_image_model.strip()
         if ollama_host is not None and ollama_host.strip():
@@ -97,6 +104,8 @@ class AIBrain:
         values = {
             "provider": self.provider,
             "gemini_api_key": self._protect_key(self.gemini_key),
+            "groq_api_key": self._protect_key(self.groq_key),
+            "groq_model": self.groq_model,
             "gemini_model": self.gemini_model,
             "gemini_image_model": self.gemini_image_model,
             "ollama_host": self.host,
@@ -119,7 +128,7 @@ class AIBrain:
 
     def _needs_web(self, text):
         t = (text or "").lower()
-        return any(x in t for x in ("internetten", "internette", "webde", "web'de", "araştır", "güncel", "şu an", "bugün", "son haber", "haberler", "fiyat", "site", "github", "youtube", "instagram", "stagepulse.com", "http://", "https://"))
+        return any(x in t for x in ("internetten", "internette", "webde", "web'de", "araştır", "bul", "internete gir", "webde ara", "güncel", "şu an", "bugün", "son haber", "haberler", "fiyat", "site", "github", "youtube", "instagram", "stagepulse", "http://", "https://"))
 
     def _clean(self, raw):
         raw = re.sub(r"(?is)<script.*?</script>|<style.*?</style>|<noscript.*?</noscript>", " ", raw)
@@ -128,6 +137,9 @@ class AIBrain:
 
     def _web(self, query):
         urls = re.findall(r"https?://[^\s]+", query or "")
+        # Bare references to Stagepulse resolve to the real site, not a generic search page.
+        if not urls and "stagepulse" in (query or "").lower():
+            urls = ["https://stagepulse.com.tr/"]
         if urls:
             try:
                 r = self.session.get(urls[0].rstrip(".,)"), timeout=self.web_timeout, headers={"User-Agent": "Mozilla/5.0 JARVIS/1.0"})
@@ -179,15 +191,68 @@ class AIBrain:
                     chunks.append(part["text"])
         return "\n".join(chunks).strip()
 
-    def _gemini(self, prompt, context=""):
+    def _gemini(self, prompt, context="", use_web=False):
+        lower_prompt = (prompt or "").lower()
+        if use_web and "stagepulse" in lower_prompt and "stagepulse.com.tr" not in lower_prompt:
+            prompt = prompt + "\nHedef web sitesi: https://stagepulse.com.tr/"
         contents = prompt + (("\n\nWEB VERİSİ:\n" + context) if context else "")
         payload = {
-            "systemInstruction": {"parts": [{"text": "Sen JARVIS'sin. Türkçe konuş. Kısa, doğrudan ve işe yarar cevap ver."}]},
+            "systemInstruction": {"parts": [{"text": "Sen JARVIS'sin. Türkçe konuş. Kısa, doğrudan ve işe yarar cevap ver. Web araştırmasında kaynakları kontrol et; bulamadığın site için kesin hüküm verme, tarama başarısızsa açıkça belirt."}]},
             "contents": [{"role": "user", "parts": [{"text": contents}]}],
-            "generationConfig": {"maxOutputTokens": 1024},
+            "generationConfig": {"maxOutputTokens": 700, "thinkingConfig": {"thinkingLevel": "low"}},
         }
+        if use_web:
+            payload["tools"] = [{"google_search": {}}, {"url_context": {}}]
         data = self._gemini_post(self.gemini_model, payload)
-        return self._response_text(data) or "Gemini metin yanıtı döndürmedi."
+        answer = self._response_text(data) or "Gemini metin yanıtı döndürmedi."
+        sources = []
+        for candidate in data.get("candidates", []):
+            metadata = candidate.get("groundingMetadata") or {}
+            for chunk in metadata.get("groundingChunks", []):
+                web = chunk.get("web") or {}
+                uri = web.get("uri") or ""
+                title = web.get("title") or uri
+                if uri and all(uri != existing[1] for existing in sources):
+                    sources.append((title, uri))
+        if sources:
+            answer += "\n\nKaynaklar:\n" + "\n".join("- {}: {}".format(title, uri) for title, uri in sources[:5])
+        return answer
+
+    def _groq(self, prompt, context=""):
+        if not self.groq_key:
+            raise RuntimeError("Groq API anahtarı ayarlanmamış. AI SETTINGS bölümünden ekleyin.")
+        content = prompt + (("\n\nWEB VERİSİ (harici kaynak):\n" + context) if context else "")
+        response = self.session.post(
+            "https://api.groq.com/openai/v1/chat/completions",
+            headers={"Authorization": "Bearer " + self.groq_key, "Content-Type": "application/json"},
+            json={
+                "model": self.groq_model,
+                "messages": [
+                    {"role": "system", "content": "Sen JARVIS'sin. Türkçe konuş. Kısa, doğrudan ve işe yarar cevap ver. Bilmediğin web bilgisini uydurma."},
+                    {"role": "user", "content": content},
+                ],
+                "temperature": 0.2,
+                "max_tokens": 600,
+                "stream": False,
+            },
+            timeout=min(self.timeout, 30),
+        )
+        if not response.ok:
+            try:
+                message = response.json().get("error", {}).get("message", response.text[:300])
+            except ValueError:
+                message = response.text[:300]
+            raise RuntimeError("Groq API HTTP {}: {}".format(response.status_code, message))
+        choices = response.json().get("choices") or []
+        if not choices:
+            raise RuntimeError("Groq boş yanıt döndürdü.")
+        result = choices[0].get("message", {}).get("content", "")
+        if isinstance(result, list):
+            result = " ".join(item.get("text", "") for item in result if isinstance(item, dict))
+        result = str(result or "").strip()
+        if not result:
+            raise RuntimeError("Groq metin yanıtı döndürmedi.")
+        return result
 
     def _ollama(self, prompt, context=""):
         payload = {
@@ -274,7 +339,7 @@ class AIBrain:
         return str(out)
 
     def test_provider(self, provider=None):
-        """Test a real request to Gemini or Ollama and return actionable diagnostics."""
+        """Test a real request to the selected provider and return actionable diagnostics."""
         provider = (provider or self.provider).strip().lower()
         try:
             if provider == "ollama":
@@ -292,7 +357,12 @@ class AIBrain:
                     return {"success": False, "message": "Gemini API anahtarı boş. AI SETTINGS bölümünden ekleyin."}
                 self._gemini("Sadece 'Bağlantı başarılı' yaz.")
                 return {"success": True, "message": "Gemini API bağlantısı başarılı: " + self.gemini_model}
-            return {"success": False, "message": "Sağlayıcı 'gemini' veya 'ollama' olmalı."}
+            if provider == "groq":
+                if not self.groq_key:
+                    return {"success": False, "message": "Groq API anahtarı boş. AI SETTINGS bölümünden ekleyin."}
+                self._groq("Sadece 'Bağlantı başarılı' yaz.")
+                return {"success": True, "message": "Groq API bağlantısı başarılı: " + self.groq_model}
+            return {"success": False, "message": "Sağlayıcı auto, gemini, groq veya ollama olmalı."}
         except Exception as exc:
             return {"success": False, "message": provider.upper() + " bağlantı hatası: " + str(exc)}
 
@@ -300,14 +370,25 @@ class AIBrain:
         instant = self._instant(prompt)
         if instant:
             return instant
-        context = self._web(prompt) if self._needs_web(prompt) else ""
-        order = (["gemini", "ollama"] if self.provider == "auto" else [self.provider])
+        needs_web = self._needs_web(prompt)
+        # Routine chat prefers Groq for low latency. Research prefers Gemini native Search + URL context.
+        if self.provider == "auto":
+            order = ["gemini", "groq", "ollama"] if needs_web else ["groq", "gemini", "ollama"]
+        else:
+            order = [self.provider]
+        context = ""
         errors = []
         for provider in order:
             try:
                 if provider == "gemini":
-                    return self._gemini(prompt, context)
+                    return self._gemini(prompt, context, use_web=needs_web)
+                if provider == "groq":
+                    if needs_web and not context:
+                        context = self._web(prompt)
+                    return self._groq(prompt, context)
                 if provider == "ollama":
+                    if needs_web and not context:
+                        context = self._web(prompt)
                     return self._ollama(prompt, context)
                 return "Bilinmeyen JARVIS_AI_PROVIDER: " + provider
             except Exception as exc:
