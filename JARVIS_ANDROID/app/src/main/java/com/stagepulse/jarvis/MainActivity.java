@@ -7,6 +7,8 @@ import android.content.*;
 import android.content.pm.PackageManager;
 import android.os.*;
 import android.provider.Settings;
+import android.provider.MediaStore;
+import android.content.ContentValues;
 import android.speech.*;
 import android.view.Gravity;
 import android.widget.*;
@@ -86,6 +88,32 @@ public class MainActivity extends Activity {
         pendingImage = data.getData();
         command.setText("Bu görseli analiz et: ");
         append("JARVIS", "Görsel seçildi. Analiz etmek için komut alanına talimat yazıp EXECUTE düğmesine bas.");
+    }
+
+
+    private boolean isImageGenerationCommand(String commandText) {
+        String x = commandText.toLowerCase(new Locale("tr", "TR"));
+        return x.contains("görsel oluştur") || x.contains("resim oluştur")
+                || x.contains("görsel üret") || x.contains("resim üret")
+                || x.contains("fotoğraf oluştur") || x.contains("fotoğraf üret");
+    }
+
+    private String generateImageFromPrompt(String prompt, String apiKey) throws Exception {
+        byte[] bytes = GeminiClient.generateImage(apiKey, "gemini-3.1-flash-image", prompt);
+        ContentValues values = new ContentValues();
+        values.put(MediaStore.Images.Media.DISPLAY_NAME, "JARVIS_Generated_" + System.currentTimeMillis() + ".png");
+        values.put(MediaStore.Images.Media.MIME_TYPE, "image/png");
+        values.put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/StagepulseJARVIS");
+        android.net.Uri uri = getContentResolver().insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values);
+        if (uri == null) throw new java.io.IOException("Üretilen görsel Galeriye kaydedilemedi.");
+        try (java.io.OutputStream out = getContentResolver().openOutputStream(uri)) {
+            if (out == null) throw new java.io.IOException("Görsel dosyası açılamadı.");
+            out.write(bytes);
+        } catch (Exception e) {
+            getContentResolver().delete(uri, null, null);
+            throw e;
+        }
+        return "Gemini görseli oluşturdu ve Galeri > Pictures/StagepulseJARVIS klasörüne kaydetti.";
     }
 
     private String analyzeSelectedImage(String prompt, String apiKey, String model) throws Exception {
@@ -249,10 +277,19 @@ public class MainActivity extends Activity {
                 String hostToken = bridgePrefs.getString("token", "").trim();
                 String geminiKey = bridgePrefs.getString("gemini_key", "").trim();
                 String geminiModel = bridgePrefs.getString("gemini_model", "gemini-2.5-flash").trim();
-                if (!hostUrl.isEmpty() && !hostToken.isEmpty()) {
+                if (!geminiKey.isEmpty() && (pendingImage != null || isImageGenerationCommand(cmd))) {
+                    statusPost(isImageGenerationCommand(cmd) ? "● GEMINI IMAGE" : "● GEMINI VISION");
+                    if (isImageGenerationCommand(cmd)) {
+                        String prompt = cmd.replaceAll("(?i)görsel oluştur|resim oluştur|görsel üret|resim üret|fotoğraf oluştur|fotoğraf üret", "").trim();
+                        if (prompt.isEmpty()) prompt = cmd;
+                        a = generateImageFromPrompt(prompt, geminiKey);
+                    } else {
+                        a = analyzeSelectedImage(cmd, geminiKey, geminiModel);
+                    }
+                } else if (!hostUrl.isEmpty() && !hostToken.isEmpty()) {
                     statusPost("● WINDOWS JARVIS");
                     BridgeClient.Result remote = BridgeClient.command(hostUrl, hostToken, cmd);
-                    a = remote.response;
+                    a = remote.success ? remote.response : "Windows JARVIS işlemi başarısız oldu: " + remote.response;
                 } else if (!geminiKey.isEmpty()) {
                     statusPost("● GEMINI");
                     a = analyzeSelectedImage(cmd, geminiKey, geminiModel);
