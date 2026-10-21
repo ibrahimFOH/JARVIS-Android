@@ -498,7 +498,7 @@ class JarvisGUI:
         brain = self.jarvis.command_processor.ai_brain
         win = ctk.CTkToplevel(self.root)
         win.title("STAGEPULSE // AI SETTINGS")
-        win.geometry("540x690")
+        win.geometry("540x770")
         win.resizable(False, False)
         win.transient(self.root)
         win.grab_set()
@@ -506,7 +506,7 @@ class JarvisGUI:
         ctk.CTkLabel(win, text="AI PROVIDER", text_color=GOLD,
                      font=("Consolas", 12, "bold")).pack(anchor="w", padx=22, pady=(20, 6))
         provider = ctk.StringVar(value=brain.provider)
-        ctk.CTkOptionMenu(win, variable=provider, values=["auto", "gemini", "ollama"],
+        ctk.CTkOptionMenu(win, variable=provider, values=["auto", "gemini", "groq", "ollama"],
                           width=490).pack(padx=22, pady=(0, 10))
 
         def field(label, value, secret=False):
@@ -518,6 +518,7 @@ class JarvisGUI:
             return entry
 
         api_key = field("GEMINI API KEY", brain.gemini_key, secret=True)
+        groq_key = field("GROQ API KEY", brain.groq_key, secret=True)
         text_model = field("GEMINI CHAT / VISION MODEL", brain.gemini_model)
         image_model = field("GEMINI IMAGE MODEL", brain.gemini_image_model)
         ollama_host = field("OLLAMA URL", brain.host)
@@ -533,6 +534,7 @@ class JarvisGUI:
                 brain.configure(
                     provider=provider.get(),
                     gemini_key=api_key.get(),
+                    groq_key=groq_key.get(),
                     gemini_model=text_model.get(),
                     gemini_image_model=image_model.get(),
                     ollama_host=ollama_host.get(),
@@ -569,6 +571,7 @@ class JarvisGUI:
                 brain.configure(
                     provider=provider.get(),
                     gemini_key=api_key.get(),
+                    groq_key=groq_key.get(),
                     gemini_model=text_model.get(),
                     gemini_image_model=image_model.get(),
                     ollama_host=ollama_host.get(),
@@ -589,6 +592,13 @@ class JarvisGUI:
             border_width=1, border_color=GOLD2, text_color=GOLD,
             font=("Consolas", 10, "bold")
         ).pack(fill="x", padx=22, pady=(8, 4))
+        ctk.CTkButton(
+            win, text="TEST GROQ CONNECTION",
+            command=lambda: test_backend("groq"),
+            fg_color="#090B0D", hover_color="#15181C",
+            border_width=1, border_color=GOLD2, text_color=GOLD,
+            font=("Consolas", 10, "bold")
+        ).pack(fill="x", padx=22, pady=(0, 4))
         ctk.CTkButton(
             win, text="TEST OLLAMA CONNECTION",
             command=lambda: test_backend("ollama"),
