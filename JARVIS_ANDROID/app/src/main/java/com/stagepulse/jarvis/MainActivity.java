@@ -285,14 +285,18 @@ public class MainActivity extends Activity {
                 String hostToken = SecureStore.get(bridgePrefs, "token").trim();
                 String geminiKey = SecureStore.get(bridgePrefs, "gemini_key").trim();
                 String geminiModel = bridgePrefs.getString("gemini_model", "gemini-2.5-flash").trim();
-                if (!geminiKey.isEmpty() && (pendingImage != null || isImageGenerationCommand(cmd))) {
-                    statusPost(isImageGenerationCommand(cmd) ? "● GEMINI IMAGE" : "● GEMINI VISION");
-                    if (isImageGenerationCommand(cmd)) {
-                        String prompt = cmd.replaceAll("(?i)görsel oluştur|resim oluştur|görsel üret|resim üret|fotoğraf oluştur|fotoğraf üret", "").trim();
-                        if (prompt.isEmpty()) prompt = cmd;
-                        a = generateImageFromPrompt(prompt, geminiKey);
+                if (pendingImage != null || isImageGenerationCommand(cmd)) {
+                    if (geminiKey.isEmpty()) {
+                        a = "Görsel analizi ve telefona görsel üretmek için Android'de GEMINI bölümüne API anahtarını girin. Görseller Windows köprüsünden aktarılmıyor.";
                     } else {
-                        a = analyzeSelectedImage(cmd, geminiKey, geminiModel);
+                        statusPost(isImageGenerationCommand(cmd) ? "● GEMINI IMAGE" : "● GEMINI VISION");
+                        if (isImageGenerationCommand(cmd)) {
+                            String prompt = cmd.replaceAll("(?i)görsel oluştur|resim oluştur|görsel üret|resim üret|fotoğraf oluştur|fotoğraf üret", "").trim();
+                            if (prompt.isEmpty()) prompt = cmd;
+                            a = generateImageFromPrompt(prompt, geminiKey);
+                        } else {
+                            a = analyzeSelectedImage(cmd, geminiKey, geminiModel);
+                        }
                     }
                 } else if (!hostUrl.isEmpty() && !hostToken.isEmpty()) {
                     statusPost("● WINDOWS JARVIS");
@@ -327,7 +331,7 @@ public class MainActivity extends Activity {
                 }
                 }
             }catch(Exception e){
-                a="İşlem tamamlanamadı Patron. Teknik bilgi: "+e.getClass().getSimpleName();
+                a="İşlem tamamlanamadı Patron. "+e.getClass().getSimpleName()+(e.getMessage()!=null?": "+e.getMessage():"");
             }
             final String answer=a;
             runOnUiThread(()->{hud.setActive(false);if(!status.getText().toString().startsWith("● AGENT"))refreshVoiceStatus();append("JARVIS",answer);speak(answer);});
