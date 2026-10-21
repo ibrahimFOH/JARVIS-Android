@@ -57,20 +57,35 @@ public class MainActivity extends Activity {
         command.setTextColor(white()); command.setMinLines(2); command.setBackgroundColor(panel()); command.setPadding(14,12,14,12);
         root.addView(command,new LinearLayout.LayoutParams(-1,-2));
         LinearLayout row=new LinearLayout(this); row.setOrientation(LinearLayout.HORIZONTAL);
-        Button send=button("EXECUTE"), voice=button("◉ VOICE"), agents=button("AGENTS"), host=button("HOST");
+        Button send=button("EXECUTE"), voice=button("◉ VOICE"), agents=button("AGENTS"), host=button("HOST"), gemini=button("GEMINI");
         row.addView(send,new LinearLayout.LayoutParams(0,58,1));
         row.addView(voice,new LinearLayout.LayoutParams(0,58,1));
         row.addView(agents,new LinearLayout.LayoutParams(0,58,1));
         row.addView(host,new LinearLayout.LayoutParams(0,58,1));
+        row.addView(gemini,new LinearLayout.LayoutParams(0,58,1));
         root.addView(row);
         setContentView(root);
         send.setOnClickListener(v->sendCommand(command.getText().toString()));
         voice.setOnClickListener(v->listen());
         agents.setOnClickListener(v->showAgents());
         host.setOnClickListener(v->showHostSettings());
+        gemini.setOnClickListener(v->showGeminiSettings());
     }
 
     private Button button(String s){Button b=new Button(this);b.setText(s);b.setTextColor(gold());b.setTextSize(11);b.setBackgroundColor(panel());return b;}
+
+    private void showGeminiSettings(){
+        LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL); box.setPadding(20, 8, 20, 0);
+        EditText key = new EditText(this); key.setSingleLine(true); key.setInputType(129); key.setHint("Gemini API key"); key.setText(bridgePrefs.getString("gemini_key", ""));
+        EditText model = new EditText(this); model.setSingleLine(true); model.setHint("gemini-2.5-flash"); model.setText(bridgePrefs.getString("gemini_model", "gemini-2.5-flash"));
+        box.addView(key); box.addView(model);
+        new AlertDialog.Builder(this).setTitle("GEMINI API").setMessage("Gemini internet ve geçerli API erişimi gerektirir. Anahtarını paylaşma.")
+            .setView(box).setPositiveButton("KAYDET", (d, w) -> {
+                bridgePrefs.edit().putString("gemini_key", key.getText().toString().trim()).putString("gemini_model", model.getText().toString().trim()).apply();
+                append("JARVIS", "Gemini ayarları kaydedildi.");
+            }).setNegativeButton("İPTAL", null).show();
+    }
 
     private void showHostSettings(){
         LinearLayout box = new LinearLayout(this);
@@ -203,10 +218,15 @@ public class MainActivity extends Activity {
             try{
                 String hostUrl = bridgePrefs.getString("url", "").trim();
                 String hostToken = bridgePrefs.getString("token", "").trim();
+                String geminiKey = bridgePrefs.getString("gemini_key", "").trim();
+                String geminiModel = bridgePrefs.getString("gemini_model", "gemini-2.5-flash").trim();
                 if (!hostUrl.isEmpty() && !hostToken.isEmpty()) {
                     statusPost("● WINDOWS JARVIS");
                     BridgeClient.Result remote = BridgeClient.command(hostUrl, hostToken, cmd);
                     a = remote.response;
+                } else if (!geminiKey.isEmpty()) {
+                    statusPost("● GEMINI");
+                    a = GeminiClient.ask(geminiKey, geminiModel, cmd);
                 } else {
                 AgencyAgent requested=detectAgent(cmd);
                 if(requested!=null && (cmd.toLowerCase(new Locale("tr","TR")).contains("aktif") || cmd.toLowerCase(new Locale("tr","TR")).contains("agent") || cmd.toLowerCase(new Locale("tr","TR")).contains("mühendis") || cmd.toLowerCase(new Locale("tr","TR")).contains("uzman"))){
