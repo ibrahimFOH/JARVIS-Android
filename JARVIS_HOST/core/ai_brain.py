@@ -256,29 +256,14 @@ class AIBrain:
     def _gemini(self, prompt, context="", use_web=False):
         if use_web:
             return self._gemini_research(prompt, context)
-        lower_prompt = (prompt or "").lower()
         contents = prompt + (("\n\nWEB VERİSİ:\n" + context) if context else "")
         payload = {
-            "systemInstruction": {"parts": [{"text": "Sen JARVIS'sin. Türkçe konuş. Kısa, doğrudan ve işe yarar cevap ver. Web araştırmasında kaynakları kontrol et; bulamadığın site için kesin hüküm verme, tarama başarısızsa açıkça belirt."}]},
+            "systemInstruction": {"parts": [{"text": "Sen JARVIS'sin. Türkçe konuş. Kısa, doğrudan ve işe yarar cevap ver."}]},
             "contents": [{"role": "user", "parts": [{"text": contents}]}],
             "generationConfig": {"maxOutputTokens": 700, "thinkingConfig": {"thinkingLevel": "low"}},
         }
-        if use_web:
-            payload["tools"] = [{"google_search": {}}, {"url_context": {}}]
         data = self._gemini_post(self.gemini_model, payload)
-        answer = self._response_text(data) or "Gemini metin yanıtı döndürmedi."
-        sources = []
-        for candidate in data.get("candidates", []):
-            metadata = candidate.get("groundingMetadata") or {}
-            for chunk in metadata.get("groundingChunks", []):
-                web = chunk.get("web") or {}
-                uri = web.get("uri") or ""
-                title = web.get("title") or uri
-                if uri and all(uri != existing[1] for existing in sources):
-                    sources.append((title, uri))
-        if sources:
-            answer += "\n\nKaynaklar:\n" + "\n".join("- {}: {}".format(title, uri) for title, uri in sources[:5])
-        return answer
+        return self._response_text(data) or "Gemini metin yanıtı döndürmedi."
 
     def _groq(self, prompt, context=""):
         if not self.groq_key:
