@@ -23,7 +23,7 @@ class AIBrain:
         self.model = os.environ.get("OLLAMA_MODEL", saved.get("ollama_model", "qwen3:0.6b"))
         self.gemini_model = os.environ.get("GEMINI_MODEL", saved.get("gemini_model", "gemini-2.5-flash"))
         self.gemini_image_model = os.environ.get("GEMINI_IMAGE_MODEL", saved.get("gemini_image_model", "gemini-3.1-flash-image"))
-        self.gemini_key = os.environ.get("GEMINI_API_KEY", saved.get("gemini_api_key", "")).strip()
+        self.gemini_key = os.environ.get("GEMINI_API_KEY", self._unprotect_key(saved.get("gemini_api_key", ""))).strip()
         self.provider = os.environ.get("JARVIS_AI_PROVIDER", saved.get("provider", "auto")).strip().lower()
         if self.provider not in ("auto", "gemini", "ollama"):
             self.provider = "auto"
@@ -42,6 +42,33 @@ class AIBrain:
             return data if isinstance(data, dict) else {}
         except (OSError, ValueError, TypeError):
             return {}
+
+    @staticmethod
+    def _protect_key(secret):
+        if not secret:
+            return {"plain": ""}
+        try:
+            import win32crypt
+            encrypted = win32crypt.CryptProtectData(secret.encode("utf-8"), None, None, None, 0)[1]
+            return {"dpapi": base64.b64encode(encrypted).decode("ascii")}
+        except Exception:
+            # Development environments without Windows DPAPI keep the key as plain text.
+            return {"plain": secret}
+
+    @staticmethod
+    def _unprotect_key(value):
+        if isinstance(value, str):
+            return value  # Legacy settings file.
+        if not isinstance(value, dict):
+            return ""
+        if "dpapi" in value:
+            try:
+                import win32crypt
+                encrypted = base64.b64decode(value["dpapi"])
+                return win32crypt.CryptUnprotectData(encrypted, None, None, None, 0)[1].decode("utf-8")
+            except Exception:
+                return ""
+        return str(value.get("plain", ""))
 
     def configure(self, provider=None, gemini_key=None, gemini_model=None,
                   gemini_image_model=None, ollama_host=None, ollama_model=None):
@@ -63,7 +90,7 @@ class AIBrain:
 
         values = {
             "provider": self.provider,
-            "gemini_api_key": self.gemini_key,
+            "gemini_api_key": self._protect_key(self.gemini_key),
             "gemini_model": self.gemini_model,
             "gemini_image_model": self.gemini_image_model,
             "ollama_host": self.host,
