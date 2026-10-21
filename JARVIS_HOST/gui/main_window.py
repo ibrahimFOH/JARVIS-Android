@@ -1,5 +1,6 @@
 
 import tkinter as tk
+from tkinter import filedialog, messagebox
 import customtkinter as ctk
 import threading
 import math
@@ -168,14 +169,14 @@ class JarvisGUI:
         self.command_entry.bind("<Return>", self._on_enter_pressed)
 
         ctk.CTkButton(
-            bottom, text="EXECUTE", width=105, height=44,
+            bottom, text="EXECUTE", width=85, height=44,
             fg_color=GOLD2, hover_color=GOLD, text_color="#050505",
             font=("Consolas", 10, "bold"),
             command=self._on_send_clicked
         ).grid(row=0, column=1, padx=4)
 
         self.voice_button = ctk.CTkButton(
-            bottom, text="◉ VOICE", width=105, height=44,
+            bottom, text="◉ VOICE", width=85, height=44,
             fg_color="#0A0D10", hover_color="#171B20",
             border_width=1, border_color=GOLD, text_color=GOLD,
             font=("Consolas", 10, "bold"),
@@ -184,11 +185,25 @@ class JarvisGUI:
         self.voice_button.grid(row=0, column=2, padx=4)
 
         ctk.CTkButton(
-            bottom, text="CLEAR", width=80, height=44,
+            bottom, text="CLEAR", width=64, height=44,
             fg_color="#090B0D", hover_color="#15181C",
             border_width=1, border_color="#34383D",
             text_color=MUTED, command=self._clear_chat
         ).grid(row=0, column=3, padx=(4, 0))
+
+        ctk.CTkButton(
+            bottom, text="IMAGE", width=68, height=44,
+            fg_color="#090B0D", hover_color="#15181C",
+            border_width=1, border_color=GOLD, text_color=GOLD,
+            font=("Consolas", 9, "bold"), command=self._on_image_clicked
+        ).grid(row=0, column=4, padx=4)
+
+        ctk.CTkButton(
+            bottom, text="AI SETUP", width=82, height=44,
+            fg_color="#090B0D", hover_color="#15181C",
+            border_width=1, border_color=GOLD, text_color=GOLD,
+            font=("Consolas", 9, "bold"), command=self._open_ai_settings
+        ).grid(row=0, column=5, padx=(4, 0))
 
         self.chat_display = ctk.CTkTextbox(
             center, width=1, height=1, fg_color=BG,
@@ -202,8 +217,9 @@ class JarvisGUI:
             "JARVIS", "PATRON, JARVIS çevrimiçi. Sistemler hazır.", "green"
         )
         self._activity("SYSTEM INITIALIZED")
-        self._activity("AI CORE: OLLAMA ONLY")
-        self._activity("LOCAL CORE: OLLAMA")
+        brain = self.jarvis.command_processor.ai_brain
+        self._activity("AI CORE: " + brain.provider.upper() + " (GEMINI / OLLAMA)")
+        self._activity("LOCAL CORE: OLLAMA " + brain.model)
 
     def _section(self, parent, text):
         ctk.CTkLabel(
