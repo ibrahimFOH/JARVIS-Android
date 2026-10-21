@@ -91,6 +91,18 @@ class AIBrainTests(unittest.TestCase):
         self.assertEqual(request.kwargs["json"]["tool_choice"], "required")
         self.assertIn("Stagepulse araştırma sonucu", result)
 
+    def test_auto_web_search_falls_back_to_groq_without_citations(self):
+        brain = self.make_brain()
+        brain._gemini = Mock(return_value="Stagepulse sitesini doğrulayamadım.")
+        brain._groq = Mock(return_value="Groq tarayıcı aramasıyla sonuç bulundu.")
+
+        result = brain.ask("Stagepulse.com.tr sitesini araştır")
+        self.assertEqual(result, "Groq tarayıcı aramasıyla sonuç bulundu.")
+        brain._gemini.assert_called_once()
+        brain._groq.assert_called_once_with(
+            "Stagepulse.com.tr sitesini araştır", "", use_web=True
+        )
+
     def test_auto_prefers_groq_for_plain_chat(self):
         brain = self.make_brain()
         brain.groq_key = "test-groq-key"
