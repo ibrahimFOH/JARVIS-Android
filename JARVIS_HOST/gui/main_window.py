@@ -107,9 +107,9 @@ class JarvisGUI:
         self.tts_voice_choices = {
             "Emel • Kadın / Online": "tr-TR-EmelNeural",
             "Ahmet • Erkek / Online": "tr-TR-AhmetNeural",
-            "DFKI • Nötr / Offline": "piper:dfki",
-            "Fahrettin • Erkek / Offline": "piper:fahrettin",
-            "Fettah • Erkek / Offline": "piper:fettah",
+            "DFKI • Türkçe / Offline": "piper:dfki",
+            "Fahrettin • Türkçe / Offline": "piper:fahrettin",
+            "Fettah • Türkçe / Offline": "piper:fettah",
         }
         stored_voice = str(config.get("voice.tts_voice", "tr-TR-EmelNeural")).lower()
         current_voice = "Emel • Kadın / Online"
