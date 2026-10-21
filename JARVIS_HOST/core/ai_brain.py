@@ -22,6 +22,10 @@ class AIBrain:
         self.host = os.environ.get("OLLAMA_HOST", saved.get("ollama_host", "http://127.0.0.1:11434")).rstrip("/")
         self.model = os.environ.get("OLLAMA_MODEL", saved.get("ollama_model", "qwen3:0.6b"))
         self.gemini_model = os.environ.get("GEMINI_MODEL", saved.get("gemini_model", "gemini-3.8-flash"))
+        # Move the old default model forward; Google now limits access to some
+        # legacy 2.5 model usage for accounts that were not already using them.
+        if self.gemini_model.strip() == "gemini-2.5-flash":
+            self.gemini_model = "gemini-3.8-flash"
         self.gemini_image_model = os.environ.get("GEMINI_IMAGE_MODEL", saved.get("gemini_image_model", "gemini-3.1-flash-image"))
         self.gemini_key = os.environ.get("GEMINI_API_KEY", self._unprotect_key(saved.get("gemini_api_key", ""))).strip()
         self.provider = saved.get("provider", os.environ.get("JARVIS_AI_PROVIDER", "auto")).strip().lower()
