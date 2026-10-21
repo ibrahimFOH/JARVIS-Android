@@ -9,6 +9,7 @@ import asyncio
 import ctypes
 import importlib.util
 import os
+import re
 import shutil
 import tempfile
 import tarfile
@@ -342,7 +343,20 @@ class TextToSpeech:
                 logger.error("All TTS backends failed: " + str(exc))
                 return False
 
+    @staticmethod
+    def _clean_spoken_text(text):
+        """Prepare natural speech without speaking markup and code punctuation."""
+        value = str(text or "")
+        value = re.sub(r"(?is)```.*?```", "Kod bloğu atlandı.", value)
+        value = re.sub(r"https?://\S+|www\.\S+", " bağlantı ", value)
+        value = re.sub(r"(?m)^\s{0,3}#{1,6}\s*", "", value)
+        value = re.sub(r"[*_~|<>\[\]{}()\\/]+", " ", value)
+        value = re.sub(r"[:;=+@#$%^&]+", " ", value)
+        value = re.sub(r"\s+", " ", value).strip()
+        return value
+
     def speak(self, text, wait=True):
+        text = self._clean_spoken_text(text)
         if not self.available or not text:
             logger.error("TTS unavailable; cannot speak.")
             return False
