@@ -184,7 +184,7 @@ class AIBrain:
         payload = {
             "systemInstruction": {"parts": [{"text": "Sen JARVIS'sin. Türkçe konuş. Kısa, doğrudan ve işe yarar cevap ver."}]},
             "contents": [{"role": "user", "parts": [{"text": contents}]}],
-            "generationConfig": {"temperature": 0.2, "maxOutputTokens": 1024},
+            "generationConfig": {"maxOutputTokens": 1024},
         }
         data = self._gemini_post(self.gemini_model, payload)
         return self._response_text(data) or "Gemini metin yanıtı döndürmedi."
@@ -218,7 +218,7 @@ class AIBrain:
                 {"text": prompt or "Bu görseli ayrıntılı şekilde analiz et."},
                 {"inline_data": {"mime_type": mime_type, "data": base64.b64encode(raw).decode("ascii")}},
             ]}],
-            "generationConfig": {"temperature": 0.2, "maxOutputTokens": 1024},
+            "generationConfig": {"maxOutputTokens": 1024},
         }
         data = self._gemini_post(self.gemini_model, payload)
         return self._response_text(data) or "Gemini görsel analizi için metin yanıtı döndürmedi."
