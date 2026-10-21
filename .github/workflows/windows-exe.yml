@@ -1,0 +1,49 @@
+name: JARVIS Windows EXE Build
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, feature/gemini-windows-android]
+    paths:
+      - 'JARVIS_HOST/**'
+      - '.github/workflows/windows-exe.yml'
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: JARVIS_HOST
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+          cache-dependency-path: JARVIS_HOST/requirements.txt
+      - name: Install build dependencies
+        shell: pwsh
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install pyinstaller
+          python -m pip install -r requirements.txt
+      - name: Build Windows executable
+        shell: pwsh
+        run: |
+          pyinstaller --noconfirm --clean --onedir --windowed --name StagepulseJARVIS --collect-all customtkinter --collect-all pystray --collect-all PIL --hidden-import=win32timezone main.py
+      - name: Include runtime files
+        shell: pwsh
+        run: |
+          Copy-Item -Recurse -Force core, gui, modules, personality, utils, config, assets, data, resources dist/StagepulseJARVIS/ -ErrorAction SilentlyContinue
+          Copy-Item -Force requirements.txt dist/StagepulseJARVIS/ -ErrorAction SilentlyContinue
+          @'
+          @echo off
+          cd /d "%~dp0"
+          set JARVIS_AI_PROVIDER=auto
+          StagepulseJARVIS.exe
+          '@ | Set-Content dist/StagepulseJARVIS/Start-StagepulseJARVIS.bat
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Stagepulse-JARVIS-Windows-EXE
+          path: JARVIS_HOST/dist/StagepulseJARVIS/
+          if-no-files-found: error
