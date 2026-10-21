@@ -365,6 +365,123 @@ class JarvisGUI:
     def _on_enter_pressed(self, event):
         self._on_send_clicked()
 
+
+    def _image_prompt_from_command(self, command):
+        import re
+        prompt = re.sub(
+            r"(?i)(?:görsel|resim|fotoğraf)\\s+(?:oluştur|üret)|(?:create|generate)\\s+(?:an?\\s+)?image",
+            "", command
+        ).strip(" \\t:,-")
+        return prompt or command.strip()
+
+    def _is_image_generation_request(self, command):
+        import re
+        return bool(re.search(
+            r"(?i)(?:görsel|resim|fotoğraf)\\s+(?:oluştur|üret)|(?:create|generate)\\s+(?:an?\\s+)?image",
+            command
+        ))
+
+    def _run_ai_task(self, title, task, should_speak=False):
+        self.task.configure(text=title)
+        self.phase.configure(text="PROCESSING")
+        self.status.configure(text="● GEMINI", text_color=GOLD)
+        self._activity(title.upper())
+
+        def worker():
+            try:
+                result = str(task())
+                success = True
+            except Exception as exc:
+                result = "İşlem tamamlanamadı: " + str(exc)
+                success = False
+
+            def finish():
+                self._append_to_chat("JARVIS", result, "green" if success else "red")
+                self.task.configure(text="Ready")
+                self.phase.configure(text="IDLE")
+                self.status.configure(text="● ONLINE" if success else "● ERROR",
+                                      text_color=GREEN if success else RED)
+                self._activity(("OK  " if success else "ERR ") + result.replace("\\n", " ")[:70])
+                if should_speak and success and self.voice_var.get():
+                    speak_text = "Görsel oluşturuldu ve kaydedildi." if result.lower().endswith((".png", ".jpg", ".jpeg", ".webp")) else result
+                    threading.Thread(target=lambda: self.jarvis.speak(speak_text, wait=False), daemon=True).start()
+
+            self.root.after(0, finish)
+
+        threading.Thread(target=worker, daemon=True, name="JARVIS-AI-Task").start()
+
+    def _on_image_clicked(self):
+        brain = self.jarvis.command_processor.ai_brain
+        if not brain.gemini_key:
+            messagebox.showwarning("Gemini ayarı gerekli", "Önce AI SETUP bölümünden Gemini API anahtarını ekleyin.", parent=self.root)
+            return
+        path = filedialog.askopenfilename(
+            parent=self.root, title="Analiz edilecek görseli seç",
+            filetypes=[("Görseller", "*.png *.jpg *.jpeg *.webp *.bmp"), ("Tüm dosyalar", "*.*")]
+        )
+        if not path:
+            return
+        dialog = ctk.CTkInputDialog(title="Gemini görsel analizi", text="Görsel hakkında ne analiz edilsin?")
+        prompt = dialog.get_input()
+        if prompt is None:
+            return
+        self._append_to_chat("YOU", "Görsel analizi: " + path, "gold")
+        self._run_ai_task("Görsel analiz ediliyor", lambda: brain.analyze_image(prompt.strip(), path), should_speak=True)
+
+    def _open_ai_settings(self):
+        brain = self.jarvis.command_processor.ai_brain
+        win = ctk.CTkToplevel(self.root)
+        win.title("STAGEPULSE // AI SETTINGS")
+        win.geometry("540x570")
+        win.resizable(False, False)
+        win.transient(self.root)
+        win.grab_set()
+
+        ctk.CTkLabel(win, text="AI PROVIDER", text_color=GOLD,
+                     font=("Consolas", 12, "bold")).pack(anchor="w", padx=22, pady=(20, 6))
+        provider = ctk.StringVar(value=brain.provider)
+        ctk.CTkOptionMenu(win, variable=provider, values=["auto", "gemini", "ollama"],
+                          width=490).pack(padx=22, pady=(0, 10))
+
+        def field(label, value, secret=False):
+            ctk.CTkLabel(win, text=label, text_color=WHITE,
+                         font=("Consolas", 10)).pack(anchor="w", padx=22, pady=(8, 3))
+            entry = ctk.CTkEntry(win, width=490, show="*" if secret else "")
+            entry.pack(padx=22)
+            entry.insert(0, value or "")
+            return entry
+
+        api_key = field("GEMINI API KEY", brain.gemini_key, secret=True)
+        text_model = field("GEMINI CHAT / VISION MODEL", brain.gemini_model)
+        image_model = field("GEMINI IMAGE MODEL", brain.gemini_image_model)
+        ollama_host = field("OLLAMA URL", brain.host)
+        ollama_model = field("OLLAMA MODEL", brain.model)
+
+        ctk.CTkLabel(
+            win, text="AUTO: önce Gemini, hata olursa Ollama. Windows anahtarı desteklenen sistemlerde DPAPI ile şifrelenir.",
+            text_color=MUTED, font=("Consolas", 9), wraplength=490, justify="left"
+        ).pack(anchor="w", padx=22, pady=(12, 6))
+
+        def save():
+            try:
+                brain.configure(
+                    provider=provider.get(),
+                    gemini_key=api_key.get(),
+                    gemini_model=text_model.get(),
+                    gemini_image_model=image_model.get(),
+                    ollama_host=ollama_host.get(),
+                    ollama_model=ollama_model.get(),
+                )
+                self._activity("AI PROVIDER SAVED: " + brain.provider.upper())
+                self._append_to_chat("JARVIS", "AI ayarları kaydedildi. Sağlayıcı: " + brain.provider.upper(), "green")
+                win.destroy()
+            except Exception as exc:
+                messagebox.showerror("Ayarlar kaydedilemedi", str(exc), parent=win)
+
+        ctk.CTkButton(win, text="SAVE SETTINGS", command=save,
+                      fg_color=GOLD2, hover_color=GOLD, text_color="#050505",
+                      font=("Consolas", 10, "bold")).pack(fill="x", padx=22, pady=(8, 18))
+
     def _on_send_clicked(self):
         command = self.command_entry.get().strip()
         if not command:
