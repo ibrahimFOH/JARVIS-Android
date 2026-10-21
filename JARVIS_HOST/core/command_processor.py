@@ -585,9 +585,13 @@ _JARVIS_ORIGINAL_PROCESS = CommandProcessor.process
 
 def _jarvis_ai_fallback(self, command):
     try:
-        if not hasattr(self, "_jarvis_ai_brain"):
-            self._jarvis_ai_brain = AIBrain()
-        answer = self._jarvis_ai_brain.ask(command)
+        # Reuse the exact AIBrain instance the AI SETTINGS window configures.
+        # A second cached instance keeps stale provider/API settings and can route Groq back to Gemini.
+        brain = getattr(self, "ai_brain", None)
+        if brain is None:
+            brain = AIBrain()
+            self.ai_brain = brain
+        answer = brain.ask(command)
         return {
             "success": True,
             "response": answer,
