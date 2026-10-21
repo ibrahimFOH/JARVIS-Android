@@ -1,0 +1,23 @@
+{
+  "report_version": "V12",
+  "date": "2026-10-21",
+  "desktop_exe_sha256": "03c71a4204fd37f240dabc008742d7ef23938cb1f8bebce24ee79c8cee0b6be8",
+  "setup_sha256": "485cbd596960754590f80f5c7adb05b96e11961d82a8b7a956fabb426f4f3b09",
+  "setup_payload_signature": "VALID",
+  "setup_trusted_comment_global_signature": "INVALID under standard Minisign verification; payload signature remains valid",
+  "public_key_id": "13ADF2DB829F075A",
+  "frontend_assets": 18,
+  "frontend_byte_identical": 18,
+  "javascript_syntax_passed": 8,
+  "javascript_syntax_total": 8,
+  "tauri_bridge_command_count": 34,
+  "rust_crate_version_source_paths": 98,
+  "android_ci_run": "https://github.com/ibrahimFOH/JARVIS-Android/actions/runs/39582942609",
+  "android_apk_sha256": "85c255ed5ae7f4c0b6bc6a8ef18294b200f3571dea71d7730215f4eda5d004cc",
+  "android_apk_device_test": "not performed",
+  "limitations": [
+    "NSIS payload/script unextracted because no 7z/7zz and no shell DNS/network",
+    "Rust/Tauri source/config not recovered",
+    "global comment signature fails standard verification"
+  ]
+}
