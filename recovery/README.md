@@ -14,11 +14,13 @@ This folder stores verified findings, recovered frontend assets, reproducible ex
 - `FRONTEND_API_SURFACE_V7.md`: external services and native command surface found in the recovered frontend.
 - `NSIS_SCRIPT_DECOMPILATION_V8.md`: difference between payload extraction and script decompilation.
 - `PE_STATIC_TRIAGE_V8.md`: PE format, section layout and imported Windows library inventory.
-- `LOCAL_RECOVERY_VERIFICATION_V8.md`: fresh rerun confirms 18/18 frontend files byte-identical to the V5 archive and all 8 JavaScript files pass syntax checks.
+- `LOCAL_RECOVERY_VERIFICATION_V8.md`: rerun confirms 18/18 frontend files byte-identical to the V5 archive and all 8 JavaScript files pass syntax checks.
 - `NATIVE_BACKEND_STATIC_FINDINGS_V9.md`: 34 Tauri bridge commands, dependency/version traces and credential-storage evidence.
 - `STATIC_FINDINGS_MANIFEST_V9.json`: machine-readable V9 findings.
-- `RECOVERY_AND_ANDROID_PORTING_V10.md`: exhaustive asset-path scan, Rust crate/version-path inventory, PDB identity and Android porting matrix.
-- `REVERSE_ENGINEERING_MANIFEST_V10.json`: machine-readable V10 recovery and APK CI verification record.
+- `RECOVERY_AND_ANDROID_PORTING_V10.md`: asset scan, Rust crate/version path inventory, PDB identity and Android porting matrix.
+- `REVERSE_ENGINEERING_MANIFEST_V10.json`: machine-readable V10 findings.
+- `SETUP_SIGNATURE_VALIDATION_V11.md`: local Tauri updater payload-signature verification result.
+- `REVERSE_ENGINEERING_MANIFEST_V11.json`: V11 setup-signature and latest Android CI metadata.
 
 ## Tools
 
@@ -36,12 +38,13 @@ This folder stores verified findings, recovered frontend assets, reproducible ex
 - 18 frontend resources were extracted and compared byte-for-byte with the V5 archive; 8/8 JavaScript syntax checks passed.
 - The EXE has 98 distinct Rust crate/version source-path pairs in debug strings. These are not a recovered `Cargo.toml` and must not be interpreted as direct dependencies only.
 - CodeView references `asistan.pdb`; no matching PDB or Rust source files were recovered.
-- GitHub Actions successfully built the separate `JARVIS_ANDROID` app as `com.stagepulse.jarvis` (version `2.2.0-piper`). The CI APK was structurally checked, but has not been tested on a physical device/emulator.
+- The local setup file's Tauri updater payload signature is `VALID`, and its SHA-256 matches the recorded value. The separate trusted-comment/global signature is not covered by the repo's standard verifier.
+- Latest checked GitHub Actions build: [run #129](https://github.com/ibrahimFOH/JARVIS-Android/actions/runs/39582942609), successful for the separate `JARVIS_ANDROID` app `com.stagepulse.jarvis`, version `2.2.0-piper`. The APK passed archive integrity checks but has not been tested on a physical device/emulator.
 
 ## Important limitations
 
 This is not the complete original Tauri/Rust project. The full Rust backend function bodies, `Cargo.toml`, `tauri.conf.json`, and original build pipeline were not recovered. The NSIS setup payload and `[NSIS].nsi` also remain unextracted in this environment; there is no `7z/7zz` binary here and shell DNS/network access failed.
 
-The original EXE's exact frontend sources and assets are in the locally downloadable V10 package produced for this investigation. Binary fonts/icons are not all committed as individual source files here. Earlier files in `recovered_frontend/` are manually curated/transcribed excerpts and are not guaranteed byte-identical; use the validated V10 local recovery package and its manifests as canonical.
+The original EXE's exact frontend sources and assets are in the local V11 recovery ZIP produced for this investigation. Binary fonts/icons are not all committed as individual source files here. Earlier files in `recovered_frontend/` are manually curated/transcribed excerpts and are not guaranteed byte-identical; use the validated local recovery package and its manifests as canonical.
 
 The user's supplied `Asistan.zip` includes a WebView/Edge profile with history/cache/metrics. Personal profile contents are excluded from recovery bundles and repository commits.
