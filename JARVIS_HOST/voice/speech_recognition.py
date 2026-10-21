@@ -15,8 +15,9 @@ class SpeechRecognizer:
         self.language = config.get("voice.recognition_language", "tr-TR")
         self.timeout = float(config.get("voice.recognition_timeout", 5))
         self.phrase_limit = float(config.get("voice.phrase_time_limit", 8))
-        self.recognizer.energy_threshold = config.get("voice.energy_threshold", 4000)
+        self.recognizer.energy_threshold = min(float(config.get("voice.energy_threshold", 300)), 1000.0)
         self.recognizer.dynamic_energy_threshold = config.get("voice.dynamic_energy_threshold", True)
+        self.recognizer.pause_threshold = float(config.get("voice.pause_threshold", 0.7))
         # SpeechRecognition uses this for remote recognition requests too.
         self.recognizer.operation_timeout = float(config.get("voice.recognition_operation_timeout", 12))
         self.microphone = None
@@ -24,36 +25,51 @@ class SpeechRecognizer:
         self._select_microphone()
 
     def _select_microphone(self):
-        """Prefer the Windows default input; if unavailable, select the first listed device."""
-        try:
-            self.microphone = sr.Microphone()
-            logger.info("Using Windows default microphone.")
-        except Exception as default_error:
-            logger.warning("Default microphone unavailable: %s", default_error)
+        """Probe devices by actually opening their input stream before selecting one."""
+        def try_device(candidate, label):
             try:
-                names = sr.Microphone.list_microphone_names()
-                logger.info("Available microphone devices: %s", names)
-                for index, name in enumerate(names):
-                    if not name or not str(name).strip():
-                        continue
-                    try:
-                        self.microphone = sr.Microphone(device_index=index)
-                        logger.info("Using microphone device %s: %s", index, name)
-                        break
-                    except Exception as device_error:
-                        logger.warning("Microphone device %s failed: %s", name, device_error)
-            except Exception as listing_error:
-                logger.error("Could not enumerate microphones: %s", listing_error)
-            if self.microphone is None:
-                self.microphone_error = (
-                    "Windows mikrofonuna erişilemiyor. Ayarlar > Gizlilik ve güvenlik > "
-                    "Mikrofon bölümünde erişimi ve masaüstü uygulamalarının erişimini açın; "
-                    "Ayarlar > Sistem > Ses > Giriş bölümünde çalışan bir mikrofon seçin. "
-                    "Teknik ayrıntı: " + str(default_error)
-                )
-                logger.error(self.microphone_error)
+                with candidate as source:
+                    self.recognizer.adjust_for_ambient_noise(source, duration=0.35)
+                self.microphone = candidate
+                self.microphone_error = None
+                logger.info("Microphone input stream opened successfully: " + str(label))
+                return True
+            except Exception as exc:
+                logger.warning("Microphone probe failed for " + str(label) + ": " + str(exc))
+                return False
+
+        try:
+            default_device = sr.Microphone()
+        except Exception as exc:
+            default_device = None
+            logger.warning("Windows default microphone unavailable: " + str(exc))
+        if default_device is not None and try_device(default_device, "Windows default"):
+            return
+
+        try:
+            names = sr.Microphone.list_microphone_names()
+        except Exception as exc:
+            names = []
+            logger.warning("Could not enumerate microphone devices: " + str(exc))
+
+        for index, name in enumerate(names):
+            if not name or not str(name).strip():
+                continue
+            try:
+                candidate = sr.Microphone(device_index=index)
+            except Exception as exc:
+                logger.debug("Skipping input device " + str(name) + ": " + str(exc))
+                continue
+            if try_device(candidate, str(index) + ": " + str(name)):
                 return
-        self._calibrate()
+
+        self.microphone = None
+        self.microphone_error = (
+            "Kullanılabilir mikrofon açılamadı. Windows Ayarlar > Sistem > Ses > Giriş bölümünde "
+            "doğru aygıtı seçin; Gizlilik ve güvenlik > Mikrofon altında masaüstü uygulamalarına "
+            "erişimi açın. Mikrofonu başka bir uygulama kullanıyorsa o uygulamayı kapatın."
+        )
+        logger.error(self.microphone_error)
 
     def _calibrate(self):
         if self.microphone is None:
