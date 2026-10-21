@@ -1,5 +1,9 @@
 name: JARVIS Windows and Android Build
 
+concurrency:
+  group: stagepulse-jarvis-cross-${{ github.ref }}
+  cancel-in-progress: true
+
 on:
   workflow_dispatch:
   push:
@@ -54,6 +58,9 @@ jobs:
         shell: pwsh
         run: |
           Get-ChildItem -Recurse -Filter *.py | ForEach-Object { python -m py_compile $_.FullName }
+      - name: Test AI provider and image flows
+        shell: pwsh
+        run: python -m pytest tests -q
       - name: Build EXE bundle
         shell: pwsh
         run: |
