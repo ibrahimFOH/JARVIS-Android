@@ -580,8 +580,12 @@ public class MainActivity extends Activity {
 
     private String createDownloadTextFile(String requestedName, String body, String childFolder) throws IOException {
         String fileName = safeName(requestedName, "JARVIS-Notu");
-        if (!fileName.toLowerCase(Locale.ROOT).endsWith(".txt")
-                && !fileName.toLowerCase(Locale.ROOT).endsWith(".md")) fileName += ".txt";
+        String lowerName = fileName.toLowerCase(Locale.ROOT);
+        boolean supportedTextType = lowerName.endsWith(".txt") || lowerName.endsWith(".md")
+                || lowerName.endsWith(".csv") || lowerName.endsWith(".json")
+                || lowerName.endsWith(".html") || lowerName.endsWith(".xml")
+                || lowerName.endsWith(".log");
+        if (!supportedTextType) fileName += ".txt";
         String stamp = new SimpleDateFormat("yyyyMMdd-HHmmss", Locale.ROOT).format(new Date());
         int dot = fileName.lastIndexOf('.');
         fileName = (dot > 0 ? fileName.substring(0, dot) : fileName) + "-" + stamp
@@ -598,7 +602,11 @@ public class MainActivity extends Activity {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             ContentValues values = new ContentValues();
             values.put(MediaStore.MediaColumns.DISPLAY_NAME, fileName);
-            values.put(MediaStore.MediaColumns.MIME_TYPE, "text/plain");
+            String mime = lowerName.endsWith(".csv") ? "text/csv"
+                    : lowerName.endsWith(".json") ? "application/json"
+                    : lowerName.endsWith(".html") ? "text/html"
+                    : lowerName.endsWith(".xml") ? "application/xml" : "text/plain";
+            values.put(MediaStore.MediaColumns.MIME_TYPE, mime);
             values.put(MediaStore.MediaColumns.RELATIVE_PATH,
                     Environment.DIRECTORY_DOWNLOADS + "/" + folder + "/");
             values.put(MediaStore.MediaColumns.IS_PENDING, 1);
@@ -662,7 +670,7 @@ public class MainActivity extends Activity {
 
     private Uri findCreatedFile(String requestedName) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return null;
-        String needle = safeName(requestedName, "").toLowerCase(Locale.ROOT);
+        String needle = normalizeIntent(requestedName).replaceAll("[^a-z0-9]", "");
         if (needle.isEmpty()) return null;
         Cursor cursor = null;
         try {
@@ -929,7 +937,7 @@ public class MainActivity extends Activity {
             if (!path.isEmpty()) return "Bu Android sürümünde dosyayı otomatik silme desteklenmiyor. Yol: " + path;
         }
         if (x.startsWith("not al ") || x.startsWith("not kaydet ")) {
-            int cut = x.startsWith("not al ") ? 7 : 10;
+            int cut = x.startsWith("not al ") ? 7 : 11;
             String note = raw.length() >= cut ? raw.substring(cut).trim() : raw;
             if (note.isEmpty()) return "Notun içeriğini söyle. Örnek: Not al yarın Midas M32 kontrolü.";
             try {
@@ -963,6 +971,9 @@ public class MainActivity extends Activity {
                 content = "JARVIS tarafından oluşturuldu: " + new SimpleDateFormat("dd.MM.yyyy HH:mm", new Locale("tr", "TR")).format(new Date()) + "\n";
             }
             if (name.isEmpty()) return "Dosya adını belirt. Örnek: Dosya oluştur prova.txt içerik Yarın 18.00'de soundcheck.";
+            if (name.toLowerCase(Locale.ROOT).endsWith(".pdf")) {
+                return "Bu yerel çekirdek henüz gerçek PDF dosyası üretmiyor. .txt, .md, .csv, .json, .html ve .xml dosyaları oluşturabilirim; PDF için Windows JARVIS veya bir belge dönüştürücü gerekir.";
+            }
             if (content.isEmpty()) return "Dosya içeriği boş. 'Dosya oluştur not.txt içerik ...' biçiminde söyle.";
             try { return createDownloadTextFile(name, content, "Dosyalar"); }
             catch (Exception e) { return "Dosya oluşturulamadı: " + e.getMessage(); }
