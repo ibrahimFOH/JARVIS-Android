@@ -973,7 +973,7 @@ public class MainActivity extends Activity {
     private void requestAccessibilityEnable() {
         new AlertDialog.Builder(this)
                 .setTitle("JARVIS TELEFON KONTROLLERİ")
-                .setMessage("Bu Android izni, yalnızca sen açıkça istediğinde Ana ekran, Geri, Bildirimler, Hızlı Ayarlar, güç menüsü ve ekran kilidi gibi sistem işlemleri için kullanılacak. JARVIS diğer uygulamaların ekran metnini okumaz. Devam etmek için Android Erişilebilirlik ayarlarında 'JARVIS Telefon Kontrolleri' hizmetini kendin etkinleştirmen gerekir.")
+                .setMessage("Bu güçlü Android izni, yalnızca komut verdiğinde görünür ekrandaki metni okumak, belirttiğin metni bulup tıklamayı denemek, odaktaki alana yazmak, sayfayı kaydırmak ve Ana ekran/Geri/Bildirimler/Hızlı Ayarlar gibi sistem işlemlerini çalıştırmak için kullanılacak. Ekran metni arka planda kaydedilmez veya kendiliğinden gönderilmez. Devam etmek için Android Erişilebilirlik ayarlarında 'JARVIS Telefon Kontrolleri' hizmetini kendin etkinleştirmen gerekir.")
                 .setPositiveButton("AYARLARI AÇ", (d, w) -> {
                     try { startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)); }
                     catch (Exception e) { append("TELEFON KONTROLLERİ", "Erişilebilirlik ayarları açılamadı: " + e.getMessage()); }
@@ -988,6 +988,54 @@ public class MainActivity extends Activity {
                 || x.equals("telefon kontrollerini etkinlestir")) {
             runOnUiThread(this::requestAccessibilityEnable);
             return "Telefon kontrol iznini açıklayan ekranı açıyorum.";
+        }
+        boolean readScreen = x.contains("ekrandaki metni oku") || x.equals("ekrani oku")
+                || x.contains("bu ekranda ne yaziyor") || x.contains("ekranda ne var");
+        if (readScreen) {
+            if (!JarvisAccessibilityService.isEnabled(this)) {
+                runOnUiThread(this::requestAccessibilityEnable);
+                return "Görünür ekranı okuyabilmek için JARVIS Telefon Kontrolleri izni gerekli.";
+            }
+            String visible = JarvisAccessibilityService.readVisibleWindowText();
+            return visible == null || visible.trim().isEmpty()
+                    ? "Etkin ekrandan okunabilir metin alınamadı. Bazı uygulamalar erişilebilirlik metnini gizleyebilir."
+                    : "ETKİN EKRANIN GÖRÜNÜR METNİ\n\n" + visible;
+        }
+        if (x.startsWith("tikla ") || x.startsWith("dokun ") || x.startsWith("bas ")) {
+            String target = raw.substring(Math.min(raw.length(), raw.indexOf(' ') + 1)).trim();
+            if (target.isEmpty()) return "Tıklanacak düğme veya metni söyle. Örnek: Tıkla Kaydet.";
+            if (!JarvisAccessibilityService.isEnabled(this)) {
+                runOnUiThread(this::requestAccessibilityEnable);
+                return "Ekrandaki kontrole erişmek için JARVIS Telefon Kontrolleri izni gerekli.";
+            }
+            return JarvisAccessibilityService.clickVisibleText(target)
+                    ? "Ekrandaki '" + target + "' kontrolüne tıklama isteğini ilettim. Uygulama eylemi reddedebilir; sonucu kontrol et."
+                    : "Telefon kontrol hizmeti hazır değil.";
+        }
+        if (x.startsWith("alana yaz ") || x.startsWith("ekrana yaz ") || x.startsWith("metin gir ")) {
+            int space = raw.indexOf(' ');
+            String value = space >= 0 ? raw.substring(space + 1).trim() : "";
+            if (value.startsWith("yaz ")) value = value.substring(4).trim();
+            if (value.startsWith("gir ")) value = value.substring(4).trim();
+            if (value.isEmpty()) return "Yazılacak metni söyle.";
+            if (!JarvisAccessibilityService.isEnabled(this)) {
+                runOnUiThread(this::requestAccessibilityEnable);
+                return "Başka uygulamanın alanına yazmak için JARVIS Telefon Kontrolleri izni gerekli.";
+            }
+            return JarvisAccessibilityService.setFocusedText(value)
+                    ? "Metni odaktaki alana yerleştirme isteğini ilettim. Alanı kontrol et; gönderme işlemini ayrıca sen iste."
+                    : "Telefon kontrol hizmeti hazır değil.";
+        }
+        if (x.contains("asagi kaydir") || x.contains("sayfayi asagi kaydir") || x.contains("yukari kaydir")
+                || x.contains("sayfayi yukari kaydir")) {
+            if (!JarvisAccessibilityService.isEnabled(this)) {
+                runOnUiThread(this::requestAccessibilityEnable);
+                return "Ekranı kaydırmak için JARVIS Telefon Kontrolleri izni gerekli.";
+            }
+            boolean down = x.contains("asagi");
+            return JarvisAccessibilityService.scrollVisibleWindow(down)
+                    ? (down ? "Ekranı aşağı kaydırma isteğini ilettim." : "Ekranı yukarı kaydırma isteğini ilettim.")
+                    : "Telefon kontrol hizmeti hazır değil.";
         }
         int action = -1;
         String description = null;
