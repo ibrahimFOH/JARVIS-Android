@@ -1290,6 +1290,197 @@ public class MainActivity extends Activity {
         }
     }
 
+
+    private String launchSystemCategory(String category, String label) {
+        try {
+            Intent intent = Intent.makeMainSelectorActivity(Intent.ACTION_MAIN, category);
+            if (getPackageManager().resolveActivity(intent, 0) == null) {
+                return label + " için bu cihazda uygun bir uygulama bulunamadı.";
+            }
+            runOnUiThread(() -> {
+                try { startActivity(intent); }
+                catch (Exception e) { append("TELEFON", label + " açılamadı: " + e.getMessage()); }
+            });
+            return label + " açılıyor.";
+        } catch (Exception e) {
+            return label + " açılamadı: " + e.getClass().getSimpleName();
+        }
+    }
+
+    private String setFlashlight(boolean enabled) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return "Fener kontrolü bu Android sürümünde desteklenmiyor.";
+        if (checkSelfPermission(Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
+            pendingTorchState = enabled;
+            runOnUiThread(() -> requestPermissions(new String[]{Manifest.permission.CAMERA}, REQ_CAMERA));
+            return "Fener için kamera izni gerekiyor. İzin ekranını onayla, ardından komutu yeniden ver.";
+        }
+        try {
+            CameraManager manager = (CameraManager) getSystemService(CAMERA_SERVICE);
+            if (manager == null) return "Kamera servisi kullanılamıyor.";
+            String selected = null;
+            for (String id : manager.getCameraIdList()) {
+                CameraCharacteristics characteristics = manager.getCameraCharacteristics(id);
+                Boolean flash = characteristics.get(CameraCharacteristics.FLASH_INFO_AVAILABLE);
+                Integer facing = characteristics.get(CameraCharacteristics.LENS_FACING);
+                if (Boolean.TRUE.equals(flash) && (facing == null || facing == CameraCharacteristics.LENS_FACING_BACK)) {
+                    selected = id;
+                    break;
+                }
+            }
+            if (selected == null) return "Bu telefonda kullanılabilir bir kamera flaşı bulunamadı.";
+            manager.setTorchMode(selected, enabled);
+            return enabled ? "Telefon fenerini açtım." : "Telefon fenerini kapattım.";
+        } catch (SecurityException e) {
+            return "Android kamera iznini reddetti. Uygulama ayarlarından kamera iznini etkinleştir.";
+        } catch (Exception e) {
+            return "Fener değiştirilemedi: " + e.getClass().getSimpleName();
+        }
+    }
+
+    private String handlePhoneControlCommand(String raw) {
+        String x = normalizeIntent(raw);
+        boolean openVerb = x.startsWith("ac ") || x.startsWith("ac,") || x.startsWith("baslat ")
+                || x.contains(" ac ") || x.contains(" ac") || x.contains("baslat")
+                || x.contains("calistir") || x.contains("open ");
+        if (x.contains("fener") || x.contains("el feneri") || x.contains("flashlight")) {
+            boolean off = x.contains("kapat") || x.contains("sondur") || x.contains(" kapat");
+            return setFlashlight(!off);
+        }
+        if ((x.contains("wifi") || x.contains("wi-fi") || x.contains("kablosuz ag"))
+                && (x.contains("ac") || x.contains("kapat") || x.contains("ayar") || x.contains("baglan"))) {
+            try {
+                runOnUiThread(() -> startActivity(new Intent(Settings.ACTION_WIFI_SETTINGS)));
+                if (x.contains("kapat")) return "Android bu sürümde uygulamaların Wi-Fi bağlantısını doğrudan kapatmasını engelliyor. Wi-Fi ayarlarını açtım; kapatma işlemini oradan onayla.";
+                if (x.contains("ac")) return "Wi-Fi ayarlarını açtım. Ağı oradan etkinleştir veya seç.";
+                return "Wi-Fi ayarlarını açıyorum.";
+            } catch (Exception e) { return "Wi-Fi ayarları açılamadı."; }
+        }
+        if (x.contains("bluetooth") && (x.contains("ac") || x.contains("kapat") || x.contains("ayar"))) {
+            try {
+                runOnUiThread(() -> startActivity(new Intent(Settings.ACTION_BLUETOOTH_SETTINGS)));
+                if (x.contains("kapat")) return "Android uygulamaların Bluetooth'u sessizce kapatmasına izin vermiyor. Bluetooth ayarlarını açtım; işlemi oradan onayla.";
+                return "Bluetooth ayarlarını açıyorum. Açma/kapatma işlemini sistem ekranında onayla.";
+            } catch (Exception e) { return "Bluetooth ayarları açılamadı."; }
+        }
+        if (x.contains("ucak modu") || x.contains("ucak modunu")) {
+            try {
+                runOnUiThread(() -> startActivity(new Intent(Settings.ACTION_AIRPLANE_MODE_SETTINGS)));
+                return "Uçak modu ayarlarını açıyorum. Bağlantı değişikliği için Android onayı gerekir.";
+            } catch (Exception e) { return "Uçak modu ayarları açılamadı."; }
+        }
+        if (x.contains("ekran parlakligi") || x.contains("parlaklik ayarlari")) {
+            try {
+                runOnUiThread(() -> startActivity(new Intent(Settings.ACTION_DISPLAY_SETTINGS)));
+                return "Ekran ve parlaklık ayarlarını açıyorum.";
+            } catch (Exception e) { return "Ekran ayarları açılamadı."; }
+        }
+        if (x.contains("pil tasarrufu") || x.contains("guc tasarrufu")) {
+            try {
+                runOnUiThread(() -> startActivity(new Intent(Settings.ACTION_BATTERY_SAVER_SETTINGS)));
+                return "Pil tasarrufu ayarlarını açıyorum.";
+            } catch (Exception e) { return "Pil tasarrufu ayarları açılamadı."; }
+        }
+        if (x.contains("rahatsiz etme") || x.contains("bildirim izinleri")) {
+            try {
+                runOnUiThread(() -> startActivity(new Intent(Settings.ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS)));
+                return "Rahatsız Etme ve bildirim erişimi ayarlarını açıyorum.";
+            } catch (Exception e) { return "Bildirim ayarları açılamadı."; }
+        }
+        if (x.contains("zamanlayici") || x.contains("geri sayim") || x.contains("timer")) {
+            java.util.regex.Matcher match = java.util.regex.Pattern
+                    .compile("(\\\\d+)\\\\s*(saniye|dakika|saat)").matcher(x);
+            int seconds = 60;
+            if (match.find()) {
+                int amount;
+                try { amount = Integer.parseInt(match.group(1)); }
+                catch (NumberFormatException e) { amount = 1; }
+                amount = Math.max(1, Math.min(amount, 24 * 60));
+                String unit = match.group(2);
+                seconds = amount * ("saat".equals(unit) ? 3600 : "dakika".equals(unit) ? 60 : 1);
+            }
+            final int length = seconds;
+            try {
+                Intent timer = new Intent(android.provider.AlarmClock.ACTION_SET_TIMER)
+                        .putExtra(android.provider.AlarmClock.EXTRA_LENGTH, length)
+                        .putExtra(android.provider.AlarmClock.EXTRA_SKIP_UI, false);
+                runOnUiThread(() -> {
+                    try { startActivity(timer); }
+                    catch (Exception e) { append("TELEFON", "Zamanlayıcı uygulaması bulunamadı."); }
+                });
+                return "Zamanlayıcı ekranını açıyorum: " + (length >= 3600 ? (length / 3600) + " saat"
+                        : length >= 60 ? (length / 60) + " dakika" : length + " saniye")
+                        + ". Başlatmayı saat uygulamasında onayla.";
+            } catch (Exception e) { return "Zamanlayıcı açılamadı."; }
+        }
+        if (x.contains("alarm kur") || x.contains("alarm ayarla") || x.contains("alarm ac")) {
+            try {
+                Intent alarm = new Intent(android.provider.AlarmClock.ACTION_SET_ALARM);
+                runOnUiThread(() -> {
+                    try { startActivity(alarm); }
+                    catch (Exception e) { append("TELEFON", "Alarm uygulaması bulunamadı."); }
+                });
+                return "Alarm uygulamasını açıyorum. Saat ve tekrar günlerini orada doğrula.";
+            } catch (Exception e) { return "Alarm uygulaması açılamadı."; }
+        }
+        if (openVerb || x.startsWith("hesap makinesi") || x.startsWith("rehber")
+                || x.startsWith("mesajlar") || x.startsWith("e posta") || x.startsWith("dosya yoneticisi")) {
+            if (x.contains("hesap makinesi") || x.contains("hesap makinası") || x.contains("calculator"))
+                return launchSystemCategory(Intent.CATEGORY_APP_CALCULATOR, "Hesap makinesi");
+            if (x.contains("rehber") || x.contains("kisiler") || x.contains("telefon numaralari"))
+                return launchSystemCategory(Intent.CATEGORY_APP_CONTACTS, "Kişiler");
+            if (x.contains("mesajlar") || x.contains("sms") || x.contains("mesaj uygulamasi"))
+                return launchSystemCategory(Intent.CATEGORY_APP_MESSAGING, "Mesajlar");
+            if (x.contains("e posta") || x.contains("eposta") || x.contains("mail uygulamasi"))
+                return launchSystemCategory(Intent.CATEGORY_APP_EMAIL, "E-posta");
+            if (x.contains("dosya yoneticisi") || x.contains("dosyalarim"))
+                return launchSystemCategory(Intent.CATEGORY_APP_FILES, "Dosya yöneticisi");
+            if (x.contains("saat uygulamasi") || x.contains("saat")) 
+                return launchSystemCategory(Intent.CATEGORY_APP_CLOCK, "Saat");
+            if (x.contains("ayarlar")) {
+                try {
+                    runOnUiThread(() -> startActivity(new Intent(Settings.ACTION_SETTINGS)));
+                    return "Android ayarlarını açıyorum.";
+                } catch (Exception e) { return "Android ayarları açılamadı."; }
+            }
+            if (x.contains("youtube")) return launchAndroidAppOrWeb("com.google.android.youtube", "https://www.youtube.com/", "YouTube");
+            if (x.contains("whatsapp")) return launchAndroidAppOrWeb("com.whatsapp", "https://www.whatsapp.com/", "WhatsApp");
+            if (x.contains("instagram")) return launchAndroidAppOrWeb("com.instagram.android", "https://www.instagram.com/", "Instagram");
+            if (x.contains("chrome") || x.contains("tarayici")) return launchAndroidAppOrWeb("com.android.chrome", "https://www.google.com/", "Chrome");
+            if (x.contains("harita") || x.contains("maps")) return launchAndroidAppOrWeb("com.google.android.apps.maps", "https://maps.google.com/", "Haritalar");
+            if (x.contains("spotify")) return launchAndroidAppOrWeb("com.spotify.music", "https://open.spotify.com/", "Spotify");
+            if (x.contains("gmail")) return launchAndroidAppOrWeb("com.google.android.gm", "https://mail.google.com/", "Gmail");
+            if (x.contains("facebook")) return launchAndroidAppOrWeb("com.facebook.katana", "https://www.facebook.com/", "Facebook");
+        }
+        if (x.contains("mesaj yaz") || x.startsWith("sms ")) {
+            try {
+                int pos = x.indexOf("mesaj yaz");
+                String body = pos >= 0 ? raw.substring(Math.min(raw.length(), pos + "mesaj yaz".length())).trim() : raw.substring(Math.min(raw.length(), 4)).trim();
+                Intent sms = new Intent(Intent.ACTION_SENDTO, Uri.parse("smsto:"));
+                sms.putExtra("sms_body", body);
+                runOnUiThread(() -> {
+                    try { startActivity(sms); }
+                    catch (Exception e) { append("TELEFON", "Mesaj uygulaması açılamadı."); }
+                });
+                return "Mesaj taslağını açıyorum. Alıcıyı ve gönderimi sen onaylamalısın.";
+            } catch (Exception e) { return "Mesaj oluşturulamadı."; }
+        }
+        if (x.contains("kamera ac") || x.equals("kamerayi ac")) {
+            try {
+                runOnUiThread(() -> startActivity(new Intent(android.provider.MediaStore.ACTION_IMAGE_CAPTURE)));
+                return "Kamerayı açıyorum.";
+            } catch (Exception e) { return "Kamera açılamadı."; }
+        }
+        return null;
+    }
+
+    private boolean isArtifactRequest(String raw) {
+        String x = normalizeIntent(raw);
+        return (x.contains("egitim paketi") && (x.contains("hazirla") || x.contains("olustur") || x.contains("yap")))
+                || x.contains("rapor hazirla") || x.contains("belge hazirla")
+                || x.contains("dokuman hazirla") || x.contains("metin hazirla")
+                || x.contains("egitim dokumani olustur");
+    }
+
     private String processLocal(String raw){
         String memoryResponse = handleLocalMemory(raw);
         if (memoryResponse != null) return memoryResponse;
