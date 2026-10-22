@@ -1051,7 +1051,14 @@ def _jarvis_gui_voice(self):
         return
     recognizer = getattr(self.jarvis, "speech_recognizer", None)
     if recognizer is None:
-        self._append_to_chat("SYSTEM", "Mikrofon / ses tanıma sistemi kullanılamıyor.", "red")
+        self._append_to_chat("SYSTEM", "Ses tanıma başlatılmadı: SpeechRecognizer yok. JARVIS voice ayarını kontrol et.", "red")
+        return
+    if getattr(recognizer, "microphone", None) is None:
+        detail = getattr(recognizer, "microphone_error", None) or "Windows kullanılabilir bir mikrofon aygıtı bulamadı."
+        self._append_to_chat("SYSTEM", "Sürekli dinleme başlatılamadı: " + str(detail), "red")
+        self._activity("MICROPHONE UNAVAILABLE")
+        self.status.configure(text="● MIC ERROR", text_color=RED)
+        self.phase.configure(text="MIC ERROR")
         return
 
     self._voice_listening = True
@@ -1069,13 +1076,18 @@ def _jarvis_gui_voice(self):
                 if self._voice_stop_event.is_set() or not self._running:
                     break
                 if not result.get("success"):
-                    if result.get("error") not in ("timeout", "no_recognition"):
-                        message = result.get("message", "Mikrofon hatası.")
-                        self.root.after(0, lambda m=message: self._activity("VOICE INPUT: " + str(m)[:65]))
-                        self._voice_stop_event.wait(0.5)
+                    error = str(result.get("error", "unknown"))
+                    message = str(result.get("message") or error)
+                    if error not in ("timeout", "no_recognition"):
+                        # Show actionable failures in chat instead of leaving a false
+                        # ALWAYS LISTENING indicator with no explanation.
+                        self.root.after(0, lambda m=message: self._voice_input_error(m))
+                        self._voice_stop_event.wait(1.0)
                     continue
 
                 command = str(result.get("text", "")).strip()
+                if command:
+                    self.root.after(0, lambda c=command: self._voice_command_heard(c))
                 if not command:
                     continue
                 if command.lower().strip(" .,!?:;") in ("jarvis kapat", "uygulamayı kapat", "uygulamayi kapat"):
@@ -1084,7 +1096,13 @@ def _jarvis_gui_voice(self):
 
                 self._voice_response_event.clear()
                 self._voice_last_response = None
-                self.jarvis.process_command(command, speak_response=False)
+                queued = self.jarvis.process_command(command, speak_response=False)
+                if isinstance(queued, dict) and queued.get("success") is False:
+                    self.root.after(0, lambda q=queued: self._append_to_chat(
+                        "SYSTEM", str(q.get("response", "Komut işlenemedi.")), "red"
+                    ))
+                    continue
+                self.root.after(0, lambda: self._activity("COMMAND RECOGNIZED; WAITING FOR RESPONSE"))
                 # Wait for the result before listening again, so TTS isn't re-captured.
                 completed = self._voice_response_event.wait(timeout=180)
                 if self._voice_stop_event.is_set() or not self._running:
@@ -1114,6 +1132,16 @@ def _jarvis_gui_voice(self):
                 pass
 
     threading.Thread(target=worker, daemon=True, name="JARVIS-Persistent-Voice").start()
+
+def _voice_input_error(self, message):
+    self._append_to_chat("SYSTEM", "Ses girişi hatası: " + str(message), "red")
+    self._activity("VOICE INPUT ERROR: " + str(message).replace("\\n", " ")[:70])
+    self.status.configure(text="● VOICE ERROR", text_color=RED)
+    self.phase.configure(text="VOICE ERROR")
+
+def _voice_command_heard(self, command):
+    self._append_to_chat("YOU", command, "gold")
+    self._activity("VOICE COMMAND HEARD")
 
 def _voice_result_safe(self, result):
     if isinstance(result, dict) and result.get("success"):
