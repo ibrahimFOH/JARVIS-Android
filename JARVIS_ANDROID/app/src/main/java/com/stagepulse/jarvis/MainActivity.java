@@ -78,6 +78,45 @@ public class MainActivity extends Activity {
         if (!profilePrefs.getBoolean("setup_complete", false)) {
             new Handler(Looper.getMainLooper()).postDelayed(() -> showProfileSettings(true), 650L);
         }
+        handleIncomingIntent(getIntent());
+    }
+
+    @Override protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        handleIncomingIntent(intent);
+    }
+
+    private void handleIncomingIntent(Intent intent) {
+        if (intent == null) return;
+        String requestedCommand = intent.getStringExtra("jarvis_command");
+        boolean requestMicrophone = intent.getBooleanExtra("jarvis_request_microphone", false);
+        if (requestedCommand == null || requestedCommand.trim().isEmpty()) requestedCommand = "";
+        boolean setupComplete = profilePrefs.getBoolean("setup_complete", false);
+        if (!setupComplete && (!requestedCommand.isEmpty() || requestMicrophone)) {
+            android.content.SharedPreferences.Editor pending = profilePrefs.edit();
+            if (!requestedCommand.isEmpty()) pending.putString("pending_incoming_command", requestedCommand);
+            if (requestMicrophone) pending.putBoolean("pending_incoming_microphone", true);
+            pending.apply();
+            return;
+        }
+        if (!requestedCommand.isEmpty()) {
+            final String cmd = requestedCommand;
+            new Handler(Looper.getMainLooper()).postDelayed(() -> sendCommand(cmd), 450L);
+        } else if (requestMicrophone) {
+            new Handler(Looper.getMainLooper()).postDelayed(this::listen, 450L);
+        }
+    }
+
+    private void processPendingStartupAction() {
+        String pendingCommand = profilePrefs.getString("pending_incoming_command", "");
+        boolean pendingMicrophone = profilePrefs.getBoolean("pending_incoming_microphone", false);
+        profilePrefs.edit().remove("pending_incoming_command").remove("pending_incoming_microphone").apply();
+        if (!pendingCommand.isEmpty()) {
+            new Handler(Looper.getMainLooper()).postDelayed(() -> sendCommand(pendingCommand), 450L);
+        } else if (pendingMicrophone) {
+            new Handler(Looper.getMainLooper()).postDelayed(this::listen, 450L);
+        }
     }
 
     private TextView tv(String s,int size,int color){
@@ -505,12 +544,14 @@ public class MainActivity extends Activity {
                             .apply();
                     append("JARVIS", owner + " profili bu cihazda kaydedildi.");
                     speak("Profil kaydedildi. Seni bu cihazdaki profilin üzerinden hatırlayacağım.");
+                    processPendingStartupAction();
                 });
         if (firstRun) {
             dialog.setNegativeButton("ŞİMDİ DEĞİL", (d, which) -> {
                 profilePrefs.edit().putString("owner_name", "Patron")
                         .putBoolean("setup_complete", true).apply();
                 append("JARVIS", "Profil kurulumu ertelendi. Dilediğinde PROFİL bölümünden ayarlayabilirsin.");
+                processPendingStartupAction();
             });
         } else {
             dialog.setNegativeButton("İPTAL", null);
