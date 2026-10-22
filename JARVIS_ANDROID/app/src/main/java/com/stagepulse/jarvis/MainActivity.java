@@ -455,8 +455,14 @@ public class MainActivity extends Activity {
                 String hostToken = bridgePrefs.getString("token", "").trim();
                 if (!hostUrl.isEmpty() && !hostToken.isEmpty()) {
                     statusPost("● WINDOWS JARVIS");
-                    BridgeClient.Result remote = BridgeClient.command(hostUrl, hostToken, cmd);
-                    a = remote.response;
+                    try {
+                        BridgeClient.Result remote = BridgeClient.command(hostUrl, hostToken, cmd);
+                        a = remote.response;
+                    } catch (Exception hostError) {
+                        statusPost("● LOCAL MODE");
+                        String localAnswer = processLocal(cmd);
+                        a = "Windows bağlantısı şu anda kullanılamıyor; komutu telefonda yerel olarak değerlendirdim.\\n\\n" + localAnswer;
+                    }
                 } else {
                 AgencyAgent requested=detectAgent(cmd);
                 if(requested!=null && (cmd.toLowerCase(new Locale("tr","TR")).contains("aktif") || cmd.toLowerCase(new Locale("tr","TR")).contains("agent") || cmd.toLowerCase(new Locale("tr","TR")).contains("mühendis") || cmd.toLowerCase(new Locale("tr","TR")).contains("uzman"))){
@@ -512,9 +518,9 @@ public class MainActivity extends Activity {
                 || normalized.equals("ne hatırlıyorsun") || normalized.equals("ne hatirliyorsun")) {
             Set<String> stored = prefs.getStringSet("facts", Collections.emptySet());
             if (stored == null || stored.isEmpty()) return "Yerel hafızam henüz boş. 'Hatırla: ...' komutuyla bilgi kaydedebilirsin.";
-            StringBuilder result = new StringBuilder("Bu cihazdaki kalıcı hafızam:\\n");
+            StringBuilder result = new StringBuilder("Bu cihazdaki kalıcı hafızam:\n");
             int index = 1;
-            for (String fact : new TreeSet<>(stored)) result.append(index++).append(". ").append(fact).append("\\n");
+            for (String fact : new TreeSet<>(stored)) result.append(index++).append(". ").append(fact).append("\n");
             return result.toString().trim();
         }
         String fact = null;
