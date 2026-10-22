@@ -82,8 +82,8 @@ class MemoryManager:
             )
 
         remember = re.match(
-            r"^(?:(?:jarvis)[,\\s]+)?(?:(?:bunu|şunu|sunu)\\s+)?"
-            r"(?:hatırla|hatirla|aklında tut|aklinda tut)\\s*[:,-]?\\s*(.+)$",
+            r"^(?:(?:jarvis)[,\s]+)?(?:(?:bunu|şunu|sunu)\s+)?"
+            r"(?:hatırla|hatirla|aklında tut|aklinda tut)\s*[:,-]?\s*(.+)$",
             original,
             re.IGNORECASE,
         )
@@ -109,8 +109,8 @@ class MemoryManager:
             return "Bunu kalıcı hafızama kaydettim."
 
         forget = re.match(
-            r"^(?:(?:jarvis)[,\\s]+)?(?:(?:bunu|şunu|sunu)\\s+)?"
-            r"(?:unut|hafızandan sil|hafizandan sil)\\s*[:,-]?\\s*(.+)$",
+            r"^(?:(?:jarvis)[,\s]+)?(?:(?:bunu|şunu|sunu)\s+)?"
+            r"(?:unut|hafızandan sil|hafizandan sil)\s*[:,-]?\s*(.+)$",
             original,
             re.IGNORECASE,
         )
