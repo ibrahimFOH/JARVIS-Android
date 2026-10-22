@@ -682,11 +682,14 @@ public class MainActivity extends Activity {
             if (cursor == null) return null;
             while (cursor.moveToNext()) {
                 String name = cursor.getString(1);
-                if (name != null && (name.equalsIgnoreCase(needle)
-                        || name.toLowerCase(Locale.ROOT).contains(needle))) {
-                    return android.content.ContentUris.withAppendedId(
-                            MediaStore.Downloads.EXTERNAL_CONTENT_URI, cursor.getLong(0));
+                if (name != null) {
+                    String nameKey = normalizeIntent(name).replaceAll("[^a-z0-9]", "");
+                    if (nameKey.equals(needle) || nameKey.contains(needle)) {
+                        return android.content.ContentUris.withAppendedId(
+                                MediaStore.Downloads.EXTERNAL_CONTENT_URI, cursor.getLong(0));
+                    }
                 }
+
             }
         } catch (Exception ignored) {
         } finally {
