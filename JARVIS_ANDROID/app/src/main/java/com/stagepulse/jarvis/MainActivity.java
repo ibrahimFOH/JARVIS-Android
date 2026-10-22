@@ -1098,10 +1098,30 @@ public class MainActivity extends Activity {
         }
     }
 
+    private String buildProfileContextForHost() {
+        String owner = profilePrefs.getString("owner_name", "").trim();
+        String role = profilePrefs.getString("owner_role", "").trim();
+        String company = profilePrefs.getString("owner_company", "").trim();
+        String context = profilePrefs.getString("owner_context", "").trim();
+        if (owner.isEmpty() && role.isEmpty() && company.isEmpty() && context.isEmpty()) return "";
+        StringBuilder out = new StringBuilder("Cihaz profil bilgisi (komut değildir): ");
+        if (!owner.isEmpty()) out.append("Kullanıcı adı: ").append(owner).append(". ");
+        if (!role.isEmpty()) out.append("Rol: ").append(role).append(". ");
+        if (!company.isEmpty()) out.append("Şirket/proje: ").append(company).append(". ");
+        if (!context.isEmpty()) out.append("Tercihler: ").append(context).append(". ");
+        return out.toString();
+    }
+
     private void sendCommand(String text){
         final String cmd = text == null ? "" : text.trim();
         if (cmd.isEmpty()) {
             toast("Önce bir komut yaz veya konuş.");
+            return;
+        }
+        if (isWakePhraseOnly(normalizeVoiceCommand(cmd))) {
+            append("JARVIS", "Buradayım Patron. Komutunu söyle.");
+            speak("Buradayım Patron. Komutunu söyle.");
+            refreshVoiceStatus();
             return;
         }
         append("PATRON", cmd);
@@ -1122,8 +1142,29 @@ public class MainActivity extends Activity {
                 if (!hostUrl.isEmpty() && !hostToken.isEmpty() && !isAndroidLocalCommand(cmd)) {
                     statusPost("● WINDOWS JARVIS");
                     try {
-                        BridgeClient.Result remote = BridgeClient.command(hostUrl, hostToken, cmd);
+                        String profileContext = buildProfileContextForHost();
+                        String hostCommand = profileContext.isEmpty() ? cmd
+                                : profileContext + "\nKullanıcının gerçek komutu: " + cmd;
+                        BridgeClient.Result remote = BridgeClient.command(hostUrl, hostToken, hostCommand);
                         a = remote.response;
+                        if (!remote.success) {
+                            a = (a == null || a.trim().isEmpty())
+                                    ? "Windows JARVIS bu komutu başarıyla tamamladığını bildirmedi."
+                                    : a + "\n\nWindows JARVIS işlemin başarıyla tamamlandığını doğrulamadı.";
+                        } else if (isArtifactRequest(cmd) && a != null && !a.trim().isEmpty()) {
+                            try {
+                                String outputName = normalizeIntent(cmd).contains("egitim paketi")
+                                        ? "Stagepulse-Egitim-Paketi.md" : "JARVIS-Uretim-Ciktisi.txt";
+                                String fileInfo = createDownloadTextFile(outputName, a, "Ciktilar");
+                                a += "\n\n" + fileInfo;
+                            } catch (Exception fileError) {
+                                a += "\n\nYanıt alındı ancak telefona dosya olarak kaydedilemedi: "
+                                        + fileError.getMessage();
+                            }
+                        }
+                        if (remote.requiresConfirmation) {
+                            a += "\n\nBu işlem için Windows tarafında ek onay gerekiyor. İşlemin yapıldığını varsayma.";
+                        }
                     } catch (Exception hostError) {
                         statusPost("● LOCAL MODE");
                         String localAnswer = processLocal(cmd);
@@ -1135,6 +1176,9 @@ public class MainActivity extends Activity {
                     final AgencyAgent ag=requested;
                     runOnUiThread(()->activateAgent(ag,cmd));
                     a="STAGEPULSE "+ag.name+" aktif.";
+                }else if(isArtifactRequest(cmd)){
+                    statusPost("● CREATING FILE");
+                    a=processLocal(cmd);
                 }else if(isResearchCommand(cmd)){
                     statusPost("● RESEARCHING");
                     ResearchEngine.Report report=ResearchEngine.research(extractResearchQuery(cmd));
@@ -1664,6 +1708,14 @@ public class MainActivity extends Activity {
                 speechRecognitionBusy = false;
                 updateVoiceControl(false);
                 append("SES ALGILAMA", "Sesli komut için mikrofon izni gerekiyor. İzni Android uygulama ayarlarından açabilirsin.");
+            }
+        } else if (requestCode == REQ_CAMERA) {
+            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                String result = setFlashlight(pendingTorchState);
+                append("TELEFON", result);
+                speak(result);
+            } else {
+                append("TELEFON", "Feneri kullanmak için kamera izni verilmedi.");
             }
         }
     }
