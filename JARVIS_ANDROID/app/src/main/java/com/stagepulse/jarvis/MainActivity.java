@@ -1104,7 +1104,7 @@ public class MainActivity extends Activity {
             runOnUiThread(this::requestAccessibilityEnable);
             return "Bu işlem için JARVIS Telefon Kontrolleri izni gerekli. Açılan Android ayarlarından hizmeti etkinleştir.";
         }
-        if (!JarvisAccessibilityService.performGlobalAction(action)) {
+        if (!JarvisAccessibilityService.requestGlobalAction(action)) {
             return "Telefon kontrol hizmeti henüz hazır değil. Erişilebilirlik ayarlarında etkin olduğunu kontrol et.";
         }
         return description;
@@ -1815,8 +1815,16 @@ public class MainActivity extends Activity {
                 return launchSystemCategory(Intent.CATEGORY_APP_EMAIL, "E-posta");
             if (x.contains("dosya yoneticisi") || x.contains("dosyalarim"))
                 return launchSystemCategory(Intent.CATEGORY_APP_FILES, "Dosya yöneticisi");
-            if (x.contains("saat uygulamasi") || x.contains("saat")) 
-                return launchSystemCategory(Intent.CATEGORY_APP_CLOCK, "Saat");
+            if (x.contains("saat uygulamasi") || x.equals("saati ac") || x.equals("saat uygulamasini ac")) {
+                try {
+                    Intent clock = new Intent(android.provider.AlarmClock.ACTION_SHOW_ALARMS);
+                    runOnUiThread(() -> {
+                        try { startActivity(clock); }
+                        catch (Exception e) { append("TELEFON", "Saat/alarm ekranı açılamadı."); }
+                    });
+                    return "Saat ve alarmlar ekranını açıyorum.";
+                } catch (Exception e) { return "Saat uygulaması açılamadı."; }
+            }
             if (x.contains("ayarlar")) {
                 try {
                     runOnUiThread(() -> startActivity(new Intent(Settings.ACTION_SETTINGS)));
