@@ -695,6 +695,12 @@ public class MainActivity extends Activity {
         if (c.contains("whatsapp") && launchVerb) return launchAndroidAppOrWeb("com.whatsapp","https://www.whatsapp.com/","WhatsApp");
         if (c.contains("instagram") && launchVerb) return launchAndroidAppOrWeb("com.instagram.android","https://www.instagram.com/","Instagram");
         if (c.contains("chrome") && launchVerb) return launchAndroidAppOrWeb("com.android.chrome","https://www.google.com/","Chrome");
+        if (c.contains("müzik") && launchVerb) {
+            try {
+                startActivity(Intent.makeMainSelectorActivity(Intent.ACTION_MAIN, Intent.CATEGORY_APP_MUSIC));
+                return "Müzik uygulamasını açıyorum.";
+            } catch (Exception e) { return "Bu cihazda varsayılan müzik uygulaması bulunamadı."; }
+        }
         if ((c.contains("harita") || c.contains("maps")) && launchVerb) return launchAndroidAppOrWeb("com.google.android.apps.maps","https://maps.google.com/","Haritalar");
         if(c.equals("ajanlar")||c.equals("agentler")||c.contains("stagepulse agent"))return AgencyCatalog.listText();
         if(c.contains("aktif ajan")||c.contains("hangi ajan"))return activeAgent==null?"Şu anda aktif bir Stagepulse Agent yok.":"Aktif ajan: "+activeAgent.name+".";
