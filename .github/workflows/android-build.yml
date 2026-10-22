@@ -83,6 +83,9 @@ jobs:
               "visible voice control": 'control("KONUŞ"' in source,
               "density-aware dimensions": "private int dp(float value)" in source,
               "voice toggle state": 'listening ? "DURDUR" : "KONUŞ"' in source,
+              "continuous voice conversation": "setOnUtteranceProgressListener" in source and "resumeVoiceConversation()" in source,
+              "separate phone profile context": 'BridgeClient.command(hostUrl, hostToken, cmd, profileContext)' in source,
+              "profile context kept out of command text": 'profileContext + "\\nKullanıcının gerçek komutu: " + cmd' not in source,
               "partial transcription": "public void onPartialResults(Bundle b)" in source,
               "alternate transcript ranking": "chooseBestTranscript(candidates)" in source,
               "Hey JARVIS speech correction": "heijan biz" in source and "pakeylri" in source,
@@ -94,7 +97,7 @@ jobs:
               "screen read and text interaction": "readVisibleWindowText()" in service and "clickVisibleText(String target)" in service and "setFocusedText(String value)" in service,
               "opt-in accessibility service registered": ".JarvisAccessibilityService" in manifest,
               "accessibility screen-reading permission disclosed": 'android:canRetrieveWindowContent="true"' in service_config,
-              "command submit handler": 'send.setOnClickListener(v -> sendCommand(command.getText().toString()))' in source,
+              "command submit handler": 'send.setOnClickListener(v -> { continuousConversation = false; sendCommand(command.getText().toString()); })' in source,
           }
           for label, passed in checks.items():
               print(f"{label}: {'PASS' if passed else 'FAIL'}")
