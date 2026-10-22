@@ -168,7 +168,7 @@ def preparePiperAssets = tasks.register('preparePiperAssets') {
         File turkishVoice = new File(espeakDir, 'voices/tr')
         if (!turkishVoice.exists()) {
             turkishVoice.parentFile.mkdirs()
-            turkishVoice.setText("name Turkish\\nlanguage tr\\n", "UTF-8")
+            turkishVoice.setText("name Turkish\nlanguage tr\n", "UTF-8")
         }
         if (!turkishVoice.isFile() || !turkishVoice.getText("UTF-8").contains("language tr")) {
             throw new GradleException('eSpeak-NG Turkish voice definition missing')
