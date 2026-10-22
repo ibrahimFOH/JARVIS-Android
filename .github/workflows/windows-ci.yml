@@ -1,0 +1,53 @@
+name: JARVIS Windows Package CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+          cache-dependency-path: JARVIS_HOST/requirements.txt
+
+      - name: Install host dependencies
+        shell: pwsh
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r JARVIS_HOST/requirements.txt pyinstaller
+
+      - name: Check updater and host Python syntax
+        shell: pwsh
+        run: |
+          python -m py_compile JARVIS_HOST/main.py JARVIS_HOST/core/ai_brain.py JARVIS_HOST/core/command_processor.py JARVIS_HOST/core/update_manager.py JARVIS_HOST/gui/main_window.py
+
+      - name: Build packaged Windows application
+        shell: pwsh
+        working-directory: JARVIS_HOST
+        run: |
+          python -m PyInstaller --noconfirm --clean --name JARVIS --onedir --contents-directory . --windowed --add-data "config\config.example.json;config" --add-data "VERSION;." --collect-all customtkinter --collect-all pystray --collect-all pyttsx3 --collect-all speech_recognition --collect-all pvporcupine --hidden-import win32timezone main.py
+          if (!(Test-Path "dist\JARVIS\JARVIS.exe")) { throw "PyInstaller did not create JARVIS.exe" }
+          if (!(Test-Path "dist\JARVIS\VERSION")) { throw "VERSION is missing from the packaged application" }
+          if (!(Test-Path "dist\JARVIS\config\config.example.json")) { throw "Default configuration is missing from the packaged application" }
+
+      - name: Upload Windows package smoke-build
+        uses: actions/upload-artifact@v4
+        with:
+          name: JARVIS-Windows-CI-smoke-build
+          path: JARVIS_HOST/dist/JARVIS/
+          if-no-files-found: error
+          retention-days: 7
