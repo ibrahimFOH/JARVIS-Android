@@ -25,6 +25,7 @@ import java.util.concurrent.*;
 
 public class MainActivity extends Activity {
     private static final int REQ_AUDIO=9001;
+    private static final int REQ_CAMERA=9002;
     private final ExecutorService io=Executors.newSingleThreadExecutor();
     private EditText command;
     private TextView status,chat,voiceControl;
@@ -37,6 +38,8 @@ public class MainActivity extends Activity {
     private AgencyAgent activeAgent;
     private android.content.SharedPreferences bridgePrefs;
     private android.content.SharedPreferences updatePrefs;
+    private android.content.SharedPreferences profilePrefs;
+    private volatile boolean pendingTorchState = false;
     private final UpdateManager updateManager = new UpdateManager();
     private File pendingUpdateFile;
     private String pendingUpdateVersion = "";
@@ -51,6 +54,7 @@ public class MainActivity extends Activity {
         super.onCreate(b);
         bridgePrefs = getSharedPreferences("jarvis_bridge", MODE_PRIVATE);
         updatePrefs = getSharedPreferences("jarvis_updates", MODE_PRIVATE);
+        profilePrefs = getSharedPreferences("jarvis_profile", MODE_PRIVATE);
         String pendingPath = updatePrefs.getString("pending_apk", "");
         if (!pendingPath.isEmpty()) {
             File candidate = new File(pendingPath);
@@ -61,6 +65,9 @@ public class MainActivity extends Activity {
         initSpeech();
         append("JARVIS","PATRON, bağımsız Android çekirdeği hazır.");
         checkForUpdates(false);
+        if (!profilePrefs.getBoolean("setup_complete", false)) {
+            new Handler(Looper.getMainLooper()).postDelayed(() -> showProfileSettings(true), 650L);
+        }
     }
 
     private TextView tv(String s,int size,int color){
@@ -178,20 +185,26 @@ public class MainActivity extends Activity {
         commandBarLp.bottomMargin = dp(5);
         root.addView(commandBar, commandBarLp);
 
+        HorizontalScrollView toolsScroll = new HorizontalScrollView(this);
+        toolsScroll.setHorizontalScrollBarEnabled(false);
+        toolsScroll.setFillViewport(false);
         LinearLayout secondary = new LinearLayout(this);
         secondary.setOrientation(LinearLayout.HORIZONTAL);
         secondary.setGravity(Gravity.CENTER_VERTICAL);
         TextView agents = control("UZMANLAR", panel(), gold(), 9);
         TextView host = control("PC BAĞLANTI", panel(), gold(), 9);
+        TextView profile = control("PROFİL", panel(), gold(), 9);
         TextView update = control("GÜNCELLE", panel(), gold(), 9);
         TextView help = control("YARDIM", panel(), gold(), 9);
-        TextView[] tools = {agents, host, update, help};
+        TextView[] tools = {agents, host, profile, update, help};
+        int[] toolWidths = {dp(88), dp(108), dp(78), dp(88), dp(78)};
         for (int index = 0; index < tools.length; index++) {
-            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, dp(38), 1f);
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(toolWidths[index], dp(38));
             if (index > 0) lp.leftMargin = dp(4);
             secondary.addView(tools[index], lp);
         }
-        root.addView(secondary, new LinearLayout.LayoutParams(-1, dp(38)));
+        toolsScroll.addView(secondary);
+        root.addView(toolsScroll, new LinearLayout.LayoutParams(-1, dp(38)));
 
         setContentView(root);
         getWindow().setSoftInputMode(
@@ -214,6 +227,7 @@ public class MainActivity extends Activity {
         voiceControl.setOnClickListener(v -> listen());
         agents.setOnClickListener(v -> showAgents());
         host.setOnClickListener(v -> showHostSettings());
+        profile.setOnClickListener(v -> showProfileSettings(false));
         update.setOnClickListener(v -> checkForUpdates(true));
         help.setOnClickListener(v -> sendCommand("yardım"));
     }
