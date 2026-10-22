@@ -96,6 +96,10 @@ jobs:
               "flashlight and brightness actions": "setFlashlight(boolean enabled)" in source and "applyBrightness(int delta)" in source,
               "screen read and text interaction": "readVisibleWindowText()" in service and "clickVisibleText(String target)" in service and "setFocusedText(String value)" in service,
               "opt-in accessibility service registered": ".JarvisAccessibilityService" in manifest,
+              "floating microphone over other apps": "showFloatingMicrophone()" in service and "TYPE_ACCESSIBILITY_OVERLAY" in service,
+              "user-triggered foreground voice session": "startForeground(VOICE_NOTIFICATION_ID" in service and 'android:foregroundServiceType="microphone"' in manifest,
+              "cross-app voice command router": "handleOverlayCommand(String raw)" in service and "handleOverlayDeviceCommand(String command)" in service,
+              "return commands to the Android UI": "handleIncomingIntent(getIntent())" in source and 'getStringExtra("jarvis_command")' in source,
               "accessibility screen-reading permission disclosed": 'android:canRetrieveWindowContent="true"' in service_config,
               "command submit handler": 'send.setOnClickListener(v -> { continuousConversation = false; sendCommand(command.getText().toString()); })' in source,
           }
@@ -129,6 +133,6 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: JARVIS-Android-2.3.0-device-actions
+          name: JARVIS-Android-2.4.0-cross-app-voice
           path: JARVIS_ANDROID/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
