@@ -100,7 +100,10 @@ class WindowsUpdateManager:
         })
         response = session.get(RELEASE_API, timeout=self.timeout)
         if response.status_code == 404:
-            return None
+            raise RuntimeError(
+                "Henüz yayımlanmış bir JARVIS GitHub Release bulunamadı. "
+                "Güncelleme sistemi, ilk imzalı sürüm yayımlandıktan sonra etkinleşir."
+            )
         response.raise_for_status()
         release = response.json()
         tag_name = str(release.get("tag_name", ""))
