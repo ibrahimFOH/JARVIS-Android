@@ -24,6 +24,7 @@ customtkinter>=5.2.0
 pystray>=0.19.5  # System tray
 
 # File Operations
+pypdf>=5.0.0  # Extract text from user-supplied PDFs
 watchdog>=3.0.0
 
 # Utilities
