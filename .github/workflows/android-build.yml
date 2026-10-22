@@ -49,11 +49,16 @@ jobs:
           print("JARVIS website route aliases: PASS")
           PY
           python - <<'PY'
+          import importlib.util
           import sys
-          sys.path.insert(0, "JARVIS_HOST")
-          from core.update_manager import WindowsUpdateManager
-          version = WindowsUpdateManager._version_tuple
-          trusted = WindowsUpdateManager._trusted_release_url
+          spec = importlib.util.spec_from_file_location(
+              "jarvis_update_manager_ci", "JARVIS_HOST/core/update_manager.py"
+          )
+          module = importlib.util.module_from_spec(spec)
+          sys.modules[spec.name] = module
+          spec.loader.exec_module(module)
+          version = module.WindowsUpdateManager._version_tuple
+          trusted = module.WindowsUpdateManager._trusted_release_url
           assert version("2.2.1-piper") == (2, 2, 1)
           assert version("2.3.0") > version("2.2.1-piper")
           assert trusted("https://github.com/ibrahimFOH/JARVIS-Android/releases/download/v2.3.0/JARVIS-Windows.zip")
