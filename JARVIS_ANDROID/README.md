@@ -5,7 +5,7 @@ Bağımsız Android JARVIS uygulaması. Bu proje, Windows Asistan 0.1.5 EXE'sini
 ## Güncel doğrulama
 
 - Package/application ID: `com.stagepulse.jarvis`
-- Sürüm: `2.2.3-online-voice` (versionCode 222)
+- Sürüm: `2.3.0-device-actions` (versionCode 230)
 - minSdk 26 (Android 8.0), targetSdk 35
 - ABI: `arm64-v8a`, `armeabi-v7a`
 - Güncel CI/derleme geçmişi: [GitHub Actions](https://github.com/ibrahimFOH/JARVIS-Android/actions)
@@ -47,7 +47,7 @@ Android güncellemesinin mevcut kurulumun üzerine yüklenebilmesi için bütün
 - Android arayüzü native APK olarak kalır; komutlar isteğe bağlı olarak Windows JARVIS ortak hostuna yönlendirilir.
 - HOST ayarlarında Windows IP adresi ve `JARVIS_HOST/config/bridge_token.txt` içindeki token kullanılır.
 - Android SpeechRecognizer ile sesli komut alır; dil kullanılabilirliği Android cihazın speech service'ine bağlıdır.
-- Piper/eSpeak ve ONNX Runtime kullanılarak yerel Türkçe ses sentezi (TTS) yapılır.
+- Ses girişi Android SpeechRecognizer (Türkçe `tr-TR`, çevrimiçi tanıma tercihli) ile; ses çıkışı Android sistem TTS motoruyla çalışır. Piper/eSpeak/ONNX paketlenmez.
 - Piper TTS'nin çevrimdışı olması, konuşma tanıma (ASR) veya büyük dil modelinin de çevrimdışı olduğu anlamına gelmez.
 - Stagepulse siyah / altın / beyaz HUD korunur.
 - HOST bağlantısı yapılandırılmışsa komutlar Windows `JARVIS_HOST` çekirdeğinde işlenir.
@@ -66,14 +66,28 @@ Köprüyü internete açma ve token'ı repoya yükleme. Token dosyası yerel kal
 
 ## Build
 
-Android Studio veya [GitHub Actions](https://github.com/ibrahimFOH/JARVIS-Android/actions) üzerinden build edilebilir. Android build'i için internet bağlantısı gerekir; Gradle görevi Piper ses modeli ve eSpeak varlıklarını indirir. GitHub Actions'tan kurulum dosyası almak için başarılı build çalışmasının sayfasındaki `JARVIS-Android-PIPER-debug` artifact'ini indir.
+Android Studio veya [GitHub Actions](https://github.com/ibrahimFOH/JARVIS-Android/actions) üzerinden build edilebilir. Derleme için Android SDK/Gradle paketlerine internet erişimi gerekir; Piper modeli, eSpeak veya NDK/CMake varlıkları indirilmez. Güncel test APK'sı başarılı CI çalışmasının `JARVIS-Android-2.3.0-device-actions` artifact'idir. CI başarısı gerçek telefonda elle test yapıldığı anlamına gelmez.
 
 
-## Android online voice mode
+## Android 2.3.0: profil, dosyalar ve cihaz eylemleri
 
-- Piper TTS, ONNX Runtime, bundled voice model downloads and the eSpeak native engine have been removed from the Android build.
-- Voice input uses Android SpeechRecognizer with Turkish (tr-TR) and online recognition preferred. Actual online availability depends on the phone's recognition provider, network access and provider settings; the app shows useful errors when the service fails.
-- Voice output uses Android's installed Text-to-Speech engine. Turkish voice availability depends on the phone's installed TTS voices; enable/download a Turkish voice in Android's Text-to-Speech settings if needed.
-- Basic commands, local persistent memory ("Hatırla: ...", "Hafızamı göster", "Unut: ...") and Stagepulse public/admin/personnel links work without a Windows host.
-- If the saved Windows host is unreachable, the app falls back to local Android command handling. Windows-only file/window/process automation still requires the PC to be online and the authenticated LAN bridge to be reachable.
-- UI supports portrait and landscape orientation. Windows JARVIS now starts its authenticated LAN bridge automatically with the desktop GUI. CI build success is not a substitute for testing microphone permissions, online Turkish speech recognition and system TTS on a physical device.
+### Ses ve kişisel profil
+- Ses girişi Android SpeechRecognizer ile Türkçe `tr-TR` kullanır; çevrimiçi tanıma tercih edilir. Sonuç sağlayıcının kalitesine ve internetine bağlıdır. Alternatif sonuçlar puanlanır ve sık karşılaşılan "Heijan biz" / "eğitim pakeylri baziela" benzeri hatalar için sınırlı normalizasyon uygulanır.
+- "Hey JARVIS" tek başına algılanırsa asistan yanıt verir ve ön planda sonraki komutu dinlemeyi dener. Uygulama arka planda gizlice sürekli dinleme yapmaz; önce kullanıcının mikrofon düğmesine basması gerekir.
+- Profil ilk kullanımda sorulur; kullanıcı adı, meslek/rol, şirket ve seçilen tercihler yalnızca bu cihazda saklanır. "Beni tanıyor musun", "Adımı ... olarak hatırla", "Profil" ve yerel hafıza komutları kullanılabilir.
+- **Profil, ses biyometrisi değildir.** Android konuşma tanıma sağlayıcısı konuşmacının kimliğini doğrulamaz. Başka kişi kullanıyorsa cihaz profilini PROFİL ekranından değiştirmek gerekir.
+- Android'in kurulu Text-to-Speech hizmeti yanıtları seslendirir. Türkçe ses yoksa Android'in Metin Okuma ayarlarından bir Türkçe ses indir/etkinleştir.
+
+### Telefon ve dosya işlemleri
+- "Eğitim paketi hazırla": Windows host bağlıysa isteği ortak Windows komut motoruna/AI yapılandırmasına yollar ve başarılı yanıtı telefondaki dosyaya kaydetmeyi dener. PC bağlantısı yoksa 35 modüllü yerel ses mühendisliği eğitim taslağı oluşturulur.
+- "Not al ...", "Dosya oluştur not.txt içeriği ...", "Metin dosyası oluştur ...", "Klasör oluştur ...", "JARVIS dosyalarını listele", "Son dosyayı aç", "Dosya oku ...", "Dosya aç ..." komutları vardır. Modern Android sürümlerinde metin/Markdown/CSV/JSON/HTML/XML dosyaları ortak depolamadaki `İndirilenler/JARVIS/` klasörüne kaydedilir. Diğer dosyaları açmak/okumak için Android dosya seçicisinde kullanıcı dosyayı seçer. Son oluşturulan dosyanın silinmesi için onay gerekir.
+- Uygulama açma, Kişiler/Mesajlar/E-posta/Hesap Makinesi/Saat/Dosya Yöneticisi, kamera, harita, medya sesi, fener, zamanlayıcı/alarm ve uygun ayar ekranları için yerel komutlar bulunur. Mesaj gönderme, alarmı başlatma, güç menüsünden telefonu kapatma gibi eylemlerde kullanıcı onayı korunur.
+- Wi-Fi, Bluetooth ve mobil verinin doğrudan açılıp kapatılması Android sürümüne göre üçüncü taraf uygulamalara kapalı olabilir. Bu durumda JARVIS ilgili ayarı veya Hızlı Ayarlar panelini açar; gerçek durumu değiştirdiğini iddia etmez.
+- Ekran kilidi, Ana ekran/Geri/Bildirimler/Hızlı Ayarlar, görünür ekran metnini oku, "Tıkla Kaydet", "Alana yaz ..." ve kaydırma için Android **Erişilebilirlik** hizmeti isteğe bağlıdır. İlk kullanımda Android ayarlarında kullanıcı tarafından etkinleştirilmelidir. Bu güçlü izinle ekran metni yalnızca açık bir kullanıcı komutu sırasında okunur; olaylar arka planda kaydedilmez. Bazı güvenli pencereler ve uygulamalar erişilebilirlik eylemlerini engelleyebilir.
+- Ekran parlaklığı için Android'in "Sistem ayarlarını değiştirme" özel izni gerekir. Telefonu zorla kapatmak, başka uygulamaları zorla sonlandırmak, korumalı sistem ayarlarını atlatmak veya bütün uygulamalarda her eylemi garanti etmek mümkün değildir.
+
+### Windows ortak çekirdeği ve gizlilik
+- HOST ayarı yapılandırılmış ve ulaşılabilir olduğunda yerel Android kontrolleri cihazda kalır; genel AI/araştırma/üretim istekleri doğrulanmış LAN köprüsü üzerinden Windows JARVIS'e gider. Cihaz profili bağlamı uzak komuta eklenebilir. Ekran metni otomatik olarak PC'ye gönderilmez.
+- HOST bağlantısı yoksa Android yerel fonksiyonları, dosya oluşturma ve cihaz eylemleri çalışır; tam Windows pencere/süreç/dosya otomasyonu, Windows AI modeli ve ağır masaüstü iş akışları PC'nin çalışmasını gerektirir.
+- Köprüyü internete açma ve token'ı repoya yükleme. Telefon ile bilgisayar aynı güvenilir yerel ağda olmalıdır.
+- CI kaynak kontrollerini ve APK derlemesini doğrular. Fiziksel cihazda mikrofon, çevrimiçi Türkçe konuşma, sistem TTS, dosya sağlayıcısı ve Erişilebilirlik izinleri ayrıca test edilmelidir.
