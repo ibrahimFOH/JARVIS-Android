@@ -119,7 +119,7 @@ class JarvisGUI:
 
         ctk.CTkLabel(
             top,
-            text="JUST A RATHER VERY INTELLIGENT SYSTEM   //   STAGEPULSE",
+            text="AKILLI DİJİTAL ASİSTAN   //   STAGEPULSE",
             text_color=MUTED, font=("Consolas", 10)
         ).grid(row=1, column=0, sticky="w")
 
@@ -557,7 +557,7 @@ class JarvisGUI:
                 self._append_to_chat("JARVIS", result, "green" if success else "red")
                 self.task.configure(text="Hazır")
                 self.phase.configure(text="HAZIR")
-                self.status.configure(text="● ÇEVRİMİÇİ" if success else "● ERROR",
+                self.status.configure(text="● ÇEVRİMİÇİ" if success else "● HATA",
                                       text_color=GREEN if success else RED)
                 self._activity(("OK  " if success else "ERR ") + result.replace("\\n", " ")[:70])
                 if should_speak and success and self.voice_var.get():
@@ -638,7 +638,7 @@ class JarvisGUI:
     def _on_image_clicked(self):
         brain = self.jarvis.command_processor.ai_brain
         if not brain.gemini_key:
-            messagebox.showwarning("Gemini ayarı gerekli", "Önce AI SETUP bölümünden Gemini API anahtarını ekleyin.", parent=self.root)
+            messagebox.showwarning("Gemini ayarı gerekli", "Önce Yapay Zekâ Ayarları bölümünden Gemini API anahtarını ekleyin.", parent=self.root)
             return
         path = filedialog.askopenfilename(
             parent=self.root, title="Analiz edilecek görseli seç",
@@ -662,7 +662,7 @@ class JarvisGUI:
         win.transient(self.root)
         win.grab_set()
 
-        ctk.CTkLabel(win, text="AI PROVIDER", text_color=GOLD,
+        ctk.CTkLabel(win, text="YAPAY ZEKÂ SAĞLAYICISI", text_color=GOLD,
                      font=("Consolas", 12, "bold")).pack(anchor="w", padx=22, pady=(20, 6))
         provider = ctk.StringVar(value=brain.provider)
         ctk.CTkOptionMenu(win, variable=provider, values=["auto", "gemini", "groq", "ollama"],
@@ -676,12 +676,12 @@ class JarvisGUI:
             entry.insert(0, value or "")
             return entry
 
-        api_key = field("GEMINI API KEY", brain.gemini_key, secret=True)
-        groq_key = field("GROQ API KEY", brain.groq_key, secret=True)
-        text_model = field("GEMINI CHAT / VISION MODEL", brain.gemini_model)
-        image_model = field("GEMINI IMAGE MODEL", brain.gemini_image_model)
-        ollama_host = field("OLLAMA URL", brain.host)
-        ollama_model = field("OLLAMA MODEL", brain.model)
+        api_key = field("GEMINI API ANAHTARI", brain.gemini_key, secret=True)
+        groq_key = field("GROQ API ANAHTARI", brain.groq_key, secret=True)
+        text_model = field("GEMINI METİN / GÖRSEL MODELİ", brain.gemini_model)
+        image_model = field("GEMINI GÖRSEL MODELİ", brain.gemini_image_model)
+        ollama_host = field("OLLAMA ADRESİ", brain.host)
+        ollama_model = field("OLLAMA MODELİ", brain.model)
 
         ctk.CTkLabel(
             win, text="AUTO: normal sohbette hızlı Groq; web araştırmasında Gemini Google Search + URL Context; hata olursa diğer sağlayıcılar. Gemini ve Groq ayrı API anahtarı ister. Anahtarlar desteklenen Windows sistemlerinde DPAPI ile korunur.",
@@ -745,28 +745,28 @@ class JarvisGUI:
                 messagebox.showerror("Ayarlar kaydedilemedi", str(exc), parent=win)
 
         ctk.CTkButton(
-            win, text="TEST GEMINI WEB SEARCH",
+            win, text="GEMINI WEB ARAMASINI SINA",
             command=lambda: test_backend("gemini"),
             fg_color="#090B0D", hover_color="#15181C",
             border_width=1, border_color=GOLD2, text_color=GOLD,
             font=("Consolas", 10, "bold")
         ).pack(fill="x", padx=22, pady=(8, 4))
         ctk.CTkButton(
-            win, text="TEST GROQ WEB SEARCH",
+            win, text="GROQ WEB ARAMASINI SINA",
             command=lambda: test_backend("groq"),
             fg_color="#090B0D", hover_color="#15181C",
             border_width=1, border_color=GOLD2, text_color=GOLD,
             font=("Consolas", 10, "bold")
         ).pack(fill="x", padx=22, pady=(0, 4))
         ctk.CTkButton(
-            win, text="TEST OLLAMA CONNECTION",
+            win, text="OLLAMA BAĞLANTISINI SINA",
             command=lambda: test_backend("ollama"),
             fg_color="#090B0D", hover_color="#15181C",
             border_width=1, border_color=GOLD2, text_color=GOLD,
             font=("Consolas", 10, "bold")
         ).pack(fill="x", padx=22, pady=(0, 4))
 
-        ctk.CTkButton(win, text="SAVE SETTINGS", command=save,
+        ctk.CTkButton(win, text="AYARLARI KAYDET", command=save,
                       fg_color=GOLD2, hover_color=GOLD, text_color="#050505",
                       font=("Consolas", 10, "bold")).pack(fill="x", padx=22, pady=(8, 18))
 
@@ -868,7 +868,7 @@ class JarvisGUI:
         )
         self.phase.configure(text="DİNLİYOR")
         self.status.configure(text="● DİNLİYOR", text_color=GOLD)
-        self._activity("VOICE INPUT ACTIVE")
+        self._activity("SESLİ GİRİŞ ETKİN")
 
         def worker():
             try:
@@ -911,7 +911,7 @@ class JarvisGUI:
         self.task.configure(text="Hazır")
         self.phase.configure(text="HAZIR")
         self.status.configure(
-            text="● ÇEVRİMİÇİ" if success else "● ERROR",
+            text="● ÇEVRİMİÇİ" if success else "● HATA",
             text_color=GREEN if success else RED
         )
         self._activity(
@@ -926,12 +926,9 @@ class JarvisGUI:
         self.chat_display.see("end")
 
     def _activity(self, text):
-        self.activity.configure(state="normal")
-        self.activity.insert(
-            "end", time.strftime("%H:%M:%S ") + text + "\n"
-        )
-        self.activity.see("end")
-        self.activity.configure(state="disabled")
+        # The old right-side activity feed was removed from the interface.
+        # Keep internal diagnostics in the log instead of showing chat or responses here.
+        logger.debug("JARVIS activity: %s", text)
 
     def _toggle_wake_word(self):
         enabled = bool(self.wake_word_var.get())
@@ -1022,7 +1019,7 @@ class JarvisGUI:
     def _toggle_voice(self):
         enabled = self.voice_var.get()
         config.set("voice.enabled", enabled, save=False)
-        self._activity("VOICE " + ("ENABLED" if enabled else "DISABLED"))
+        self._activity("SESLİ KONTROL " + ("ETKİN" if enabled else "DEVRE DIŞI"))
 
     def _clear_chat(self):
         self.chat_display.configure(state="normal")
@@ -1069,7 +1066,7 @@ def _render_response_safe(self, result):
         self.phase.configure(text="HAZIR")
     if hasattr(self, "status"):
         self.status.configure(
-            text="● ÇEVRİMİÇİ" if success else "● ERROR",
+            text="● ÇEVRİMİÇİ" if success else "● HATA",
             text_color=GREEN if success else RED
         )
     if hasattr(self, "_activity"):
@@ -1095,7 +1092,7 @@ def _jarvis_gui_voice(self):
         self._append_to_chat("SYSTEM", "Sürekli dinleme başlatılamadı: " + str(detail), "red")
         self._activity("MICROPHONE UNAVAILABLE")
         self.status.configure(text="● MİKROFON HATASI", text_color=RED)
-        self.phase.configure(text="MIC ERROR")
+        self.phase.configure(text="MİKROFON HATASI")
         return
 
     self._voice_listening = True
@@ -1209,7 +1206,7 @@ def _voice_input_error(self, message):
     self._append_to_chat("SYSTEM", "Ses girişi hatası: " + str(message), "red")
     self._activity("SES GİRİŞ HATASI: " + str(message).replace("\\n", " ")[:70])
     self.status.configure(text="● SES HATASI", text_color=RED)
-    self.phase.configure(text="VOICE ERROR")
+    self.phase.configure(text="SES HATASI")
 
 def _voice_command_heard(self, command):
     self._append_to_chat("YOU", command, "gold")
@@ -1237,7 +1234,7 @@ def _voice_result_safe(self, result):
 
 def _voice_error_safe(self, error):
     self._append_to_chat("SYSTEM", "Ses hatası: " + str(error), "red")
-    self._activity("VOICE ERROR")
+    self._activity("SES HATASI")
     self._voice_finished()
 
 def _voice_finished_safe(self):
