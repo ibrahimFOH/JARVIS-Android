@@ -6,7 +6,13 @@ from pathlib import Path
 HOST = Path(__file__).resolve().parents[1] / "JARVIS_HOST"
 sys.path.insert(0, str(HOST))
 
-from core.memory_manager import MemoryManager
+import importlib.util
+
+MEMORY_PATH = HOST / "core" / "memory_manager.py"
+SPEC = importlib.util.spec_from_file_location("jarvis_memory_manager", MEMORY_PATH)
+MEMORY_MODULE = importlib.util.module_from_spec(SPEC)
+SPEC.loader.exec_module(MEMORY_MODULE)
+MemoryManager = MEMORY_MODULE.MemoryManager
 
 
 class MemoryManagerTests(unittest.TestCase):
