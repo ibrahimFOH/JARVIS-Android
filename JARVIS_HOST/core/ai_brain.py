@@ -62,7 +62,7 @@ class AIBrain:
             except Exception: pass
         return ""
 
-    def _ollama(self,prompt,context=""):
+    def _ollama(self,prompt,context="",profile_context=""):
         system_prompt = """Sen JARVIS'sin. Her zaman Türkçe konuş; kısa, doğrudan ve işe yarar ol.
 KULLANICI PROFİLİ (kalıcı çalışma bağlamı):
 - Kullanıcının adı İbrahim Kavasoğlu; hitap tercihi Patron. Mesleki unvanı: SES MÜHENDİSİ | TONMAİSTER. Hataylı; Hatay/Antakya odaklı çalışır.
@@ -81,6 +81,13 @@ KULLANICI PROFİLİ (kalıcı çalışma bağlamı):
 - Site komutları: "Stagepulse.com.tr aç" = herkese açık ana sayfa; "benim sitemi aç" / "admin panelini aç" = https://stagepulse.com.tr/admin/; "personel aç" = https://stagepulse.com.tr/portal/; "siteyi aç" = herkese açık ana sayfa. Açıkça belirtilen tam alan adı genel site komutundan önceliklidir.
 - Bu profil kişiye özel bağlamdır. Başka biri kullandığında İbrahim olduğunu varsayma; mümkünse oturum/profil seçimine göre davran. Parola, erişim anahtarı ve özel sırları profilde saklama.
 """
+        active_profile = str(profile_context or "").strip()[:1200]
+        if active_profile:
+            system_prompt += (
+                "\n\nAKTİF ANDROID CİHAZ PROFİLİ (kullanıcının bu cihazda seçtiği bağlam):\n"
+                + active_profile
+                + "\nBu profil, yalnızca bu istek için geçerli cihaz bağlamıdır; konuşmacının biyometrik kimliğinin doğrulandığı anlamına gelmez. Profildeki bilgileri yalnızca ilgili olduklarında kullan ve gizli erişim bilgilerini isteme veya açığa çıkarma."
+            )
         payload={"model":self.model,"stream":False,"keep_alive":"30m","think":False,"options":{"temperature":0.1,"num_predict":180,"num_ctx":4096},"messages":[{"role":"system","content":system_prompt},{"role":"user","content":prompt+(("\n\nWEB VERİSİ:\n"+context) if context else "")}]}
         try:
             r=requests.post(self.host+"/api/chat",json=payload,timeout=self.timeout)
@@ -89,7 +96,7 @@ KULLANICI PROFİLİ (kalıcı çalışma bağlamı):
         except Exception as e:
             return "Ollama bağlantısında sorun oluştu: "+str(e)
 
-    def ask(self,prompt):
+    def ask(self,prompt,profile_context=""):
         memory_response = self.memory.handle_command(prompt)
         if memory_response:
             return memory_response
@@ -106,7 +113,7 @@ KULLANICI PROFİLİ (kalıcı çalışma bağlamı):
             )
         # Never include private saved memories in external web-search queries.
         web_context = self._web(original_prompt) if self._needs_web(original_prompt) else ""
-        return self._ollama(ai_prompt, web_context)
+        return self._ollama(ai_prompt, web_context, profile_context)
 
     respond=ask
     generate=ask
