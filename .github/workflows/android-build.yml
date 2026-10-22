@@ -2,7 +2,7 @@ name: JARVIS Android Build
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main, feature/android-independent-voice-ui-parity ]
   pull_request:
     branches: [ main, feature/jarvis-persistent-memory ]
   workflow_dispatch:
