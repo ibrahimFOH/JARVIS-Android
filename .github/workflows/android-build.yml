@@ -12,6 +12,42 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Validate JARVIS Python syntax and website routes
+        shell: bash
+        run: |
+          python -m py_compile JARVIS_HOST/core/ai_brain.py JARVIS_HOST/core/command_processor.py
+          python - <<'PY'
+          import ast
+          import re
+          import unicodedata
+
+          path = "JARVIS_HOST/core/command_processor.py"
+          with open(path, encoding="utf-8") as source_file:
+              tree = ast.parse(source_file.read(), filename=path)
+          names = {"_normalize_direct_command", "_resolve_direct_website"}
+          nodes = [node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name in names]
+          assert len(nodes) == 2, "Website route helpers were not found"
+          namespace = {"re": re, "unicodedata": unicodedata}
+          module = ast.Module(body=nodes, type_ignores=[])
+          exec(compile(module, path, "exec"), namespace)
+          resolve = namespace["_resolve_direct_website"]
+          cases = [
+              ("Stagepulse.com.tr aç", "https://stagepulse.com.tr/"),
+              ("benim sitemi aç", "https://stagepulse.com.tr/admin/"),
+              ("admin panelini aç", "https://stagepulse.com.tr/admin/"),
+              ("personel aç", "https://stagepulse.com.tr/portal/"),
+              ("personel sayfasını aç", "https://stagepulse.com.tr/portal/"),
+              ("siteyi aç", "https://stagepulse.com.tr/"),
+              ("Facebook aç", "https://www.facebook.com/"),
+              ("yalnızca site hakkında konuş", None),
+          ]
+          for command, expected in cases:
+              result = resolve(command)
+              actual = result[0] if result else None
+              assert actual == expected, f"{command!r}: expected {expected!r}, got {actual!r}"
+          print("JARVIS Python syntax and website routing: PASS")
+          PY
+
       - name: Set up Java 17
         uses: actions/setup-java@v4
         with:
