@@ -29,6 +29,8 @@ class JarvisGUI:
         self._angle = 0.0
         self._pulse = 0.0
         self._voice_busy = False
+        self._pdf_path = None
+        self._pdf_text = ""
 
         ctk.set_appearance_mode("dark")
         ctk.set_default_color_theme("dark-blue")
@@ -38,6 +40,10 @@ class JarvisGUI:
         self.root.geometry("1280x760")
         self.root.minsize(1050, 680)
         self.root.configure(fg_color=BG)
+        # Open directly in fullscreen; F11 toggles it and Escape returns to windowed mode.
+        self.root.attributes("-fullscreen", True)
+        self.root.bind("<F11>", self._toggle_fullscreen)
+        self.root.bind("<Escape>", self._leave_fullscreen)
 
         self._setup_ui()
         self.jarvis.on_command(self._on_command)
@@ -256,18 +262,25 @@ class JarvisGUI:
         ).grid(row=0, column=4, padx=4)
 
         ctk.CTkButton(
+            bottom, text="PDF EKLE", width=78, height=44,
+            fg_color="#090B0D", hover_color="#15181C",
+            border_width=1, border_color=GOLD, text_color=GOLD,
+            font=("Consolas", 9, "bold"), command=self._on_pdf_clicked
+        ).grid(row=0, column=5, padx=4)
+
+        ctk.CTkButton(
             bottom, text="AI SETUP", width=82, height=44,
             fg_color="#090B0D", hover_color="#15181C",
             border_width=1, border_color=GOLD, text_color=GOLD,
             font=("Consolas", 9, "bold"), command=self._open_ai_settings
-        ).grid(row=0, column=5, padx=4)
+        ).grid(row=0, column=6, padx=4)
 
         ctk.CTkButton(
             bottom, text="ANDROID", width=82, height=44,
             fg_color="#090B0D", hover_color="#15181C",
             border_width=1, border_color=GOLD, text_color=GOLD,
             font=("Consolas", 9, "bold"), command=self._open_android_link
-        ).grid(row=0, column=6, padx=(4, 0))
+        ).grid(row=0, column=7, padx=(4, 0))
 
         self.chat_display = ctk.CTkTextbox(
             center, width=1, height=1, fg_color=BG,
@@ -476,6 +489,73 @@ class JarvisGUI:
 
         threading.Thread(target=worker, daemon=True, name="JARVIS-AI-Task").start()
 
+    def _toggle_fullscreen(self, event=None):
+        current = bool(self.root.attributes("-fullscreen"))
+        self.root.attributes("-fullscreen", not current)
+        return "break"
+
+    def _leave_fullscreen(self, event=None):
+        self.root.attributes("-fullscreen", False)
+        return "break"
+
+    def _on_pdf_clicked(self):
+        path = filedialog.askopenfilename(
+            parent=self.root, title="JARVIS'a PDF ekle",
+            filetypes=[("PDF dosyaları", "*.pdf"), ("Tüm dosyalar", "*.*")]
+        )
+        if not path:
+            return
+        try:
+            from pypdf import PdfReader
+            reader = PdfReader(path)
+            pages = []
+            total_chars = 0
+            for page in reader.pages:
+                text = (page.extract_text() or "").strip()
+                if text:
+                    remaining = 30000 - total_chars
+                    if remaining <= 0:
+                        break
+                    text = text[:remaining]
+                    pages.append(text)
+                    total_chars += len(text)
+            extracted = "\\n\\n".join(pages).strip()
+            if not extracted:
+                messagebox.showwarning(
+                    "PDF metni bulunamadı",
+                    "Bu PDF metin içermiyor veya taranmış görüntülerden oluşuyor. OCR desteği olmadan içeriği okunamıyor.",
+                    parent=self.root
+                )
+                return
+            self._pdf_path = path
+            self._pdf_text = extracted
+            self._append_to_chat("SYSTEM", "PDF yüklendi: " + path, "green")
+            self._activity("PDF LOADED: " + path.split("/")[-1][-48:])
+            dialog = ctk.CTkInputDialog(
+                title="PDF hakkında soru sor",
+                text="PDF yüklendi. Ne yapayım? Örn. özetle, önemli maddeleri çıkar, SPL ölçüm adımlarını açıkla."
+            )
+            question = dialog.get_input()
+            if question and question.strip():
+                self._append_to_chat("YOU", "PDF: " + question.strip(), "gold")
+                brain = self.jarvis.command_processor.ai_brain
+                prompt = (
+                    "Aşağıdaki metin kullanıcının yüklediği PDF'den çıkarılmıştır. "
+                    "Yalnızca bu metne dayalı cevap ver; metinde olmayan bilgiyi uydurma. "
+                    "Türkçe yanıtla. Gerekiyorsa kaynak sayfa metinde belirtilmediğini söyle.\\n\\n"
+                    "PDF DOSYASI: " + path + "\\n\\nPDF İÇERİĞİ:\\n" +
+                    self._pdf_text + "\\n\\nKULLANICI İSTEĞİ: " + question.strip()
+                )
+                self._run_ai_task("PDF analiz ediliyor", lambda: brain.ask(prompt), should_speak=True)
+        except ImportError:
+            messagebox.showerror(
+                "PDF desteği eksik",
+                "PDF okumak için pypdf paketi kurulu değil. JARVIS bağımlılıkları güncellenmeli.",
+                parent=self.root
+            )
+        except Exception as exc:
+            messagebox.showerror("PDF açılamadı", str(exc), parent=self.root)
+
     def _on_image_clicked(self):
         brain = self.jarvis.command_processor.ai_brain
         if not brain.gemini_key:
@@ -683,6 +763,18 @@ class JarvisGUI:
             brain = self.jarvis.command_processor.ai_brain
             prompt = self._image_prompt_from_command(command)
             self._run_ai_task("Gemini görsel üretiyor", lambda: brain.generate_image(prompt), should_speak=True)
+        elif self._pdf_text and any(term in command.lower() for term in (
+            "pdf", "belge", "belgede", "dosyada", "bu metin", "özetle", "özet",
+            "içeriği", "ne anlatıyor", "önemli maddeler", "bu doküman", "bu dokuman"
+        )):
+            brain = self.jarvis.command_processor.ai_brain
+            prompt = (
+                "Kullanıcının yüklediği PDF metni aşağıdadır. Soruyu bu metne dayanarak Türkçe yanıtla. "
+                "Metinde olmayan ayrıntıları uydurma.\\n\\nPDF: " + str(self._pdf_path) +
+                "\\n\\nİÇERİK:\\n" + self._pdf_text +
+                "\\n\\nSORU: " + command
+            )
+            self._run_ai_task("Yüklü PDF hakkında yanıt hazırlanıyor", lambda: brain.ask(prompt), should_speak=True)
         else:
             self.jarvis.process_command(
                 command, speak_response=self.voice_var.get()
