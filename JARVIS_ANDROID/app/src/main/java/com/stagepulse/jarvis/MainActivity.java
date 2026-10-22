@@ -1388,9 +1388,7 @@ public class MainActivity extends Activity {
                     statusPost("● WINDOWS JARVIS");
                     try {
                         String profileContext = buildProfileContextForHost();
-                        String hostCommand = profileContext.isEmpty() ? cmd
-                                : profileContext + "\nKullanıcının gerçek komutu: " + cmd;
-                        BridgeClient.Result remote = BridgeClient.command(hostUrl, hostToken, hostCommand);
+                        BridgeClient.Result remote = BridgeClient.command(hostUrl, hostToken, cmd, profileContext);
                         a = remote.response;
                         if (!remote.success) {
                             a = (a == null || a.trim().isEmpty())
