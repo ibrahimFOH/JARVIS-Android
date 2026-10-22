@@ -705,7 +705,7 @@ public class MainActivity extends Activity {
         if(c.contains("pil")||c.contains("batarya")){BatteryManager b=(BatteryManager)getSystemService(BATTERY_SERVICE);return "Pil seviyesi yüzde "+b.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY)+".";}
         if(c.contains("ayarlar")){try{startActivity(new Intent(Settings.ACTION_SETTINGS));return "Android ayarlarını açıyorum.";}catch(Exception e){return "Android ayarları açılamadı.";}}
         if(c.contains("tarayıcı")||c.contains("internet aç")){try{startActivity(new Intent(Intent.ACTION_VIEW,android.net.Uri.parse("https://www.google.com")));return "Tarayıcıyı açıyorum.";}catch(Exception e){return "Tarayıcı açılamadı.";}}
-        if(c.contains("yardım")||c.contains("ne yapabiliyorsun"))return "Saat, tarih, pil, ayarlar, tarayıcı, web araştırması ve Stagepulse uzman ajanlarını çalıştırabiliyorum.";
+        if(c.contains("yardım")||c.contains("ne yapabiliyorsun"))return "Çevrimdışı: saat, tarih, pil, kalıcı hafıza, ses düzeyi, Wi-Fi/Bluetooth ayarları, dosya seçici, kamera ve bazı uygulamaları açma. PC bağlıyken Windows komutları, dosya/pencere otomasyonu ve ortak AI çekirdeği de kullanılabilir.";
         if(c.contains("nasılsın")||c.contains("nasılsın jarvis")||c.contains("iyi misin"))return "İyiyim Patron. Sistemler kararlı ve komut bekliyorum.";
         if(c.contains("ne yapıyorsun")||c.contains("ne yapıyorsun jarvis"))return "Sizi dinliyorum Patron. Vereceğiniz komutu bekliyorum.";
         if(c.contains("teşekkür")||c.contains("sağ ol"))return "Rica ederim Patron.";
