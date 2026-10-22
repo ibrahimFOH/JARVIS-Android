@@ -489,8 +489,9 @@ public class MainActivity extends Activity {
 
     private void refreshVoiceStatus(){
         boolean ready=piper!=null&&piper.isReady();
-        status.setText(ready?"● ONLINE":"● VOICE ERROR");
-        status.setTextColor(ready?gold():0xFFFF5555);
+        boolean fallback=!ready&&androidTtsReady;
+        status.setText(ready?"● PIPER READY":(fallback?"● SYSTEM TTS READY":"● TEXT MODE"));
+        status.setTextColor((ready||fallback)?gold():0xFFFFB74D);
     }
 
     private boolean isResearchCommand(String c){
