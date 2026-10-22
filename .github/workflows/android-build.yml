@@ -59,7 +59,7 @@ jobs:
           spec.loader.exec_module(module)
           version = module.WindowsUpdateManager._version_tuple
           trusted = module.WindowsUpdateManager._trusted_release_url
-          assert version("2.2.2-piper") == (2, 2, 1)
+          assert version("2.2.2-piper") == (2, 2, 2)
           assert version("2.3.0") > version("2.2.2-piper")
           assert trusted("https://github.com/ibrahimFOH/JARVIS-Android/releases/download/v2.3.0/JARVIS-Windows.zip")
           assert not trusted("https://example.com/JARVIS-Windows.zip")
