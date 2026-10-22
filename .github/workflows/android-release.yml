@@ -133,7 +133,7 @@ jobs:
         shell: pwsh
         working-directory: JARVIS_HOST
         run: |
-          python -m PyInstaller --noconfirm --clean --name JARVIS --onedir --windowed --add-data "config\config.example.json;config" --add-data "VERSION;." --collect-all customtkinter --collect-all pystray --collect-all pyttsx3 --collect-all speech_recognition --collect-all pvporcupine --hidden-import win32timezone main.py
+          python -m PyInstaller --noconfirm --clean --name JARVIS --onedir --contents-directory . --windowed --add-data "config\config.example.json;config" --add-data "VERSION;." --collect-all customtkinter --collect-all pystray --collect-all pyttsx3 --collect-all speech_recognition --collect-all pvporcupine --hidden-import win32timezone main.py
           if (!(Test-Path "dist\JARVIS\JARVIS.exe")) { throw "PyInstaller did not create dist\JARVIS\JARVIS.exe" }
           if (!(Test-Path "dist\JARVIS\VERSION")) { throw "VERSION was not included in the release package" }
           Compress-Archive -Path "dist\JARVIS\*" -DestinationPath "$env:GITHUB_WORKSPACE\JARVIS-Windows.zip" -CompressionLevel Optimal -Force
