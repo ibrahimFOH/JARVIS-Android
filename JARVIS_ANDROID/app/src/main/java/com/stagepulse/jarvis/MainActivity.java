@@ -528,7 +528,7 @@ public class MainActivity extends Activity {
             return "Profil ayarlarını açıyorum.";
         }
         if (x.equals("ben kimim") || x.contains("beni taniyor musun")
-                || x.equals("beni tanı") || x.equals("patron kim")
+                || x.equals("beni tani") || x.equals("patron kim")
                 || x.contains("hakkimda ne biliyorsun") || x.contains("beni hatirliyor musun")) {
             String owner = profilePrefs.getString("owner_name", "Patron");
             String role = profilePrefs.getString("owner_role", "").trim();
@@ -1453,8 +1453,13 @@ public class MainActivity extends Activity {
                 || x.startsWith("belge ac ") || x.contains("son dosyayi ac")
                 || x.contains("jarvis dosyalarini listele") || x.contains("son dosyalari goster")
                 || x.contains("son dosyayi sil")) return true;
-        if (x.contains("erisilebilirlik") || x.contains("ana ekrana don")
-                || x.equals("ana ekran") || x.equals("geri") || x.equals("geri don")
+        if (x.contains("erisilebilirlik") || x.contains("ekrandaki metni oku")
+                || x.equals("ekrani oku") || x.contains("bu ekranda ne yaziyor")
+                || x.contains("ekranda ne var") || x.startsWith("tikla ") || x.startsWith("dokun ")
+                || x.startsWith("bas ") || x.startsWith("alana yaz ") || x.startsWith("ekrana yaz ")
+                || x.startsWith("metin gir ") || x.contains("kaydir")
+                || x.contains("ana ekrana don") || x.equals("ana ekran")
+                || x.equals("geri") || x.equals("geri don")
                 || x.contains("bildirim panelini ac") || x.contains("hizli ayarlari ac")
                 || x.contains("son uygulamalari ac") || x.contains("ekrani kilitle")
                 || x.contains("ekrani kapat") || x.contains("guc menusunu ac")
