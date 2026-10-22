@@ -624,6 +624,9 @@ public final class JarvisAccessibilityService extends AccessibilityService {
 
     private String handleOverlayDeviceCommand(String command) {
         String x = norm(command);
+        if (x.equals("yardim") || x.contains("ne yapabiliyorsun")) {
+            return "Telefon sesli komutları: Hey JARVIS; ekrandaki metni oku; Tıkla Kaydet; Alana yaz ...; aşağı/yukarı kaydır; geri; ana ekran; bildirim panelini aç; hızlı ayarları aç; feneri aç/kapat; sesi artır/azalt; Wi-Fi/Bluetooth ayarlarını aç; YouTube/WhatsApp/Chrome aç. Genel AI, eğitim paketi ve dosya üretimi Windows bağlıysa JARVIS'e yönlenir; bilgisayar yoksa uygulama yerel desteklenen işlevlere döner.";
+        }
         if (x.contains("ekrandaki metni oku") || x.equals("ekrani oku")
                 || x.contains("bu ekranda ne yaziyor") || x.contains("ekranda ne var")) {
             String visible = visibleTextOnMain();
