@@ -437,6 +437,441 @@ public class MainActivity extends Activity {
             .show();
     }
 
+
+    private void showProfileSettings(boolean firstRun) {
+        LinearLayout form = new LinearLayout(this);
+        form.setOrientation(LinearLayout.VERTICAL);
+        form.setPadding(dp(18), dp(4), dp(18), 0);
+
+        EditText name = new EditText(this);
+        name.setSingleLine(true);
+        name.setHint("Profil adı (ör. İbrahim)");
+        name.setText(profilePrefs.getString("owner_name", ""));
+        EditText role = new EditText(this);
+        role.setSingleLine(true);
+        role.setHint("Meslek / rol (isteğe bağlı)");
+        role.setText(profilePrefs.getString("owner_role", ""));
+        EditText organization = new EditText(this);
+        organization.setSingleLine(true);
+        organization.setHint("Şirket / proje (isteğe bağlı)");
+        organization.setText(profilePrefs.getString("owner_company", ""));
+        EditText context = new EditText(this);
+        context.setHint("Tercihler ve hatırlanacak genel bilgiler");
+        context.setMinLines(2);
+        context.setMaxLines(4);
+        context.setText(profilePrefs.getString("owner_context", ""));
+        form.addView(name);
+        form.addView(role);
+        form.addView(organization);
+        form.addView(context);
+        TextView notice = tv("Profil yalnızca bu cihazda saklanır. Bu özellik konuşmacıyı biyometrik olarak tanımaz; hassas işlemler için Android kilidi ve izinleri geçerlidir.", 11, muted());
+        notice.setPadding(0, dp(8), 0, dp(4));
+        form.addView(notice);
+
+        AlertDialog.Builder dialog = new AlertDialog.Builder(this)
+                .setTitle(firstRun ? "JARVIS KİŞİSEL PROFİLİ" : "PROFİL VE HAFIZA")
+                .setMessage("JARVIS'in kiminle çalıştığını ve hangi tercihleri hatırlayacağını ayarla.")
+                .setView(form)
+                .setPositiveButton("KAYDET", (d, which) -> {
+                    String owner = name.getText().toString().trim();
+                    if (owner.isEmpty()) owner = "Patron";
+                    profilePrefs.edit()
+                            .putString("owner_name", owner)
+                            .putString("owner_role", role.getText().toString().trim())
+                            .putString("owner_company", organization.getText().toString().trim())
+                            .putString("owner_context", context.getText().toString().trim())
+                            .putBoolean("setup_complete", true)
+                            .apply();
+                    append("JARVIS", owner + " profili bu cihazda kaydedildi.");
+                    speak("Profil kaydedildi. Seni bu cihazdaki profilin üzerinden hatırlayacağım.");
+                });
+        if (firstRun) {
+            dialog.setNegativeButton("ŞİMDİ DEĞİL", (d, which) -> {
+                profilePrefs.edit().putString("owner_name", "Patron")
+                        .putBoolean("setup_complete", true).apply();
+                append("JARVIS", "Profil kurulumu ertelendi. Dilediğinde PROFİL bölümünden ayarlayabilirsin.");
+            });
+        } else {
+            dialog.setNegativeButton("İPTAL", null);
+        }
+        dialog.show();
+    }
+
+    private String normalizeIntent(String raw) {
+        if (raw == null) return "";
+        String value = raw.toLowerCase(new Locale("tr", "TR"));
+        return value.replace("ı", "i").replace("ş", "s").replace("ğ", "g")
+                .replace("ü", "u").replace("ö", "o").replace("ç", "c")
+                .replaceAll("\\s+", " ").trim();
+    }
+
+    private String handleOwnerProfileCommand(String raw) {
+        String x = normalizeIntent(raw);
+        if (x.contains("profilimi ayarla") || x.contains("profil ayarlari")
+                || x.equals("profil") || x.contains("hafizam ve profil")) {
+            runOnUiThread(() -> showProfileSettings(false));
+            return "Profil ayarlarını açıyorum.";
+        }
+        if (x.equals("ben kimim") || x.contains("beni taniyor musun")
+                || x.equals("beni tanı") || x.equals("patron kim")
+                || x.contains("hakkimda ne biliyorsun") || x.contains("beni hatirliyor musun")) {
+            String owner = profilePrefs.getString("owner_name", "Patron");
+            String role = profilePrefs.getString("owner_role", "").trim();
+            String company = profilePrefs.getString("owner_company", "").trim();
+            String context = profilePrefs.getString("owner_context", "").trim();
+            StringBuilder answer = new StringBuilder("Bu cihazdaki profil sahibi: ").append(owner).append(".");
+            if (!role.isEmpty()) answer.append("\nMeslek/rol: ").append(role).append(".");
+            if (!company.isEmpty()) answer.append("\nŞirket/proje: ").append(company).append(".");
+            if (!context.isEmpty()) answer.append("\nHatırladığım tercihler: ").append(context);
+            Set<String> facts = getSharedPreferences("jarvis_local_memory", MODE_PRIVATE)
+                    .getStringSet("facts", Collections.emptySet());
+            if (facts != null && !facts.isEmpty()) {
+                answer.append("\nKayıtlı hafıza:");
+                int count = 0;
+                for (String fact : new TreeSet<>(facts)) {
+                    if (count++ >= 8) break;
+                    answer.append("\n• ").append(fact);
+                }
+            }
+            answer.append("\nNot: Bu bir cihaz profili ve kayıtlı hafızadır; ses kaydından kişinin kimliği biyometrik olarak doğrulanmıyor.");
+            return answer.toString();
+        }
+        if (x.startsWith("adimi ") && (x.contains(" olarak hatirla") || x.contains(" olarak kaydet"))) {
+            String name = x.substring("adimi ".length());
+            name = name.replace(" olarak hatirla", "").replace(" olarak kaydet", "").trim();
+            if (!name.isEmpty() && name.length() <= 80) {
+                profilePrefs.edit().putString("owner_name", name).putBoolean("setup_complete", true).apply();
+                return "Profil adını " + name + " olarak kaydettim.";
+            }
+        }
+        if (x.startsWith("meslegimi ") && x.contains(" olarak hatirla")) {
+            String role = x.substring("meslegimi ".length()).replace(" olarak hatirla", "").trim();
+            if (!role.isEmpty() && role.length() <= 120) {
+                profilePrefs.edit().putString("owner_role", role).apply();
+                return "Meslek bilgisini profile kaydettim.";
+            }
+        }
+        return null;
+    }
+
+    private String safeName(String value, String fallback) {
+        String name = value == null ? "" : value.trim();
+        name = name.replaceAll("[\\\\/:*?\"<>|\\r\\n]", "_").replaceAll("\\s+", "_");
+        name = name.replaceAll("^\\.+", "").replaceAll("_+", "_");
+        if (name.isEmpty()) name = fallback;
+        if (name.length() > 90) name = name.substring(0, 90);
+        return name;
+    }
+
+    private String createDownloadTextFile(String requestedName, String body, String childFolder) throws IOException {
+        String fileName = safeName(requestedName, "JARVIS-Notu");
+        if (!fileName.toLowerCase(Locale.ROOT).endsWith(".txt")
+                && !fileName.toLowerCase(Locale.ROOT).endsWith(".md")) fileName += ".txt";
+        String stamp = new SimpleDateFormat("yyyyMMdd-HHmmss", Locale.ROOT).format(new Date());
+        int dot = fileName.lastIndexOf('.');
+        fileName = (dot > 0 ? fileName.substring(0, dot) : fileName) + "-" + stamp
+                + (dot > 0 ? fileName.substring(dot) : ".txt");
+
+        String folder = "JARVIS";
+        if (childFolder != null && !childFolder.trim().isEmpty()) {
+            String safeFolder = safeName(childFolder, "Dosyalar");
+            folder += "/" + safeFolder;
+        }
+
+        Uri savedUri = null;
+        String savedPath;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            ContentValues values = new ContentValues();
+            values.put(MediaStore.MediaColumns.DISPLAY_NAME, fileName);
+            values.put(MediaStore.MediaColumns.MIME_TYPE, "text/plain");
+            values.put(MediaStore.MediaColumns.RELATIVE_PATH,
+                    Environment.DIRECTORY_DOWNLOADS + "/" + folder + "/");
+            values.put(MediaStore.MediaColumns.IS_PENDING, 1);
+            savedUri = getContentResolver().insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values);
+            if (savedUri == null) throw new IOException("Android dosya sağlayıcısı dosya oluşturamadı.");
+            try (OutputStream output = getContentResolver().openOutputStream(savedUri, "w")) {
+                if (output == null) throw new IOException("Dosya yazma akışı açılamadı.");
+                output.write((body == null ? "" : body).getBytes(java.nio.charset.StandardCharsets.UTF_8));
+                output.flush();
+            } catch (IOException ex) {
+                getContentResolver().delete(savedUri, null, null);
+                throw ex;
+            }
+            ContentValues ready = new ContentValues();
+            ready.put(MediaStore.MediaColumns.IS_PENDING, 0);
+            getContentResolver().update(savedUri, ready, null, null);
+            savedPath = Environment.DIRECTORY_DOWNLOADS + "/" + folder + "/" + fileName;
+            profilePrefs.edit().putString("last_file_uri", savedUri.toString())
+                    .putString("last_file_name", fileName).putString("last_file_path", savedPath).apply();
+        } else {
+            File root = getExternalFilesDir(Environment.DIRECTORY_DOCUMENTS);
+            if (root == null) throw new IOException("Harici belge klasörü kullanılamıyor.");
+            File parent = new File(root, folder);
+            if (!parent.exists() && !parent.mkdirs()) throw new IOException("Belge klasörü oluşturulamadı.");
+            File destination = new File(parent, fileName);
+            try (FileOutputStream output = new FileOutputStream(destination)) {
+                output.write((body == null ? "" : body).getBytes(java.nio.charset.StandardCharsets.UTF_8));
+                output.flush();
+            }
+            savedPath = destination.getAbsolutePath();
+            profilePrefs.edit().putString("last_file_uri", "")
+                    .putString("last_file_name", fileName).putString("last_file_path", savedPath).apply();
+        }
+        return "Dosya oluşturuldu: İndirilenler/" + folder + "/" + fileName
+                + "\nDosya adı ve konumu hafızaya kaydedildi. 'Son dosyayı aç' diyebilirsin.";
+    }
+
+    private String buildTrainingPackage() {
+        String[] modules = {
+                "Canlı sesin temelleri: frekans, genlik, faz, dBFS, dBu ve dB SPL",
+                "Ses sinyal akışı: giriş, kanal, bus, matrix, ana çıkış ve PA",
+                "Midas M32 çalışma alanı: katmanlar, kanal seçimi, ekranlar ve gezinme",
+                "Giriş bağlantıları: mikrofon/line, XLR, DI box ve phantom power",
+                "Mikrofon seçimi, yön karakteristikleri, yerleşim ve sahne sızıntısı",
+                "Gain structure: preamp kazancı, headroom, PFL ve clipping",
+                "Kanal şeridi: HPF, polarite, pan, fader ve kanal adlandırma",
+                "Parametrik EQ: frekans, Q, gain ve sorunlu frekansları bulma",
+                "Gate ve expander: eşik, attack, hold, release ve doğal kullanım",
+                "Compressor: ratio, threshold, knee, attack/release ve gain reduction",
+                "FX rack: reverb, delay, insert/send mantığı ve FX dönüşleri",
+                "Bus, subgroup, matrix ve ana PA yönlendirmesi",
+                "Monitör miksleri: pre/post fader, bus send ve sahne dengesi",
+                "IEM temelleri: seviye yönetimi, kablolu kulaklık miksleri ve güvenlik",
+                "DCA ve mute group: hızlı kontrol, katman düzeni ve sahne disiplini",
+                "Scene ve snippet yönetimi: güvenli kayıt, geri çağırma ve show dosyası",
+                "Patch ve input list: girişlerin düzenlenmesi ve kablo takibi",
+                "Soundcheck: line check, gain check, kanal kontrol ve grup sırası",
+                "Feedback kontrolü: akustik döngü, EQ ile müdahale ve doğru mikrofon tekniği",
+                "PA yerleşimi: kapsama, dinleme alanı, subwoofer ve polarite",
+                "SPL ölçümü: LAeq, LAFmax, ölçüm noktası, kalibrasyon ve kayıt",
+                "Akustik ve psychoacoustics: maskeleme, yansıma, oda modları ve algı",
+                "RTA ve ölçüm mikrofonu ile kontrollü sistem değerlendirmesi",
+                "RF temelleri: kablosuz mikrofon koordinasyonu, anten ve pil yönetimi",
+                "Dijital ağ ve Dante'ye giriş: saat, ağ düzeni ve temel arıza yaklaşımı",
+                "Kayıt ve playback: USB kayıt, sanal soundcheck ve dosya kontrolü",
+                "Sahne plot, teknik rider ve patch list okuma",
+                "Etkinlik hazırlığı: ekipman kontrol listesi, yedekler ve görev dağılımı",
+                "Arıza giderme: sinyal yok, uğultu, distorsiyon, yanlış routing ve sessiz kanal",
+                "Güç ve sahne güvenliği: kablo güzergâhı, elektrik, yük ve acil durum",
+                "Canlı miks pratiği: konuşma ve vokal miksine yaklaşım",
+                "Canlı miks pratiği: grup dengesi, transient ve dinamik kontrol",
+                "Karmaşık sahne: çoklu monitör, değişen sahne düzeni ve hızlı geçiş",
+                "Show dosyası yedekleme, devir teslim ve etkinlik sonrası raporu",
+                "Final uygulaması: kurulum, line check, soundcheck, miks ve değerlendirme"
+        };
+        StringBuilder doc = new StringBuilder();
+        doc.append("STAGEPULSE | CANLI SES VE DİJİTAL KONSOL EĞİTİM PAKETİ\n");
+        doc.append("Eğitmen çalışma taslağı • Sürüm 1.0 • Oluşturulma: ")
+                .append(new SimpleDateFormat("dd.MM.yyyy HH:mm", new Locale("tr", "TR")).format(new Date())).append("\n\n");
+        doc.append("AMAÇ\nCanlı ses konsolunu güvenli, tekrarlanabilir ve ölçülebilir yöntemlerle kullanmak; sinyal akışını kurmak, gain structure sağlamak, kanal işleme uygulamak ve soundcheck yürütmek.\n\n");
+        doc.append("HEDEF KİTLE\nMekân sorumluları, canlı ses teknisyenleri ve FOH/monitor miksine giriş yapan kullanıcılar.\n\n");
+        doc.append("ANA PLATFORM\nMidas M32 dijital ses konsolu. Model/firmware farklılıklarında cihazın kendi kılavuzu esas alınır. Bu taslak, cihaz üzerindeki işlemlere öncelik verir.\n\n");
+        doc.append("35 MODÜLLÜ DERS PLANI\n");
+        for (int i = 0; i < modules.length; i++) {
+            doc.append(String.format(Locale.ROOT, "%02d. %s\n", i + 1, modules[i]));
+            doc.append("    Öğrenme çıktısı: Konuyu açıklayabilmek, konsolda doğru ayarı uygulamak ve sonucu metre/kulak kontrolüyle doğrulamak.\n");
+            doc.append("    Uygulama: Eğitmen örneği, kursiyerin bağımsız uygulaması ve yapılan ayarın nedenini sözlü açıklama.\n\n");
+        }
+        doc.append("4 HAFTALIK UYGULAMA TAKVİMİ (HAFTADA 3 GÜN)\n");
+        doc.append("1. hafta: Konsol gezinme, bağlantılar, input list, gain structure ve kanal şeridi.\n");
+        doc.append("2. hafta: HPF/EQ, gate, compressor, FX, mute group ve DCA.\n");
+        doc.append("3. hafta: Bus yönlendirme, monitör/IEM, scene/snippet, soundcheck ve feedback kontrolü.\n");
+        doc.append("4. hafta: Gerçekçi prova akışı, arıza senaryoları, show dosyası yedeği ve final uygulaması.\n\n");
+        doc.append("HER DERSİN AKIŞI\n1) Önceki ders tekrarı (10 dk)  2) Eğitmen gösterimi (20 dk)  3) Rehberli uygulama (35 dk)  4) Bağımsız görev (35 dk)  5) Kontrol ve geri bildirim (10 dk).\n\n");
+        doc.append("DEĞERLENDİRME RUBRİĞİ\nSinyal akışı ve patch %20; gain/headroom %20; kanal işleme %20; bus/monitör routing %15; soundcheck ve arıza çözümü %15; dosya güvenliği ve sahne disiplini %10. Güvenli olmayan seviye veya elektrik uygulaması başarısızlık sebebidir.\n\n");
+        doc.append("EĞİTMEN NOTU\nHer uygulamada kullanılan konsol modeli, firmware, örnekleme hızı, bağlantı türleri ve gerçek cihaz koşulları not edilir. Ölçülmemiş SPL veya doğrulanmamış routing sonucu tahmin olarak sunulmaz.\n\n");
+        doc.append("SINIRLAR\nBu dosya yapılandırılmış bir eğitim paketi/öğretim taslağıdır; tek başına tüm cihazların üretici dokümanlarının yerini tutmaz. Gerçek etkinlikten önce cihaz kılavuzu ve mekân güvenlik prosedürleri kontrol edilmelidir.\n");
+        return doc.toString();
+    }
+
+    private String handleLocalFileCommand(String raw) {
+        String x = normalizeIntent(raw);
+        if ((x.contains("egitim paketi") || x.contains("ses muhendisligi egitimi"))
+                && (x.contains("hazirla") || x.contains("olustur") || x.contains("yap"))) {
+            try {
+                String result = createDownloadTextFile("Stagepulse-Egitim-Paketi.md",
+                        buildTrainingPackage(), "Egitim");
+                return "Eğitim paketi hazırlandı.\n" + result;
+            } catch (Exception e) {
+                return "Eğitim dosyası oluşturulamadı: " + e.getMessage();
+            }
+        }
+        if (x.contains("son dosyayi ac") || x.equals("dosyayi ac") || x.equals("dosyalarimdan sonuncuyu ac")) {
+            String uriValue = profilePrefs.getString("last_file_uri", "");
+            if (!uriValue.isEmpty()) {
+                try {
+                    Uri uri = Uri.parse(uriValue);
+                    Intent view = new Intent(Intent.ACTION_VIEW);
+                    view.setDataAndType(uri, "text/plain");
+                    view.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                    runOnUiThread(() -> {
+                        try { startActivity(view); }
+                        catch (Exception e) { append("DOSYA", "Dosyayı açacak bir uygulama bulunamadı."); }
+                    });
+                    return "En son oluşturduğum dosyayı açıyorum.";
+                } catch (Exception e) {
+                    return "Son dosyanın bağlantısı okunamadı: " + e.getMessage();
+                }
+            }
+            String path = profilePrefs.getString("last_file_path", "");
+            return path.isEmpty() ? "Henüz JARVIS tarafından oluşturulmuş bir dosya yok." :
+                    "Son dosyanın yolu: " + path + ". Bu Android sürümünde dosya yöneticisinden aç.";
+        }
+        if (x.contains("jarvis dosyalarini listele") || x.contains("olusturdugun dosyalari listele")
+                || x.equals("son dosyalari goster")) {
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+                String path = profilePrefs.getString("last_file_path", "");
+                return path.isEmpty() ? "Henüz JARVIS dosyası oluşturulmadı." : "Son dosya: " + path;
+            }
+            Cursor cursor = null;
+            try {
+                String[] columns = {MediaStore.MediaColumns.DISPLAY_NAME, MediaStore.MediaColumns.RELATIVE_PATH};
+                cursor = getContentResolver().query(MediaStore.Downloads.EXTERNAL_CONTENT_URI, columns,
+                        MediaStore.MediaColumns.RELATIVE_PATH + " LIKE ?",
+                        new String[]{Environment.DIRECTORY_DOWNLOADS + "/JARVIS/%"},
+                        MediaStore.MediaColumns.DATE_ADDED + " DESC");
+                if (cursor == null || !cursor.moveToFirst()) return "İndirilenler/JARVIS klasöründe dosya bulamadım.";
+                StringBuilder result = new StringBuilder("JARVIS dosyaları:\n");
+                int count = 0;
+                do {
+                    if (count++ >= 12) break;
+                    String name = cursor.getString(0);
+                    String path = cursor.getString(1);
+                    result.append("• ").append(path).append(name).append("\n");
+                } while (cursor.moveToNext());
+                return result.toString().trim();
+            } catch (Exception e) {
+                return "Dosya listesi alınamadı: " + e.getMessage();
+            } finally {
+                if (cursor != null) cursor.close();
+            }
+        }
+        if (x.contains("son dosyayi sil") || x.contains("son olusturdugun dosyayi sil")) {
+            String uriValue = profilePrefs.getString("last_file_uri", "");
+            String path = profilePrefs.getString("last_file_path", "");
+            if (!uriValue.isEmpty()) {
+                runOnUiThread(() -> new AlertDialog.Builder(this)
+                        .setTitle("DOSYAYI SİL")
+                        .setMessage("JARVIS'in oluşturduğu son dosya silinsin mi?\nBu işlem geri alınamaz.")
+                        .setPositiveButton("SİL", (d, w) -> {
+                            try {
+                                int deleted = getContentResolver().delete(Uri.parse(uriValue), null, null);
+                                if (deleted > 0) {
+                                    profilePrefs.edit().remove("last_file_uri").remove("last_file_path").remove("last_file_name").apply();
+                                    append("DOSYA", "Son oluşturulan dosya silindi.");
+                                } else append("DOSYA", "Dosya silinemedi veya zaten silinmiş.");
+                            } catch (Exception e) { append("DOSYA", "Silme başarısız: " + e.getMessage()); }
+                        }).setNegativeButton("İPTAL", null).show());
+                return "Dosya silme onayı bekleniyor.";
+            }
+            if (!path.isEmpty()) return "Bu Android sürümünde dosyayı otomatik silme desteklenmiyor. Yol: " + path;
+        }
+        if (x.startsWith("not al ") || x.startsWith("not kaydet ")) {
+            int cut = x.startsWith("not al ") ? 7 : 10;
+            String note = raw.length() >= cut ? raw.substring(cut).trim() : raw;
+            if (note.isEmpty()) return "Notun içeriğini söyle. Örnek: Not al yarın Midas M32 kontrolü.";
+            try {
+                return "Notunu dosyaya kaydettim.\n" + createDownloadTextFile("Not", note, "Notlar");
+            } catch (Exception e) { return "Not kaydedilemedi: " + e.getMessage(); }
+        }
+        if (x.startsWith("klasor olustur ") || x.startsWith("klasor yarat ")) {
+            String folder = raw.substring(Math.min(raw.length(), raw.toLowerCase(new Locale("tr", "TR")).indexOf("oluştur") >= 0
+                    ? raw.toLowerCase(new Locale("tr", "TR")).indexOf("oluştur") + 7
+                    : raw.toLowerCase(new Locale("tr", "TR")).indexOf("olustur") + 7)).trim();
+            if (folder.isEmpty()) return "Oluşturulacak klasörün adını belirt.";
+            try {
+                return "Klasörü oluşturdum.\n" + createDownloadTextFile("README.txt",
+                        "Bu klasör JARVIS tarafından oluşturuldu: " + folder, folder);
+            } catch (Exception e) { return "Klasör oluşturulamadı: " + e.getMessage(); }
+        }
+        if (x.startsWith("dosya olustur ") || x.startsWith("metin dosyasi olustur ")
+                || x.startsWith("dosya yarat ")) {
+            int start = x.startsWith("metin dosyasi olustur ") ? "metin dosyasi olustur ".length()
+                    : x.startsWith("dosya yarat ") ? "dosya yarat ".length() : "dosya olustur ".length();
+            String tail = raw.substring(Math.min(raw.length(), start)).trim();
+            String tailNormalized = normalizeIntent(tail);
+            String name;
+            String content;
+            int marker = tailNormalized.indexOf(" icerik ");
+            if (marker >= 0) {
+                name = tail.substring(0, marker).trim();
+                content = tail.substring(Math.min(tail.length(), marker + " icerik ".length())).trim();
+            } else {
+                name = tail;
+                content = "JARVIS tarafından oluşturuldu: " + new SimpleDateFormat("dd.MM.yyyy HH:mm", new Locale("tr", "TR")).format(new Date()) + "\n";
+            }
+            if (name.isEmpty()) return "Dosya adını belirt. Örnek: Dosya oluştur prova.txt içerik Yarın 18.00'de soundcheck.";
+            if (content.isEmpty()) return "Dosya içeriği boş. 'Dosya oluştur not.txt içerik ...' biçiminde söyle.";
+            try { return createDownloadTextFile(name, content, "Dosyalar"); }
+            catch (Exception e) { return "Dosya oluşturulamadı: " + e.getMessage(); }
+        }
+        return null;
+    }
+
+    private void requestAccessibilityEnable() {
+        new AlertDialog.Builder(this)
+                .setTitle("JARVIS TELEFON KONTROLLERİ")
+                .setMessage("Bu Android izni, yalnızca sen açıkça istediğinde Ana ekran, Geri, Bildirimler, Hızlı Ayarlar, güç menüsü ve ekran kilidi gibi sistem işlemleri için kullanılacak. JARVIS diğer uygulamaların ekran metnini okumaz. Devam etmek için Android Erişilebilirlik ayarlarında 'JARVIS Telefon Kontrolleri' hizmetini kendin etkinleştirmen gerekir.")
+                .setPositiveButton("AYARLARI AÇ", (d, w) -> {
+                    try { startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)); }
+                    catch (Exception e) { append("TELEFON KONTROLLERİ", "Erişilebilirlik ayarları açılamadı: " + e.getMessage()); }
+                })
+                .setNegativeButton("İPTAL", null)
+                .show();
+    }
+
+    private String handleAccessibilityCommand(String raw) {
+        String x = normalizeIntent(raw);
+        if (x.contains("erisilebilirlik izni") || x.contains("erisilebilirlik ayarlari")
+                || x.equals("telefon kontrollerini etkinlestir")) {
+            runOnUiThread(this::requestAccessibilityEnable);
+            return "Telefon kontrol iznini açıklayan ekranı açıyorum.";
+        }
+        int action = -1;
+        String description = null;
+        if (x.contains("ana ekrana don") || x.equals("ana ekran") || x.contains("ana ekrani ac")
+                || x.contains("uygulamadan cik")) {
+            action = android.accessibilityservice.AccessibilityService.GLOBAL_ACTION_HOME;
+            description = "Ana ekrana dönüyorum.";
+        } else if (x.equals("geri") || x.equals("geri don") || x.contains("bir adim geri")) {
+            action = android.accessibilityservice.AccessibilityService.GLOBAL_ACTION_BACK;
+            description = "Geri gidiyorum.";
+        } else if (x.contains("bildirimleri ac") || x.contains("bildirim panelini ac")) {
+            action = android.accessibilityservice.AccessibilityService.GLOBAL_ACTION_NOTIFICATIONS;
+            description = "Bildirim panelini açıyorum.";
+        } else if (x.contains("hizli ayarlari ac") || x.contains("kontrol merkezini ac")) {
+            action = android.accessibilityservice.AccessibilityService.GLOBAL_ACTION_QUICK_SETTINGS;
+            description = "Hızlı Ayarlar panelini açıyorum.";
+        } else if (x.contains("son uygulamalari ac") || x.contains("uygulama gecmisini ac")) {
+            action = android.accessibilityservice.AccessibilityService.GLOBAL_ACTION_RECENTS;
+            description = "Son uygulamalar ekranını açıyorum.";
+        } else if (x.contains("ekrani kilitle") || x.equals("telefonu kilitle")) {
+            if (JarvisAccessibilityService.supportsScreenLock()) {
+                action = android.accessibilityservice.AccessibilityService.GLOBAL_ACTION_LOCK_SCREEN;
+                description = "Ekranı kilitliyorum.";
+            } else {
+                return "Ekranı kilitleme genel işlemi bu Android sürümünde desteklenmiyor.";
+            }
+        } else if (x.contains("guc menusunu ac") || x.contains("telefonu kapatma menusunu ac")) {
+            action = android.accessibilityservice.AccessibilityService.GLOBAL_ACTION_POWER_DIALOG;
+            description = "Android güç menüsünü açıyorum. Kapatma işlemini telefonda sen onaylamalısın.";
+        } else if (x.contains("ekran goruntusu al")) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                action = android.accessibilityservice.AccessibilityService.GLOBAL_ACTION_TAKE_SCREENSHOT;
+                description = "Ekran görüntüsü isteğini Android'e iletiyorum.";
+            } else return "Ekran görüntüsü alma genel işlemi bu Android sürümünde desteklenmiyor.";
+        }
+        if (action < 0) return null;
+        if (!JarvisAccessibilityService.isEnabled(this)) {
+            runOnUiThread(this::requestAccessibilityEnable);
+            return "Bu işlem için JARVIS Telefon Kontrolleri izni gerekli. Açılan Android ayarlarından hizmeti etkinleştir.";
+        }
+        if (!JarvisAccessibilityService.performGlobalAction(action)) {
+            return "Telefon kontrol hizmeti henüz hazır değil. Erişilebilirlik ayarlarında etkin olduğunu kontrol et.";
+        }
+        return description;
+    }
+
     private void showAgents(){
         final List<AgencyAgent> list=AgencyCatalog.all();
         String[] names=new String[list.size()];
