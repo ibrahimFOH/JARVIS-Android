@@ -390,6 +390,12 @@ public class MainActivity extends Activity {
                 if (candidate.isFile()) pendingUpdateFile = candidate;
             }
         }
+        if (pendingBrightnessDelta != 0 && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M
+                && Settings.System.canWrite(this)) {
+            int delta = pendingBrightnessDelta;
+            pendingBrightnessDelta = 0;
+            append("TELEFON", applyBrightness(delta));
+        }
         boolean installPermissionGranted = Build.VERSION.SDK_INT < Build.VERSION_CODES.O
                 || getPackageManager().canRequestPackageInstalls();
         if (pendingUpdateFile != null && !updateInstallInProgress && installPermissionGranted) {
@@ -1130,8 +1136,12 @@ public class MainActivity extends Activity {
                         command.setText(recognized);
                         if (isWakePhraseOnly(recognized)) {
                             refreshVoiceStatus();
+                            command.setText("");
                             append("JARVIS", "Buradayım Patron. Komutunu söyle.");
                             speak("Buradayım Patron. Komutunu söyle.");
+                            new Handler(Looper.getMainLooper()).postDelayed(() -> {
+                                if (!isFinishing() && !speechRecognitionBusy) listen();
+                            }, 1400L);
                         } else {
                             sendCommand(recognized);
                         }
@@ -1389,20 +1399,30 @@ public class MainActivity extends Activity {
         if (x.startsWith("dosya olustur ") || x.startsWith("dosya yarat ")
                 || x.startsWith("metin dosyasi olustur ") || x.startsWith("not al ")
                 || x.startsWith("not kaydet ") || x.startsWith("klasor olustur ")
-                || x.startsWith("klasor yarat ") || x.contains("son dosyayi ac")
+                || x.startsWith("klasor yarat ") || x.startsWith("dosya oku ")
+                || x.startsWith("dosyayi oku ") || x.startsWith("belge oku ")
+                || x.startsWith("dosya ac ") || x.startsWith("dosyayi ac ")
+                || x.startsWith("belge ac ") || x.contains("son dosyayi ac")
                 || x.contains("jarvis dosyalarini listele") || x.contains("son dosyalari goster")
                 || x.contains("son dosyayi sil")) return true;
         if (x.contains("erisilebilirlik") || x.contains("ana ekrana don")
                 || x.equals("ana ekran") || x.equals("geri") || x.equals("geri don")
                 || x.contains("bildirim panelini ac") || x.contains("hizli ayarlari ac")
                 || x.contains("son uygulamalari ac") || x.contains("ekrani kilitle")
-                || x.contains("guc menusunu ac") || x.contains("ekran goruntusu al")
+                || x.contains("ekrani kapat") || x.contains("guc menusunu ac")
+                || x.equals("telefonu kapat") || x.equals("telefonu yeniden baslat")
+                || x.contains("uygulamayi kapat") || x.contains("ekran goruntusu al")
                 || x.contains("fener") || x.contains("flashlight") || x.contains("zamanlayici")
                 || x.contains("geri sayim") || x.contains("alarm kur") || x.contains("alarm ayarla")
-                || x.contains("ucak modu") || x.contains("pil tasarrufu")
-                || x.contains("parlaklik ayarlari") || x.contains("rehber")
-                || x.contains("hesap makinesi") || x.contains("dosya yoneticisi")
-                || x.contains("mesaj yaz") || x.startsWith("sms ")) return true;
+                || x.contains("ucak modu") || x.contains("mobil veri") || x.contains("veri baglantisi")
+                || x.contains("pil tasarrufu") || x.contains("parlaklik ayarlari")
+                || x.contains("parlakligi artir") || x.contains("parlakligi azalt")
+                || x.contains("parlaklik") || x.contains("rahatsiz etme")
+                || x.contains("rehber") || x.contains("hesap makinesi") || x.contains("dosya yoneticisi")
+                || x.contains("mesaj yaz") || x.startsWith("sms ")
+                || x.contains("saat uygulamasi") || x.contains("ayarlar")
+                || x.contains("spotify") || x.contains("gmail") || x.contains("facebook")
+                || x.contains("ana ekrani") || x.contains("uygulamadan cik")) return true;
         boolean launchVerb = x.contains(" ac") || x.startsWith("ac") || x.contains("baslat")
                 || x.contains("open") || x.contains("calistir");
         boolean appCommand = launchVerb && (x.contains("youtube") || x.contains("whatsapp")
@@ -1896,7 +1916,11 @@ public class MainActivity extends Activity {
     private void speak(String s){
         if (s == null || s.trim().isEmpty()) return;
         if (androidTtsReady && androidTts != null) {
-            androidTts.speak(s, TextToSpeech.QUEUE_FLUSH, null, "jarvis-" + System.currentTimeMillis());
+            String spoken = s.trim();
+            if (spoken.length() > 650) {
+                spoken = spoken.substring(0, 600) + ". Yanıtın tamamını ekranda ve oluşturulan dosyada bulabilirsin.";
+            }
+            androidTts.speak(spoken, TextToSpeech.QUEUE_FLUSH, null, "jarvis-" + System.currentTimeMillis());
         }
     }
     private void append(String who,String msg){
