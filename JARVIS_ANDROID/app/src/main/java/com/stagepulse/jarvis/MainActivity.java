@@ -453,7 +453,7 @@ public class MainActivity extends Activity {
             try{
                 String hostUrl = bridgePrefs.getString("url", "").trim();
                 String hostToken = bridgePrefs.getString("token", "").trim();
-                if (!hostUrl.isEmpty() && !hostToken.isEmpty()) {
+                if (!hostUrl.isEmpty() && !hostToken.isEmpty() && !isAndroidLocalCommand(cmd)) {
                     statusPost("● WINDOWS JARVIS");
                     try {
                         BridgeClient.Result remote = BridgeClient.command(hostUrl, hostToken, cmd);
@@ -508,6 +508,25 @@ public class MainActivity extends Activity {
         for(String p:prefixes) if(low.startsWith(p)) { q=q.substring(p.length()).trim(); break; }
         if(q.isEmpty()) q="güncel haberler";
         return q;
+    }
+
+    private boolean isAndroidLocalCommand(String raw) {
+        String x = raw == null ? "" : raw.toLowerCase(new Locale("tr", "TR"));
+        x = x.replace("ı","i").replace("ş","s").replace("ğ","g").replace("ü","u").replace("ö","o").replace("ç","c").trim();
+        if (openDirectWebsite(raw) != null) return true;
+        if (x.startsWith("hatirla") || x.startsWith("jarvis, hatirla") || x.startsWith("unut")
+                || x.equals("hafizami goster") || x.equals("hafizamda ne var")
+                || x.equals("ne hatirliyorsun")) return true;
+        return x.equals("merhaba") || x.equals("selam") || x.contains("kimsin")
+                || x.contains("adın ne") || x.contains("adin ne")
+                || x.contains("saat kaç") || x.contains("saat kac") || x.equals("saat")
+                || x.contains("tarih") || x.contains("bugün") || x.contains("bugun")
+                || x.contains("pil") || x.contains("batarya")
+                || x.contains("ayarlar") || x.contains("tarayici")
+                || x.contains("internet ac") || x.contains("yardim")
+                || x.contains("ne yapabiliyorsun") || x.contains("nasilsin")
+                || x.contains("iyi misin") || x.contains("tesekkur")
+                || x.contains("sag ol") || x.contains("ne yapiyorsun");
     }
 
     private String handleLocalMemory(String raw) {
