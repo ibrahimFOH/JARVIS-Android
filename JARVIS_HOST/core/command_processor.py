@@ -4,6 +4,9 @@ Processes commands and routes them to appropriate modules
 """
 
 from typing import Dict, Any, Optional
+import re
+import unicodedata
+import webbrowser
 from utils.logger import get_logger
 from core.intent_recognizer import IntentRecognizer
 from core.validator import Validator
@@ -19,6 +22,37 @@ from datetime import datetime
 from core.ai_brain import AIBrain
 
 logger = get_logger()
+
+
+def _normalize_direct_command(value: str) -> str:
+    """Normalize Turkish voice transcripts before applying explicit URL aliases."""
+    value = str(value or "").lower().replace("ı", "i")
+    value = unicodedata.normalize("NFKD", value)
+    value = "".join(ch for ch in value if not unicodedata.combining(ch))
+    value = re.sub(r"[^a-z0-9.\s]", " ", value)
+    return re.sub(r"\s+", " ", value).strip()
+
+
+def _resolve_direct_website(command: str):
+    """Return (url, label) for high-confidence website commands, or None."""
+    text = _normalize_direct_command(command)
+    if not re.search(r"\b(ac|acsana|aciver|acalim|gir|git|ziyaret et|open|launch|visit)\b", text):
+        return None
+
+    # Explicit role names beat generic "site" and app names.
+    if any(alias in text for alias in ("benim sitem", "sitemi", "sitem", "admin", "yonetim panel")):
+        return ("https://stagepulse.com.tr/admin/", "Stagepulse yönetim paneli")
+    if any(alias in text for alias in ("personel", "staff portal", "staff sayf")):
+        return ("https://stagepulse.com.tr/portal/", "Stagepulse personel portalı")
+
+    # An explicit domain always means the public site, never the admin panel.
+    if "stagepulse.com.tr" in text or re.search(r"\bstagepulse\s+com\s+tr\b", text):
+        return ("https://stagepulse.com.tr/", "Stagepulse ana sitesi")
+    if "facebook" in text:
+        return ("https://www.facebook.com/", "Facebook")
+    if "site" in text or "stagepulse" in text:
+        return ("https://stagepulse.com.tr/", "Stagepulse ana sitesi")
+    return None
 
 
 class CommandProcessor:
@@ -41,6 +75,37 @@ class CommandProcessor:
     
     def process(self, command: str) -> Dict[str, Any]:
         logger.command(command)
+
+        # Run explicit personal website aliases before generic app/AI recognition.
+        # This prevents "Stagepulse.com.tr" from being misheard as Facebook or
+        # launched through the generic application-name matcher.
+        direct_target = _resolve_direct_website(command)
+        if direct_target:
+            url, label = direct_target
+            try:
+                opened = webbrowser.open(url, new=2)
+                if opened:
+                    return {
+                        "success": True,
+                        "response": f"{label} açıldı.",
+                        "intent": "open_website",
+                        "url": url,
+                    }
+                return {
+                    "success": False,
+                    "response": f"{label} için varsayılan tarayıcı açılamadı: {url}",
+                    "intent": "open_website",
+                    "url": url,
+                }
+            except Exception as exc:
+                logger.error(f"Website open failed for {url}: {exc}")
+                return {
+                    "success": False,
+                    "response": f"{label} açılamadı: {exc}",
+                    "intent": "open_website",
+                    "url": url,
+                }
+
         intent_result = self.intent_recognizer.recognize(command)
         intent = intent_result['intent']
         confidence = intent_result['confidence']
