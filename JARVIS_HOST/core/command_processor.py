@@ -73,7 +73,7 @@ class CommandProcessor:
         
         logger.info("Command processor initialized")
     
-    def process(self, command: str) -> Dict[str, Any]:
+    def process(self, command: str, profile_context: str = "") -> Dict[str, Any]:
         logger.command(command)
 
         # Explicit memory commands bypass intent classification so they remain reliable.
@@ -131,7 +131,7 @@ class CommandProcessor:
 
         if intent == 'unknown' or confidence < 0.3:
             try:
-                ai_response = self.ai_brain.ask(command)
+                ai_response = self.ai_brain.ask(command, profile_context=profile_context)
                 return {'success': True, 'response': ai_response, 'intent': 'ai'}
             except Exception:
                 pass
