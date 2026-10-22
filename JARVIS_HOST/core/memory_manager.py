@@ -82,14 +82,14 @@ class MemoryManager:
             )
 
         remember = re.match(
-            r"^(?:(?:jarvis)[,\s]+)?(?:(?:bunu|sunu)\s+)?(?:hatirla|aklinda tut)\s*[:,-]?\s*(.+)$",
-            normalized,
+            r"^(?:(?:jarvis)[,\\s]+)?(?:(?:bunu|şunu|sunu)\\s+)?"
+            r"(?:hatırla|hatirla|aklında tut|aklinda tut)\\s*[:,-]?\\s*(.+)$",
+            original,
             re.IGNORECASE,
         )
         if remember:
             fact = original
-            # Strip the command prefix from the original Unicode text without relying on
-            # accent-sensitive offsets by using the normalized payload for consistency.
+            # Preserve the user's original Turkish spelling in local memory.
             fact = remember.group(1).strip()
             if not fact:
                 return "Kaydetmem için hatırlamamı istediğin bilgiyi de yazmalısın."
@@ -109,8 +109,9 @@ class MemoryManager:
             return "Bunu kalıcı hafızama kaydettim."
 
         forget = re.match(
-            r"^(?:(?:jarvis)[,\s]+)?(?:(?:bunu|sunu)\s+)?(?:unut|hafizandan sil)\s*[:,-]?\s*(.+)$",
-            normalized,
+            r"^(?:(?:jarvis)[,\\s]+)?(?:(?:bunu|şunu|sunu)\\s+)?"
+            r"(?:unut|hafızandan sil|hafizandan sil)\\s*[:,-]?\\s*(.+)$",
+            original,
             re.IGNORECASE,
         )
         if forget:
