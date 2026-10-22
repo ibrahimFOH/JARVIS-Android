@@ -5,11 +5,17 @@ Main entry point
 
 import sys
 import argparse
+import os
 from pathlib import Path
 
 # Add project root to path
 project_root = Path(__file__).parent
 sys.path.insert(0, str(project_root))
+
+# PyInstaller Windows packages must resolve config/log files relative to the
+# installed application directory, not Explorer's inherited working directory.
+if getattr(sys, "frozen", False):
+    os.chdir(Path(sys.executable).resolve().parent)
 
 from utils import get_logger, log_startup, log_shutdown, get_config
 from core import get_jarvis
