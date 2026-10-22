@@ -5,7 +5,7 @@ Bağımsız Android JARVIS uygulaması. Bu proje, Windows Asistan 0.1.5 EXE'sini
 ## Güncel doğrulama
 
 - Package/application ID: `com.stagepulse.jarvis`
-- Sürüm: `2.3.0-device-actions` (versionCode 230)
+- Sürüm: `2.4.0-cross-app-voice` (versionCode 240)
 - minSdk 26 (Android 8.0), targetSdk 35
 - ABI: `arm64-v8a`, `armeabi-v7a`
 - Güncel CI/derleme geçmişi: [GitHub Actions](https://github.com/ibrahimFOH/JARVIS-Android/actions)
@@ -66,14 +66,14 @@ Köprüyü internete açma ve token'ı repoya yükleme. Token dosyası yerel kal
 
 ## Build
 
-Android Studio veya [GitHub Actions](https://github.com/ibrahimFOH/JARVIS-Android/actions) üzerinden build edilebilir. Derleme için Android SDK/Gradle paketlerine internet erişimi gerekir; Piper modeli, eSpeak veya NDK/CMake varlıkları indirilmez. Güncel test APK'sı başarılı CI çalışmasının `JARVIS-Android-2.3.0-device-actions` artifact'idir. CI başarısı gerçek telefonda elle test yapıldığı anlamına gelmez.
+Android Studio veya [GitHub Actions](https://github.com/ibrahimFOH/JARVIS-Android/actions) üzerinden build edilebilir. Derleme için Android SDK/Gradle paketlerine internet erişimi gerekir; Piper modeli, eSpeak veya NDK/CMake varlıkları indirilmez. Güncel test APK'sı başarılı CI çalışmasının `JARVIS-Android-2.4.0-cross-app-voice` artifact'idir. CI başarısı gerçek telefonda elle test yapıldığı anlamına gelmez.
 
 
-## Android 2.3.0: profil, dosyalar ve cihaz eylemleri
+## Android 2.4.0: uygulamalar arası sesli kontrol, profil ve dosyalar
 
 ### Ses ve kişisel profil
 - Ses girişi Android SpeechRecognizer ile Türkçe `tr-TR` kullanır; çevrimiçi tanıma tercih edilir. Sonuç sağlayıcının kalitesine ve internetine bağlıdır. Alternatif sonuçlar puanlanır ve sık karşılaşılan "Heijan biz" / "eğitim pakeylri baziela" benzeri hatalar için sınırlı normalizasyon uygulanır.
-- "Hey JARVIS" tek başına algılanırsa asistan yanıt verir ve ön planda sonraki komutu dinlemeyi dener. Uygulama arka planda gizlice sürekli dinleme yapmaz; önce kullanıcının mikrofon düğmesine basması gerekir.
+- JARVIS ana uygulamasında **KONUŞ** düğmesiyle sürekli diyalog oturumu başlatılır; yeniden **DURDUR** ile kapatılır. Ana uygulama dışındaki ekranlarda konuşmak için Erişilebilirlik hizmetini etkinleştirip ekrandaki altın **MIC** yüzen düğmesine dokun. Kullanıcı başlatınca görünür bir sürekli mikrofon bildirimi çıkar ve konuşma bu oturum içinde uygulamalar arasında sürer. JARVIS açılışta gizlice/sürekli dinleme yapmaz; yüzen mikrofon düğmesiyle oturum ayrıca başlatılır.
 - Profil ilk kullanımda sorulur; kullanıcı adı, meslek/rol, şirket ve seçilen tercihler yalnızca bu cihazda saklanır. "Beni tanıyor musun", "Adımı ... olarak hatırla", "Profil" ve yerel hafıza komutları kullanılabilir.
 - **Profil, ses biyometrisi değildir.** Android konuşma tanıma sağlayıcısı konuşmacının kimliğini doğrulamaz. Başka kişi kullanıyorsa cihaz profilini PROFİL ekranından değiştirmek gerekir.
 - Android'in kurulu Text-to-Speech hizmeti yanıtları seslendirir. Türkçe ses yoksa Android'in Metin Okuma ayarlarından bir Türkçe ses indir/etkinleştir.
@@ -83,7 +83,7 @@ Android Studio veya [GitHub Actions](https://github.com/ibrahimFOH/JARVIS-Androi
 - "Not al ...", "Dosya oluştur not.txt içeriği ...", "Metin dosyası oluştur ...", "Klasör oluştur ...", "JARVIS dosyalarını listele", "Son dosyayı aç", "Dosya oku ...", "Dosya aç ..." komutları vardır. Modern Android sürümlerinde metin/Markdown/CSV/JSON/HTML/XML dosyaları ortak depolamadaki `İndirilenler/JARVIS/` klasörüne kaydedilir. Diğer dosyaları açmak/okumak için Android dosya seçicisinde kullanıcı dosyayı seçer. Son oluşturulan dosyanın silinmesi için onay gerekir.
 - Uygulama açma, Kişiler/Mesajlar/E-posta/Hesap Makinesi/Saat/Dosya Yöneticisi, kamera, harita, medya sesi, fener, zamanlayıcı/alarm ve uygun ayar ekranları için yerel komutlar bulunur. Mesaj gönderme, alarmı başlatma, güç menüsünden telefonu kapatma gibi eylemlerde kullanıcı onayı korunur.
 - Wi-Fi, Bluetooth ve mobil verinin doğrudan açılıp kapatılması Android sürümüne göre üçüncü taraf uygulamalara kapalı olabilir. Bu durumda JARVIS ilgili ayarı veya Hızlı Ayarlar panelini açar; gerçek durumu değiştirdiğini iddia etmez.
-- Ekran kilidi, Ana ekran/Geri/Bildirimler/Hızlı Ayarlar, görünür ekran metnini oku, "Tıkla Kaydet", "Alana yaz ..." ve kaydırma için Android **Erişilebilirlik** hizmeti isteğe bağlıdır. İlk kullanımda Android ayarlarında kullanıcı tarafından etkinleştirilmelidir. Bu güçlü izinle ekran metni yalnızca açık bir kullanıcı komutu sırasında okunur; olaylar arka planda kaydedilmez. Bazı güvenli pencereler ve uygulamalar erişilebilirlik eylemlerini engelleyebilir.
+- Ekran kilidi, Ana ekran/Geri/Bildirimler/Hızlı Ayarlar, görünür ekran metnini oku, "Tıkla Kaydet", "Alana yaz ..." ve kaydırma için Android **Erişilebilirlik** hizmeti isteğe bağlıdır. İlk kullanımda Android ayarlarında kullanıcı tarafından etkinleştirilmelidir. Etkinleştirildiğinde MIC yüzen düğmesi başka uygulamaların üzerindeyken de komut almaya yarar. Ekran metni yalnızca açık komut sırasında okunur; olaylar arka planda kaydedilmez. Bazı güvenli pencereler, DRM ekranları ve uygulamalar erişilebilirlik eylemlerini engelleyebilir. Başka uygulama kontrollerinin sonucu her uygulamada garanti edilemez.
 - Ekran parlaklığı için Android'in "Sistem ayarlarını değiştirme" özel izni gerekir. Telefonu zorla kapatmak, başka uygulamaları zorla sonlandırmak, korumalı sistem ayarlarını atlatmak veya bütün uygulamalarda her eylemi garanti etmek mümkün değildir.
 
 ### Windows ortak çekirdeği ve gizlilik
