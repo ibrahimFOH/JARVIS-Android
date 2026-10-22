@@ -585,6 +585,9 @@ public class MainActivity extends Activity {
         lower = lower.replaceAll("\\b(pakeylri|pakeyli|paketleri|paketli)\\b", "paketi");
         lower = lower.replaceAll("\\b(baziela|bazila|haziela|hazirlaa|hazila)\\b", "hazirla");
         lower = lower.replaceAll("\\b(egitim paketi hazirla|egitim paketi hazila|egitim paketi baziela|egitim paketini hazirla)\\b", "egitim paketi hazirla");
+        if (lower.matches("^hey jarvis[ ,:;.!-]*$") || lower.matches("^jarvis[ ,:;.!-]*$")) {
+            return "hey jarvis";
+        }
         lower = lower.replaceAll("\\bhey jarvis[ ,:;.!-]*", "").trim();
         if (lower.matches("^(egitim|eğitim) paket(i|ini) (hazirla|haziela|baziela)$")) {
             return "eğitim paketi hazırla";
