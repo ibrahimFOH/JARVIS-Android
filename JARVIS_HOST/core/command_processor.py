@@ -76,6 +76,23 @@ class CommandProcessor:
     def process(self, command: str) -> Dict[str, Any]:
         logger.command(command)
 
+        # Explicit memory commands bypass intent classification so they remain reliable.
+        try:
+            memory_response = self.ai_brain.memory.handle_command(command)
+            if memory_response:
+                return {
+                    "success": True,
+                    "response": memory_response,
+                    "intent": "memory",
+                }
+        except Exception as exc:
+            logger.error(f"Persistent memory command failed: {exc}")
+            return {
+                "success": False,
+                "response": "Kalıcı hafıza işlemi sırasında hata oluştu.",
+                "intent": "memory",
+            }
+
         # Run explicit personal website aliases before generic app/AI recognition.
         # This prevents "Stagepulse.com.tr" from being misheard as Facebook or
         # launched through the generic application-name matcher.
