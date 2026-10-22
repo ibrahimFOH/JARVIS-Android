@@ -177,9 +177,15 @@ public class MainActivity extends Activity {
                         }
                     })
                     .setNegativeButton("İPTAL", (dialog, which) -> {
-                        append("JARVIS", "Güncelleme indirildi fakat kurulum iptal edildi.");
+                        File declined = pendingUpdateFile;
+                        pendingUpdateFile = null;
+                        pendingUpdateVersion = "";
+                        updatePrefs.edit().remove("pending_apk").remove("pending_version").apply();
+                        if (declined != null) declined.delete();
+                        append("JARVIS", "Kurulum izni verilmedi; indirilmiş güncelleme iptal edildi.");
                         refreshVoiceStatus();
                     })
+                    .setCancelable(false)
                     .show();
             return;
         }
@@ -236,7 +242,11 @@ public class MainActivity extends Activity {
                 if (candidate.isFile()) pendingUpdateFile = candidate;
             }
         }
-        if (pendingUpdateFile != null && !updateInstallInProgress) beginUpdateInstall();
+        boolean installPermissionGranted = Build.VERSION.SDK_INT < Build.VERSION_CODES.O
+                || getPackageManager().canRequestPackageInstalls();
+        if (pendingUpdateFile != null && !updateInstallInProgress && installPermissionGranted) {
+            beginUpdateInstall();
+        }
     }
 
     private void showHostSettings(){
