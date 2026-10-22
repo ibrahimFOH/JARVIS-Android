@@ -513,13 +513,25 @@ public class MainActivity extends Activity {
                     speechRecognitionBusy = false;
                     updateVoiceControl(false);
                     hud.setActive(false);
-                    ArrayList<String> x=b.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION);
-                    if(x!=null&&!x.isEmpty()){
-                        command.setText(x.get(0));
-                        sendCommand(x.get(0));
+                    ArrayList<String> candidates = b.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION);
+                    if(candidates != null && !candidates.isEmpty()){
+                        String recognized = normalizeVoiceCommand(chooseBestTranscript(candidates));
+                        if (recognized.isEmpty()) {
+                            refreshVoiceStatus();
+                            append("SES ALGILAMA", "Komut anlaşılır bir metne dönüştürülemedi. Tekrar söyleyebilir veya yazabilirsin.");
+                            return;
+                        }
+                        command.setText(recognized);
+                        if (isWakePhraseOnly(recognized)) {
+                            refreshVoiceStatus();
+                            append("JARVIS", "Buradayım Patron. Komutunu söyle.");
+                            speak("Buradayım Patron. Komutunu söyle.");
+                        } else {
+                            sendCommand(recognized);
+                        }
                     } else {
                         refreshVoiceStatus();
-                        append("SES ALGILAMA","Sunucudan metin sonucu gelmedi.");
+                        append("SES ALGILAMA","Konuşma tanıma hizmetinden metin sonucu gelmedi.");
                     }
                 }
                 public void onPartialResults(Bundle b){
@@ -536,6 +548,58 @@ public class MainActivity extends Activity {
             speech = null;
             append("SES ALGILAMA","Konuşma tanıma başlatılamadı: " + e.getClass().getSimpleName());
         }
+    }
+
+    private String chooseBestTranscript(List<String> candidates) {
+        String best = "";
+        int bestScore = Integer.MIN_VALUE;
+        for (String candidate : candidates) {
+            if (candidate == null || candidate.trim().isEmpty()) continue;
+            String normalized = normalizeVoiceCommand(candidate);
+            String lower = normalized.toLowerCase(new Locale("tr", "TR"));
+            int score = Math.min(normalized.length(), 120) / 12;
+            if (lower.contains("hey jarvis") || lower.contains("hey jervis")
+                    || lower.contains("hey carvis") || lower.contains("heijan biz")
+                    || lower.contains("eğitim paketi") || lower.contains("egitim paketi")) score += 5;
+            if (lower.contains("hazırla") || lower.contains("hazirla")
+                    || lower.contains("oluştur") || lower.contains("olustur")
+                    || lower.contains("aç") || lower.contains("ac")) score += 3;
+            if (lower.matches(".*\\b(facebook|whatsapp|instagram)\\b.*")) score += 1;
+            if (score > bestScore) {
+                best = normalized;
+                bestScore = score;
+            }
+        }
+        return best;
+    }
+
+    private String normalizeVoiceCommand(String raw) {
+        if (raw == null) return "";
+        String value = raw.trim().replaceAll("\\s+", " ");
+        String lower = value.toLowerCase(new Locale("tr", "TR"));
+        lower = lower.replace("ı", "i").replace("ş", "s").replace("ğ", "g")
+                .replace("ü", "u").replace("ö", "o").replace("ç", "c");
+        // Common Turkish speech-recognition mishearings seen in device tests.
+        lower = lower.replaceAll("\\b(heijan biz|hey jervis|hey carvis|hey jarvis|hey cervis|hey djarvis)\\b", "hey jarvis");
+        lower = lower.replaceAll("\\b(jarvis|jervis|carvis|cervis|djarvis)\\b", "jarvis");
+        lower = lower.replaceAll("\\b(pakeylri|pakeyli|paketleri|paketli)\\b", "paketi");
+        lower = lower.replaceAll("\\b(baziela|bazila|haziela|hazirlaa|hazila)\\b", "hazirla");
+        lower = lower.replaceAll("\\b(egitim paketi hazirla|egitim paketi hazila|egitim paketi baziela|egitim paketini hazirla)\\b", "egitim paketi hazirla");
+        lower = lower.replaceAll("\\bhey jarvis[ ,:;.!-]*", "").trim();
+        if (lower.matches("^(egitim|eğitim) paket(i|ini) (hazirla|haziela|baziela)$")) {
+            return "eğitim paketi hazırla";
+        }
+        // Keep Turkish wording for display and downstream intent matching.
+        if (lower.matches("^(hey )?jarvis$")) return "hey jarvis";
+        return lower.replace("egitim", "eğitim").replace("hazirla", "hazırla");
+    }
+
+    private boolean isWakePhraseOnly(String commandText) {
+        if (commandText == null) return false;
+        String normalized = commandText.toLowerCase(new Locale("tr", "TR"))
+                .replace("ı", "i").replace("ş", "s").replace("ğ", "g")
+                .replace("ü", "u").replace("ö", "o").replace("ç", "c").trim();
+        return normalized.equals("jarvis") || normalized.equals("hey jarvis");
     }
 
     private void listen(){
