@@ -23,6 +23,8 @@ import android.provider.MediaStore;
 import android.net.Uri;
 import android.media.AudioManager;
 import android.graphics.drawable.GradientDrawable;
+import android.hardware.camera2.CameraCharacteristics;
+import android.hardware.camera2.CameraManager;
 import android.graphics.PixelFormat;
 import android.graphics.Color;
 import android.content.pm.ServiceInfo;
@@ -689,6 +691,53 @@ public final class JarvisAccessibilityService extends AccessibilityService {
         if (x.contains("rahatsiz etme") || x.contains("bildirim izinleri"))
             return startSystemActivity(Settings.ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS, "Bildirim ayarlarını açıyorum.");
 
+        if (x.contains("fener") || x.contains("el feneri") || x.contains("flashlight")) {
+            if (checkSelfPermission(Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
+                stopOverlayVoice();
+                launchMainForCommand(command);
+                return "Fener izni için JARVIS uygulamasını açıyorum.";
+            }
+            try {
+                CameraManager camera = (CameraManager) getSystemService(CAMERA_SERVICE);
+                String selected = null;
+                if (camera != null) {
+                    for (String id : camera.getCameraIdList()) {
+                        CameraCharacteristics details = camera.getCameraCharacteristics(id);
+                        Boolean available = details.get(CameraCharacteristics.FLASH_INFO_AVAILABLE);
+                        Integer facing = details.get(CameraCharacteristics.LENS_FACING);
+                        if (Boolean.TRUE.equals(available)
+                                && (facing == null || facing == CameraCharacteristics.LENS_FACING_BACK)) {
+                            selected = id;
+                            break;
+                        }
+                    }
+                }
+                if (selected == null) return "Bu telefonda kullanılabilir bir fener bulunamadı.";
+                boolean off = x.contains("kapat") || x.contains("sondur");
+                camera.setTorchMode(selected, !off);
+                return off ? "Telefon fenerini kapattım." : "Telefon fenerini açtım.";
+            } catch (Exception e) {
+                return "Fener kontrol edilemedi: " + e.getClass().getSimpleName();
+            }
+        }
+        if (x.contains("parlakligi artir") || x.contains("ekrani aydinlat")
+                || x.contains("parlakligi azalt") || x.contains("ekrani karart")) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.System.canWrite(this)) {
+                stopOverlayVoice();
+                launchMainForCommand(command);
+                return "Parlaklık ayarı için Android özel iznini açmanı istiyorum.";
+            }
+            try {
+                int current = Settings.System.getInt(getContentResolver(), Settings.System.SCREEN_BRIGHTNESS, 128);
+                int change = (x.contains("azalt") || x.contains("karart")) ? -32 : 32;
+                int next = Math.max(5, Math.min(255, current + change));
+                Settings.System.putInt(getContentResolver(), Settings.System.SCREEN_BRIGHTNESS_MODE,
+                        Settings.System.SCREEN_BRIGHTNESS_MODE_MANUAL);
+                boolean saved = Settings.System.putInt(getContentResolver(), Settings.System.SCREEN_BRIGHTNESS, next);
+                return saved ? "Ekran parlaklığını yüzde " + Math.round(next * 100f / 255f) + " yaptım."
+                        : "Android parlaklık ayarını kaydetmedi.";
+            } catch (Exception e) { return "Parlaklık değiştirilemedi: " + e.getMessage(); }
+        }
         if (x.contains("ses artir") || x.contains("sesi yukselt")) {
             AudioManager audio = (AudioManager) getSystemService(AUDIO_SERVICE);
             if (audio != null) audio.adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_RAISE, AudioManager.FLAG_SHOW_UI);
@@ -704,7 +753,9 @@ public final class JarvisAccessibilityService extends AccessibilityService {
             if (audio != null) audio.adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_MUTE, AudioManager.FLAG_SHOW_UI);
             return "Medya sesini kapattım.";
         }
-        if (x.contains("uygulamayi ac") || x.contains(" uygulamasini ac") || x.startsWith("ac ")) {
+        boolean launchRequested = x.startsWith("ac ") || x.contains(" ac ") || x.endsWith(" ac")
+                || x.startsWith("baslat ") || x.contains(" calistir");
+        if (launchRequested) {
             if (x.contains("youtube")) return launchApp("com.google.android.youtube", "https://www.youtube.com/", "YouTube");
             if (x.contains("whatsapp")) return launchApp("com.whatsapp", "https://www.whatsapp.com/", "WhatsApp");
             if (x.contains("instagram")) return launchApp("com.instagram.android", "https://www.instagram.com/", "Instagram");
