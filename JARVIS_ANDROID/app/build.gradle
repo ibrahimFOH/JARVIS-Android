@@ -12,15 +12,28 @@ android {
         applicationId 'com.stagepulse.jarvis'
         minSdk 26
         targetSdk 35
-        versionCode 220
-        versionName '2.2.0-piper'
+        versionCode 221
+        versionName '2.2.1-piper'
         ndk {
             abiFilters 'arm64-v8a', 'armeabi-v7a'
         }
     }
 
+    signingConfigs {
+        release {
+            def keystorePath = System.getenv('JARVIS_KEYSTORE_PATH')
+            if (keystorePath != null && !keystorePath.trim().isEmpty()) {
+                storeFile file(keystorePath)
+                storePassword System.getenv('JARVIS_KEYSTORE_PASSWORD')
+                keyAlias System.getenv('JARVIS_KEY_ALIAS')
+                keyPassword System.getenv('JARVIS_KEY_PASSWORD')
+            }
+        }
+    }
+
     buildTypes {
         release {
+            signingConfig signingConfigs.release
             minifyEnabled false
             shrinkResources false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
