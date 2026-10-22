@@ -75,12 +75,25 @@ jobs:
           python - <<'PY'
           from pathlib import Path
           source = Path("JARVIS_ANDROID/app/src/main/java/com/stagepulse/jarvis/MainActivity.java").read_text(encoding="utf-8")
+          service = Path("JARVIS_ANDROID/app/src/main/java/com/stagepulse/jarvis/JarvisAccessibilityService.java").read_text(encoding="utf-8")
+          manifest = Path("JARVIS_ANDROID/app/src/main/AndroidManifest.xml").read_text(encoding="utf-8")
+          service_config = Path("JARVIS_ANDROID/app/src/main/res/xml/jarvis_accessibility_service.xml").read_text(encoding="utf-8")
           checks = {
               "visible send control": 'control("GÖNDER"' in source,
               "visible voice control": 'control("KONUŞ"' in source,
               "density-aware dimensions": "private int dp(float value)" in source,
               "voice toggle state": 'listening ? "DURDUR" : "KONUŞ"' in source,
               "partial transcription": "public void onPartialResults(Bundle b)" in source,
+              "alternate transcript ranking": "chooseBestTranscript(candidates)" in source,
+              "Hey JARVIS speech correction": "heijan biz" in source and "pakeylri" in source,
+              "profile persistence": 'getSharedPreferences("jarvis_profile"' in source,
+              "public Downloads document creation": "MediaStore.Downloads.EXTERNAL_CONTENT_URI" in source,
+              "training package document": "buildTrainingPackage()" in source,
+              "user selected document picker": "Intent.ACTION_OPEN_DOCUMENT" in source,
+              "flashlight and brightness actions": "setFlashlight(boolean enabled)" in source and "applyBrightness(int delta)" in source,
+              "screen read and text interaction": "readVisibleWindowText()" in service and "clickVisibleText(String target)" in service and "setFocusedText(String value)" in service,
+              "opt-in accessibility service registered": ".JarvisAccessibilityService" in manifest,
+              "accessibility screen-reading permission disclosed": 'android:canRetrieveWindowContent="true"' in service_config,
               "command submit handler": 'send.setOnClickListener(v -> sendCommand(command.getText().toString()))' in source,
           }
           for label, passed in checks.items():
