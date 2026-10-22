@@ -684,7 +684,7 @@ class JarvisGUI:
         ollama_model = field("OLLAMA MODELİ", brain.model)
 
         ctk.CTkLabel(
-            win, text="AUTO: normal sohbette hızlı Groq; web araştırmasında Gemini Google Search + URL Context; hata olursa diğer sağlayıcılar. Gemini ve Groq ayrı API anahtarı ister. Anahtarlar desteklenen Windows sistemlerinde DPAPI ile korunur.",
+            win, text="OTOMATİK MOD: normal sohbette hızlı Groq; web araştırmasında Gemini Google araması ve URL bağlamı kullanılır. Hata olursa diğer sağlayıcılar denenir. Gemini ve Groq ayrı API anahtarı ister. Anahtarlar desteklenen Windows sistemlerinde DPAPI ile korunur.",
             text_color=MUTED, font=("Consolas", 9), wraplength=490, justify="left"
         ).pack(anchor="w", padx=22, pady=(12, 6))
 
@@ -1197,7 +1197,7 @@ def _set_voice_state(self, phase, status, activity):
     self.phase.configure(text=phase)
     self.status.configure(
         text=status,
-        text_color=GOLD if phase in ("LISTENING", "SPEAKING", "PROCESSING") else GREEN
+        text_color=GOLD if phase in ("DİNLİYOR", "KONUŞUYOR", "İŞLENİYOR") else GREEN
     )
     self._activity(activity)
 
