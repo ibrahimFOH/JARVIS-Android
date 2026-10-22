@@ -1,19 +1,14 @@
 plugins { id 'com.android.application' }
 
-import java.net.URL
-import java.security.MessageDigest
-
 android {
     namespace 'com.stagepulse.jarvis'
     compileSdk 35
-    ndkVersion '27.2.12479018'
-
     defaultConfig {
         applicationId 'com.stagepulse.jarvis'
         minSdk 26
         targetSdk 35
-        versionCode 222
-        versionName '2.2.2-piper'
+        versionCode 223
+        versionName '2.2.3-online-voice'
         ndk {
             abiFilters 'arm64-v8a', 'armeabi-v7a'
         }
@@ -40,12 +35,6 @@ android {
         }
     }
 
-    externalNativeBuild {
-        cmake {
-            path 'src/main/cpp/CMakeLists.txt'
-        }
-    }
-
     sourceSets {
         main {
             jniLibs.srcDirs = ['src/main/jniLibs']
@@ -60,7 +49,6 @@ android {
 }
 
 dependencies {
-    implementation 'com.microsoft.onnxruntime:onnxruntime-android:1.18.0'
 }
 
 def downloadFile = { String sourceUrl, File destination ->
@@ -92,95 +80,3 @@ def sha256 = { File file ->
     md.digest().collect { String.format('%02x', it) }.join()
 }
 
-def preparePiperAssets = tasks.register('preparePiperAssets') {
-    doLast {
-        File assetsDir = file('src/main/assets')
-        File piperDir = new File(assetsDir, 'piper')
-        File espeakDir = new File(assetsDir, 'espeak-ng-data')
-        File jniRoot = file('src/main/jniLibs')
-        piperDir.mkdirs()
-        espeakDir.mkdirs()
-
-        File model = new File(piperDir, 'tr_TR-dfki-medium.onnx')
-        File modelJson = new File(piperDir, 'tr_TR-dfki-medium.onnx.json')
-
-        downloadFile(
-                'https://huggingface.co/rhasspy/piper-voices/resolve/main/tr/tr_TR/dfki/medium/tr_TR-dfki-medium.onnx?download=true',
-                model
-        )
-        downloadFile(
-                'https://huggingface.co/rhasspy/piper-voices/resolve/main/tr/tr_TR/dfki/medium/tr_TR-dfki-medium.onnx.json?download=true',
-                modelJson
-        )
-
-        String expectedModelSha = '2844717f524ab965d3fe86e60562cbb601d3e456836efcc2196cc3a14112a8fb'
-        if (sha256(model) != expectedModelSha) {
-            model.delete()
-            throw new GradleException('Piper DFKI model SHA-256 mismatch')
-        }
-
-        File header = file('src/main/cpp/include/espeak-ng/speak_lib.h')
-        downloadFile(
-                'https://raw.githubusercontent.com/siva-sub/NekoSpeak/main/app/src/main/cpp/include/espeak-ng/speak_lib.h',
-                header
-        )
-
-        ['arm64-v8a', 'armeabi-v7a'].each { abi ->
-            File so = new File(jniRoot, abi + '/libttsespeak.so')
-            downloadFile(
-                    'https://raw.githubusercontent.com/siva-sub/NekoSpeak/main/app/src/main/jniLibs/' + abi + '/libttsespeak.so',
-                    so
-            )
-        }
-
-        if (!new File(espeakDir, 'voices').exists()) {
-            File zip = new File(buildDir, 'nekospeak-source.zip')
-            downloadFile('https://codeload.github.com/siva-sub/NekoSpeak/zip/refs/heads/main', zip)
-
-            File extracted = new File(buildDir, 'nekospeak-source')
-            delete extracted
-            extracted.mkdirs()
-
-            copy {
-                from zipTree(zip)
-                into extracted
-                include '**/app/src/main/assets/espeak-ng-data/**'
-            }
-
-            File marker = fileTree(extracted).matching {
-                include '**/app/src/main/assets/espeak-ng-data/af_dict'
-            }.files.find { it.isFile() }
-
-            if (marker == null) {
-                throw new GradleException('NekoSpeak espeak-ng-data not found in source archive')
-            }
-
-            File found = marker.parentFile
-            copy {
-                from found
-                into espeakDir
-            }
-        }
-
-        // The bundled NekoSpeak data includes Turkish language rules under
-        // lang/trk/tr, but may omit the named voice entry that
-        // espeak_SetVoiceByName("tr") requires. Add the minimal voice mapping.
-        File turkishVoice = new File(espeakDir, 'voices/tr')
-        if (!turkishVoice.exists()) {
-            turkishVoice.parentFile.mkdirs()
-            turkishVoice.setText("name Turkish\nlanguage tr\n", "UTF-8")
-        }
-        if (!turkishVoice.isFile() || !turkishVoice.getText("UTF-8").contains("language tr")) {
-            throw new GradleException('eSpeak-NG Turkish voice definition missing')
-        }
-
-        new File(espeakDir, '.prepared').text = 'prepared'
-    }
-}
-
-tasks.named('preBuild').configure { dependsOn preparePiperAssets }
-afterEvaluate {
-    tasks.matching { it.name.startsWith('externalNativeBuild') }.configureEach {
-        dependsOn preparePiperAssets
-    }
-}
