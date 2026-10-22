@@ -460,20 +460,24 @@ public class MainActivity extends Activity {
 
         EditText name = new EditText(this);
         name.setSingleLine(true);
+        name.setFilters(new android.text.InputFilter[]{new android.text.InputFilter.LengthFilter(80)});
         name.setHint("Profil adı (ör. İbrahim)");
         name.setText(profilePrefs.getString("owner_name", ""));
         EditText role = new EditText(this);
         role.setSingleLine(true);
+        role.setFilters(new android.text.InputFilter[]{new android.text.InputFilter.LengthFilter(120)});
         role.setHint("Meslek / rol (isteğe bağlı)");
         role.setText(profilePrefs.getString("owner_role", ""));
         EditText organization = new EditText(this);
         organization.setSingleLine(true);
+        organization.setFilters(new android.text.InputFilter[]{new android.text.InputFilter.LengthFilter(120)});
         organization.setHint("Şirket / proje (isteğe bağlı)");
         organization.setText(profilePrefs.getString("owner_company", ""));
         EditText context = new EditText(this);
         context.setHint("Tercihler ve hatırlanacak genel bilgiler");
         context.setMinLines(2);
         context.setMaxLines(4);
+        context.setFilters(new android.text.InputFilter[]{new android.text.InputFilter.LengthFilter(600)});
         context.setText(profilePrefs.getString("owner_context", ""));
         form.addView(name);
         form.addView(role);
@@ -965,10 +969,19 @@ public class MainActivity extends Activity {
             String tailNormalized = normalizeIntent(tail);
             String name;
             String content;
-            int marker = tailNormalized.indexOf(" icerik ");
+            int marker = -1;
+            int markerLength = 0;
+            String[] contentMarkers = {" icerik ", " icerigi ", " metni ", " icerikle "};
+            for (String candidate : contentMarkers) {
+                int found = tailNormalized.indexOf(candidate);
+                if (found >= 0 && (marker < 0 || found < marker)) {
+                    marker = found;
+                    markerLength = candidate.length();
+                }
+            }
             if (marker >= 0) {
-                name = tail.substring(0, marker).trim();
-                content = tail.substring(Math.min(tail.length(), marker + " icerik ".length())).trim();
+                name = tail.substring(0, Math.min(tail.length(), marker)).trim();
+                content = tail.substring(Math.min(tail.length(), marker + markerLength)).trim();
             } else {
                 name = tail;
                 content = "JARVIS tarafından oluşturuldu: " + new SimpleDateFormat("dd.MM.yyyy HH:mm", new Locale("tr", "TR")).format(new Date()) + "\n";
