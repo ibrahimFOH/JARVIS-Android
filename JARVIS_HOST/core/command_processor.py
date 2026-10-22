@@ -732,8 +732,11 @@ try:
         normalized = normalized.replace("?", "").replace("!", "").replace(".", "").strip()
 
         site_terms = ("stagepulse", "stage pulse", "benim sitem", "sitem", "siteyi", "site")
+        admin_terms = ("admin", "yonetim", "panel", "benim sitem", "sitemi")
+        staff_terms = ("personel", "calisan", "staff", "ekip sayfasi", "personel sayfasi")
         open_terms = ("ac", "gir", "goster", "git", "calistir", "getir")
-        if not any(term in normalized for term in site_terms):
+        specific_destination = any(term in normalized for term in admin_terms + staff_terms)
+        if not specific_destination and not any(term in normalized for term in site_terms):
             return None
         if not any(term in normalized for term in open_terms) and normalized not in ("sitem", "site", "stagepulse", "stage pulse"):
             return None
