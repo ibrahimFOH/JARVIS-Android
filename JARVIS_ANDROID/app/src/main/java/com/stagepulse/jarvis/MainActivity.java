@@ -43,6 +43,7 @@ public class MainActivity extends Activity {
     private TextToSpeech androidTts;
     private volatile boolean androidTtsReady = false;
     private volatile boolean speechRecognitionBusy = false;
+    private volatile boolean continuousConversation = false;
     private AgencyAgent activeAgent;
     private android.content.SharedPreferences bridgePrefs;
     private android.content.SharedPreferences updatePrefs;
@@ -219,7 +220,7 @@ public class MainActivity extends Activity {
         getWindow().setSoftInputMode(
                 android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
 
-        send.setOnClickListener(v -> sendCommand(command.getText().toString()));
+        send.setOnClickListener(v -> { continuousConversation = false; sendCommand(command.getText().toString()); });
         command.setOnEditorActionListener((v, actionId, event) -> {
             boolean keyboardSend = actionId == android.view.inputmethod.EditorInfo.IME_ACTION_SEND
                     || actionId == android.view.inputmethod.EditorInfo.IME_ACTION_DONE;
@@ -228,6 +229,7 @@ public class MainActivity extends Activity {
                     && event.getAction() == android.view.KeyEvent.ACTION_DOWN
                     && !event.isShiftPressed();
             if (keyboardSend || enterPressed) {
+                continuousConversation = false;
                 sendCommand(command.getText().toString());
                 return true;
             }
@@ -238,7 +240,7 @@ public class MainActivity extends Activity {
         host.setOnClickListener(v -> showHostSettings());
         profile.setOnClickListener(v -> showProfileSettings(false));
         update.setOnClickListener(v -> checkForUpdates(true));
-        help.setOnClickListener(v -> sendCommand("yardım"));
+        help.setOnClickListener(v -> { continuousConversation = false; sendCommand("yardım"); });
     }
 
     private void checkForUpdates(boolean manual) {
@@ -1171,6 +1173,7 @@ public class MainActivity extends Activity {
                     status.setText("● TRANSCRIBING");
                 }
                 public void onError(int e){
+                    continuousConversation = false;
                     speechRecognitionBusy = false;
                     updateVoiceControl(false);
                     hud.setActive(false);
@@ -1214,9 +1217,7 @@ public class MainActivity extends Activity {
                             command.setText("");
                             append("JARVIS", "Buradayım Patron. Komutunu söyle.");
                             speak("Buradayım Patron. Komutunu söyle.");
-                            new Handler(Looper.getMainLooper()).postDelayed(() -> {
-                                if (!isFinishing() && !speechRecognitionBusy) listen();
-                            }, 1400L);
+                            // Continuous voice mode resumes after this acknowledgment finishes.
                         } else {
                             sendCommand(recognized);
                         }
@@ -1298,10 +1299,12 @@ public class MainActivity extends Activity {
 
     private void listen(){
         if(speech==null){
+            continuousConversation = false;
             append("SES ALGILAMA","Bu cihazda kullanılabilir bir konuşma tanıma servisi bulunamadı. Google uygulamasını veya cihazın konuşma tanıma hizmetini etkinleştir.");
             return;
         }
         if(speechRecognitionBusy){
+            continuousConversation = false;
             try{speech.cancel();}catch(Exception ignored){}
             speechRecognitionBusy=false;
             updateVoiceControl(false);
@@ -1310,8 +1313,13 @@ public class MainActivity extends Activity {
             append("SES ALGILAMA","Dinleme durduruldu.");
             return;
         }
-        if(checkSelfPermission(Manifest.permission.RECORD_AUDIO)!=PackageManager.PERMISSION_GRANTED){requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO},REQ_AUDIO);return;}
+        if(checkSelfPermission(Manifest.permission.RECORD_AUDIO)!=PackageManager.PERMISSION_GRANTED){
+            continuousConversation = true;
+            requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO},REQ_AUDIO);
+            return;
+        }
         try {
+            continuousConversation = true;
             speechRecognitionBusy = true;
             updateVoiceControl(true);
             hud.setActive(true);
@@ -1326,6 +1334,7 @@ public class MainActivity extends Activity {
             status.setText("● CONNECTING TO SPEECH");
             speech.startListening(i);
         } catch (Exception e) {
+            continuousConversation = false;
             speechRecognitionBusy = false;
             updateVoiceControl(false);
             hud.setActive(false);
@@ -1427,7 +1436,15 @@ public class MainActivity extends Activity {
                 a="İşlem tamamlanamadı Patron. Teknik bilgi: "+e.getClass().getSimpleName();
             }
             final String answer=a;
-            runOnUiThread(()->{hud.setActive(false);if(!status.getText().toString().startsWith("● AGENT"))refreshVoiceStatus();append("JARVIS",answer);speak(answer);});
+            runOnUiThread(()->{
+                hud.setActive(false);
+                if(!status.getText().toString().startsWith("● AGENT")) refreshVoiceStatus();
+                append("JARVIS", answer);
+                speak(answer);
+                if (!androidTtsReady && continuousConversation) {
+                    new Handler(Looper.getMainLooper()).postDelayed(() -> resumeVoiceConversation(), 1200L);
+                }
+            });
         });
     }
 
@@ -1992,6 +2009,15 @@ public class MainActivity extends Activity {
                 androidTtsReady = fallback != TextToSpeech.LANG_MISSING_DATA
                         && fallback != TextToSpeech.LANG_NOT_SUPPORTED;
             }
+            androidTts.setOnUtteranceProgressListener(new android.speech.tts.UtteranceProgressListener() {
+                @Override public void onStart(String utteranceId) { }
+                @Override public void onError(String utteranceId) { }
+                @Override public void onDone(String utteranceId) {
+                    if (utteranceId != null && utteranceId.startsWith("jarvis-")) {
+                        runOnUiThread(() -> resumeVoiceConversation());
+                    }
+                }
+            });
             refreshVoiceStatus();
             if (androidTtsReady) {
                 append("SES ÇIKIŞI", "Piper kaldırıldı. Yanıtlar Android sistem ses motoruyla okunacak.");
@@ -1999,6 +2025,13 @@ public class MainActivity extends Activity {
                 append("SES ÇIKIŞI", "Türkçe sistem sesi bulunamadı. Android Ayarlar > Metin okuma bölümünden Türkçe ses indir veya etkinleştir.");
             }
         }));
+    }
+
+    private void resumeVoiceConversation() {
+        if (!continuousConversation || speechRecognitionBusy || isFinishing()) return;
+        new Handler(Looper.getMainLooper()).postDelayed(() -> {
+            if (continuousConversation && !speechRecognitionBusy && !isFinishing()) listen();
+        }, 350L);
     }
 
     private void speak(String s){
