@@ -11,6 +11,7 @@ import android.os.*;
 import android.provider.Settings;
 import android.net.Uri;
 import android.speech.*;
+import android.speech.tts.TextToSpeech;
 import android.view.Gravity;
 import android.widget.*;
 import java.text.SimpleDateFormat;
@@ -29,6 +30,9 @@ public class MainActivity extends Activity {
     private HudView hud;
     private SpeechRecognizer speech;
     private PiperTts piper;
+    private TextToSpeech androidTts;
+    private volatile boolean androidTtsReady = false;
+    private volatile boolean piperFailed = false;
     private AgencyAgent activeAgent;
     private android.content.SharedPreferences bridgePrefs;
     private android.content.SharedPreferences updatePrefs;
@@ -52,6 +56,7 @@ public class MainActivity extends Activity {
             if (candidate.isFile()) pendingUpdateFile = candidate;
         }
         buildUi();
+        initAndroidTts();
         initPiper();
         initSpeech();
         append("JARVIS","PATRON, bağımsız Android çekirdeği hazır.");
@@ -63,32 +68,94 @@ public class MainActivity extends Activity {
     }
 
     private void buildUi(){
-        LinearLayout root=new LinearLayout(this); root.setOrientation(LinearLayout.VERTICAL);
-        root.setPadding(18,12,18,12); root.setBackgroundColor(0xFF050505);
-        LinearLayout top=new LinearLayout(this); top.setOrientation(LinearLayout.VERTICAL);
-        TextView title=tv("J.A.R.V.I.S.",27,gold()); title.setTypeface(null,1); top.addView(title);
-        top.addView(tv("JUST A RATHER VERY INTELLIGENT SYSTEM   //   STAGEPULSE",10,muted()));
-        status=tv("● ONLINE",11,gold()); status.setTypeface(null,1); top.addView(status); root.addView(top);
-        hud=new HudView(this); root.addView(hud,new LinearLayout.LayoutParams(-1,0,1));
-        chat=tv("",12,white()); chat.setGravity(Gravity.BOTTOM); chat.setPadding(8,8,8,8); chat.setBackgroundColor(panel());
-        ScrollView scroll=new ScrollView(this); scroll.addView(chat); root.addView(scroll,new LinearLayout.LayoutParams(-1,0,.65f));
-        command=new EditText(this); command.setHint("COMMAND // Türkçe komut gir..."); command.setHintTextColor(muted());
-        command.setTextColor(white()); command.setMinLines(2); command.setBackgroundColor(panel()); command.setPadding(14,12,14,12);
+        LinearLayout root=new LinearLayout(this);
+        root.setOrientation(LinearLayout.VERTICAL);
+        root.setPadding(16,12,16,12);
+        root.setBackgroundColor(0xFF050505);
+
+        LinearLayout header=new LinearLayout(this);
+        header.setOrientation(LinearLayout.VERTICAL);
+        TextView title=tv("J.A.R.V.I.S.",28,gold());
+        title.setTypeface(null,1);
+        header.addView(title);
+        header.addView(tv("STAGEPULSE  //  PERSONAL AI SYSTEM",10,muted()));
+        status=tv("● STARTING LOCAL CORE",12,gold());
+        status.setTypeface(null,1);
+        LinearLayout.LayoutParams statusLp=new LinearLayout.LayoutParams(-1,-2);
+        statusLp.topMargin=6;
+        header.addView(status,statusLp);
+        root.addView(header);
+
+        hud=new HudView(this);
+        LinearLayout.LayoutParams hudLp=new LinearLayout.LayoutParams(-1,190);
+        hudLp.topMargin=4;
+        root.addView(hud,hudLp);
+
+        TextView systemLine=tv("LOCAL COMMANDS READY  •  WINDOWS LINK OPTIONAL",10,muted());
+        systemLine.setPadding(2,4,2,8);
+        root.addView(systemLine);
+
+        chat=tv("JARVIS  //  SESSION\n\nBağımsız Android çekirdeği başlatılıyor.\nWindows bağlantısı isteğe bağlıdır.",14,white());
+        chat.setGravity(Gravity.TOP|Gravity.START);
+        chat.setPadding(12,12,12,12);
+        chat.setBackgroundColor(panel());
+        ScrollView scroll=new ScrollView(this);
+        scroll.setFillViewport(true);
+        scroll.addView(chat);
+        LinearLayout.LayoutParams chatLp=new LinearLayout.LayoutParams(-1,0,1f);
+        chatLp.bottomMargin=8;
+        root.addView(scroll,chatLp);
+
+        command=new EditText(this);
+        command.setHint("Komutunu yaz veya mikrofonu kullan...");
+        command.setHintTextColor(muted());
+        command.setTextColor(white());
+        command.setTextSize(15);
+        command.setSingleLine(false);
+        command.setMinLines(1);
+        command.setMaxLines(3);
+        command.setBackgroundColor(panel());
+        command.setPadding(14,10,14,10);
         root.addView(command,new LinearLayout.LayoutParams(-1,-2));
-        LinearLayout row=new LinearLayout(this); row.setOrientation(LinearLayout.HORIZONTAL);
-        Button send=button("EXECUTE"), voice=button("◉ VOICE"), agents=button("AGENTS"), host=button("HOST"), update=button("UPDATE");
-        row.addView(send,new LinearLayout.LayoutParams(0,58,1));
-        row.addView(voice,new LinearLayout.LayoutParams(0,58,1));
-        row.addView(agents,new LinearLayout.LayoutParams(0,58,1));
-        row.addView(host,new LinearLayout.LayoutParams(0,58,1));
-        row.addView(update,new LinearLayout.LayoutParams(0,58,1));
-        root.addView(row);
+
+        LinearLayout primary=new LinearLayout(this);
+        primary.setOrientation(LinearLayout.HORIZONTAL);
+        Button send=button("KOMUTU ÇALIŞTIR");
+        Button voice=button("◉ KONUŞ");
+        primary.addView(send,new LinearLayout.LayoutParams(0,54,1.35f));
+        primary.addView(voice,new LinearLayout.LayoutParams(0,54,1f));
+        LinearLayout.LayoutParams primaryLp=new LinearLayout.LayoutParams(-1,-2);
+        primaryLp.topMargin=6;
+        root.addView(primary,primaryLp);
+
+        LinearLayout secondary=new LinearLayout(this);
+        secondary.setOrientation(LinearLayout.HORIZONTAL);
+        Button agents=button("UZMANLAR");
+        Button host=button("PC BAĞLANTISI");
+        Button update=button("GÜNCELLE");
+        Button help=button("YARDIM");
+        secondary.addView(agents,new LinearLayout.LayoutParams(0,48,1f));
+        secondary.addView(host,new LinearLayout.LayoutParams(0,48,1.2f));
+        secondary.addView(update,new LinearLayout.LayoutParams(0,48,1f));
+        secondary.addView(help,new LinearLayout.LayoutParams(0,48,1f));
+        root.addView(secondary);
+
         setContentView(root);
         send.setOnClickListener(v->sendCommand(command.getText().toString()));
+        command.setOnEditorActionListener((v,actionId,event)->{
+            if(event!=null && event.getKeyCode()==android.view.KeyEvent.KEYCODE_ENTER
+                    && event.getAction()==android.view.KeyEvent.ACTION_DOWN
+                    && !event.isShiftPressed()){
+                sendCommand(command.getText().toString());
+                return true;
+            }
+            return false;
+        });
         voice.setOnClickListener(v->listen());
         agents.setOnClickListener(v->showAgents());
         host.setOnClickListener(v->showHostSettings());
         update.setOnClickListener(v->checkForUpdates(true));
+        help.setOnClickListener(v->sendCommand("yardım"));
     }
 
     private Button button(String s){Button b=new Button(this);b.setText(s);b.setTextColor(gold());b.setTextSize(11);b.setBackgroundColor(panel());return b;}
@@ -347,9 +414,15 @@ public class MainActivity extends Activity {
                     speak("PATRON, bağımsız Android çekirdeği hazır. Türkçe ses motoru da hazır.");
                 }),
                 () -> runOnUiThread(() -> {
-                    status.setText("● VOICE ERROR");
-                    status.setTextColor(0xFFFF5555);
-                    append("JARVIS","Türkçe ses motoru başlatılamadı. Piper/eSpeak başlatma hatası. Logcat: JARVIS_PIPER.");
+                    piperFailed = true;
+                    status.setText("● VOICE FALLBACK");
+                    status.setTextColor(0xFFFFB74D);
+                    String detail = piper.getLastError();
+                    append("SES MOTORU", "Piper başlatılamadı. Ayrıntı: " + (detail.isEmpty() ? "Ayrıntı alınamadı." : detail));
+                    append("JARVIS", androidTtsReady
+                        ? "Piper yerine cihazın sistem ses motorunu kullanacağım. Türkçe sistem sesi yüklü değilse Android TTS ayarlarından indir."
+                        : "Piper hata verdi; sistem ses motoru başlatılıyor. Bu sırada yazılı komutlar çalışmaya devam eder.");
+                    if (androidTtsReady) speak("Patron, Piper ses motoru açılamadı. Sistem ses motoruna geçtim.");
                 })
         );
     }
@@ -430,7 +503,82 @@ public class MainActivity extends Activity {
         return q;
     }
 
+    private String handleLocalMemory(String raw) {
+        String original = raw == null ? "" : raw.trim();
+        String normalized = original.toLowerCase(new Locale("tr", "TR")).replace("ı", "i");
+        android.content.SharedPreferences prefs = getSharedPreferences("jarvis_local_memory", MODE_PRIVATE);
+        if (normalized.equals("hafızamı göster") || normalized.equals("hafizamı goster")
+                || normalized.equals("hafızamda ne var") || normalized.equals("hafizamda ne var")
+                || normalized.equals("ne hatırlıyorsun") || normalized.equals("ne hatirliyorsun")) {
+            Set<String> stored = prefs.getStringSet("facts", Collections.emptySet());
+            if (stored == null || stored.isEmpty()) return "Yerel hafızam henüz boş. 'Hatırla: ...' komutuyla bilgi kaydedebilirsin.";
+            StringBuilder result = new StringBuilder("Bu cihazdaki kalıcı hafızam:\\n");
+            int index = 1;
+            for (String fact : new TreeSet<>(stored)) result.append(index++).append(". ").append(fact).append("\\n");
+            return result.toString().trim();
+        }
+        String fact = null;
+        if (normalized.startsWith("hatırla:") || normalized.startsWith("hatirla:")) fact = original.substring(original.indexOf(':') + 1).trim();
+        else if (normalized.startsWith("hatırla ") || normalized.startsWith("hatirla ")) fact = original.substring(original.indexOf(' ') + 1).trim();
+        else if (normalized.startsWith("jarvis, hatırla ") || normalized.startsWith("jarvis, hatirla ")) fact = original.substring(original.indexOf("hatırla") >= 0 ? original.indexOf("hatırla") + 7 : original.indexOf("hatirla") + 7).trim();
+        if (fact != null) {
+            if (fact.length() > 300) return "Tek bir hafıza kaydı en fazla 300 karakter olabilir.";
+            if (fact.matches("(?is).*(password|parola|şifre|sifre|api\\s*key|access\\s*token|token|secret|otp|pin|tc kimlik|kredi kartı|credit card).*"))
+                return "Güvenlik için parola, erişim anahtarı veya benzeri gizli bilgileri hafızaya kaydetmiyorum.";
+            Set<String> stored = new LinkedHashSet<>(prefs.getStringSet("facts", Collections.emptySet()));
+            for (String existing : stored) if (existing.equalsIgnoreCase(fact)) return "Bu bilgi zaten hafızamda kayıtlı.";
+            stored.add(fact);
+            while (stored.size() > 100) stored.remove(stored.iterator().next());
+            prefs.edit().putStringSet("facts", stored).apply();
+            return "Bu bilgiyi bu cihazın kalıcı hafızasına kaydettim.";
+        }
+        String forget = null;
+        if (normalized.startsWith("unut:")) forget = original.substring(original.indexOf(':') + 1).trim();
+        else if (normalized.startsWith("unut ")) forget = original.substring(original.indexOf(' ') + 1).trim();
+        if (forget != null) {
+            if (forget.isEmpty()) return "Hangi bilgiyi unutmamı istediğini belirt.";
+            Set<String> stored = new LinkedHashSet<>(prefs.getStringSet("facts", Collections.emptySet()));
+            int before = stored.size();
+            String needle = forget.toLowerCase(new Locale("tr", "TR"));
+            stored.removeIf(item -> item.toLowerCase(new Locale("tr", "TR")).contains(needle));
+            int removed = before - stored.size();
+            prefs.edit().putStringSet("facts", stored).apply();
+            return removed > 0 ? "İstenen hafıza kaydını sildim. Silinen kayıt: " + removed : "Eşleşen hafıza kaydı bulamadım.";
+        }
+        return null;
+    }
+
+    private String openDirectWebsite(String raw) {
+        String x = raw == null ? "" : raw.toLowerCase(new Locale("tr", "TR"));
+        x = x.replace("ı","i").replace("ş","s").replace("ğ","g").replace("ü","u").replace("ö","o").replace("ç","c");
+        if (!(x.contains("ac") || x.contains("gir") || x.contains("git") || x.contains("ziyaret et") || x.contains("open"))) return null;
+        String url = null;
+        String label = null;
+        if (x.contains("benim sitem") || x.contains("sitemi") || x.contains("admin") || x.contains("yonetim panel")) {
+            url = "https://stagepulse.com.tr/admin/"; label = "Stagepulse yönetim paneli";
+        } else if (x.contains("personel") || x.contains("staff portal")) {
+            url = "https://stagepulse.com.tr/portal/"; label = "Stagepulse personel portalı";
+        } else if (x.contains("stagepulse.com.tr") || x.contains("stagepulse com tr")) {
+            url = "https://stagepulse.com.tr/"; label = "Stagepulse ana sitesi";
+        } else if (x.contains("facebook")) {
+            url = "https://www.facebook.com/"; label = "Facebook";
+        } else if (x.contains("siteyi") || x.contains("siteyi ac") || x.contains("stagepulse") || x.contains("siteyi aç")) {
+            url = "https://stagepulse.com.tr/"; label = "Stagepulse ana sitesi";
+        }
+        if (url == null) return null;
+        try {
+            startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url)));
+            return label + " açılıyor.";
+        } catch (Exception e) {
+            return label + " açılamadı. Tarayıcı kurulumunu kontrol et.";
+        }
+    }
+
     private String processLocal(String raw){
+        String memoryResponse = handleLocalMemory(raw);
+        if (memoryResponse != null) return memoryResponse;
+        String websiteResponse = openDirectWebsite(raw);
+        if (websiteResponse != null) return websiteResponse;
         String c=raw.toLowerCase(new Locale("tr","TR")).trim();
         if(c.equals("ajanlar")||c.equals("agentler")||c.contains("stagepulse agent"))return AgencyCatalog.listText();
         if(c.contains("aktif ajan")||c.contains("hangi ajan"))return activeAgent==null?"Şu anda aktif bir Stagepulse Agent yok.":"Aktif ajan: "+activeAgent.name+".";
@@ -453,13 +601,47 @@ public class MainActivity extends Activity {
         return "Komutunuz alındı Patron. Bu komut için Android yerel çekirdeğinde henüz bir işlem tanımlı değil.";
     }
 
-    private void speak(String s){if(piper!=null&&piper.isReady())piper.speak(s);}
+    private void initAndroidTts(){
+        androidTts = new TextToSpeech(this, result -> runOnUiThread(() -> {
+            if (result != TextToSpeech.SUCCESS) {
+                androidTtsReady = false;
+                if (piperFailed) append("SES MOTORU", "Android sistem TTS motoru da başlatılamadı. Yazılı komutlar kullanılabilir.");
+                return;
+            }
+            int language = androidTts.setLanguage(new Locale("tr", "TR"));
+            androidTts.setSpeechRate(1.0f);
+            androidTts.setPitch(1.0f);
+            androidTtsReady = language != TextToSpeech.LANG_MISSING_DATA
+                    && language != TextToSpeech.LANG_NOT_SUPPORTED;
+            if (!androidTtsReady) {
+                int fallback = androidTts.setLanguage(Locale.getDefault());
+                androidTtsReady = fallback != TextToSpeech.LANG_MISSING_DATA
+                        && fallback != TextToSpeech.LANG_NOT_SUPPORTED;
+            }
+            if (piperFailed) {
+                status.setText(androidTtsReady ? "● SYSTEM TTS READY" : "● TEXT MODE");
+                status.setTextColor(androidTtsReady ? gold() : 0xFFFFB74D);
+                if (androidTtsReady) speak("Patron, sistem ses motoru hazır.");
+                else append("SES MOTORU", "Cihazda kullanılabilir sistem sesi bulunamadı. Android Ayarlar > Metin okuma bölümünden bir ses motoru ve Türkçe ses yükle.");
+            }
+        }));
+    }
+
+    private void speak(String s){
+        if (s == null || s.trim().isEmpty()) return;
+        if (piper != null && piper.isReady()) {
+            piper.speak(s);
+        } else if (androidTtsReady && androidTts != null) {
+            androidTts.speak(s, TextToSpeech.QUEUE_FLUSH, null, "jarvis-" + System.currentTimeMillis());
+        }
+    }
     private void append(String who,String msg){chat.append((chat.length()>0?"\n\n":"")+who+"\n"+msg);}
     private void toast(String s){Toast.makeText(this,s,Toast.LENGTH_SHORT).show();}
 
     @Override protected void onDestroy(){
         if(speech!=null)speech.destroy();
         if(piper!=null)piper.release();
+        if(androidTts!=null){ androidTts.stop(); androidTts.shutdown(); }
         io.shutdownNow();
         super.onDestroy();
     }
