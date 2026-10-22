@@ -3,14 +3,21 @@ package com.stagepulse.jarvis;
 import android.Manifest;
 import android.app.Activity;
 import android.app.AlertDialog;
+import android.app.PendingIntent;
 import android.content.*;
 import android.content.pm.PackageManager;
+import android.content.pm.PackageInstaller;
 import android.os.*;
 import android.provider.Settings;
+import android.net.Uri;
 import android.speech.*;
 import android.view.Gravity;
 import android.widget.*;
 import java.text.SimpleDateFormat;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.util.*;
 import java.util.concurrent.*;
 
@@ -24,6 +31,11 @@ public class MainActivity extends Activity {
     private PiperTts piper;
     private AgencyAgent activeAgent;
     private android.content.SharedPreferences bridgePrefs;
+    private android.content.SharedPreferences updatePrefs;
+    private final UpdateManager updateManager = new UpdateManager();
+    private File pendingUpdateFile;
+    private String pendingUpdateVersion = "";
+    private boolean updateInstallInProgress = false;
 
     private int gold(){return 0xFFD4AF37;}
     private int white(){return 0xFFF2F2F2;}
@@ -33,10 +45,17 @@ public class MainActivity extends Activity {
     @Override public void onCreate(Bundle b){
         super.onCreate(b);
         bridgePrefs = getSharedPreferences("jarvis_bridge", MODE_PRIVATE);
+        updatePrefs = getSharedPreferences("jarvis_updates", MODE_PRIVATE);
+        String pendingPath = updatePrefs.getString("pending_apk", "");
+        if (!pendingPath.isEmpty()) {
+            File candidate = new File(pendingPath);
+            if (candidate.isFile()) pendingUpdateFile = candidate;
+        }
         buildUi();
         initPiper();
         initSpeech();
         append("JARVIS","PATRON, bağımsız Android çekirdeği hazır.");
+        checkForUpdates(false);
     }
 
     private TextView tv(String s,int size,int color){
@@ -57,20 +76,168 @@ public class MainActivity extends Activity {
         command.setTextColor(white()); command.setMinLines(2); command.setBackgroundColor(panel()); command.setPadding(14,12,14,12);
         root.addView(command,new LinearLayout.LayoutParams(-1,-2));
         LinearLayout row=new LinearLayout(this); row.setOrientation(LinearLayout.HORIZONTAL);
-        Button send=button("EXECUTE"), voice=button("◉ VOICE"), agents=button("AGENTS"), host=button("HOST");
+        Button send=button("EXECUTE"), voice=button("◉ VOICE"), agents=button("AGENTS"), host=button("HOST"), update=button("UPDATE");
         row.addView(send,new LinearLayout.LayoutParams(0,58,1));
         row.addView(voice,new LinearLayout.LayoutParams(0,58,1));
         row.addView(agents,new LinearLayout.LayoutParams(0,58,1));
         row.addView(host,new LinearLayout.LayoutParams(0,58,1));
+        row.addView(update,new LinearLayout.LayoutParams(0,58,1));
         root.addView(row);
         setContentView(root);
         send.setOnClickListener(v->sendCommand(command.getText().toString()));
         voice.setOnClickListener(v->listen());
         agents.setOnClickListener(v->showAgents());
         host.setOnClickListener(v->showHostSettings());
+        update.setOnClickListener(v->checkForUpdates(true));
     }
 
     private Button button(String s){Button b=new Button(this);b.setText(s);b.setTextColor(gold());b.setTextSize(11);b.setBackgroundColor(panel());return b;}
+
+    private void checkForUpdates(boolean manual) {
+        final long now = System.currentTimeMillis();
+        final long lastAttempt = updatePrefs.getLong("last_check_attempt", 0L);
+        if (!manual && now - lastAttempt < 12L * 60L * 60L * 1000L) return;
+
+        updatePrefs.edit().putLong("last_check_attempt", now).apply();
+        if (manual) status.setText("● UPDATE CHECK");
+        io.submit(() -> {
+            try {
+                int installed = getPackageManager().getPackageInfo(getPackageName(), 0).versionCode;
+                UpdateManager.UpdateInfo update = updateManager.checkLatest(installed);
+                updatePrefs.edit().putLong("last_check_success", System.currentTimeMillis()).apply();
+                runOnUiThread(() -> {
+                    if (update != null) {
+                        offerUpdate(update);
+                    } else if (manual) {
+                        append("JARVIS", "Kurulu JARVIS sürümü güncel. Yeni bir sürüm yayımlanmamış.");
+                        refreshVoiceStatus();
+                    }
+                });
+            } catch (Exception e) {
+                if (manual) {
+                    runOnUiThread(() -> {
+                        append("JARVIS", "Güncelleme kontrol edilemedi. Henüz resmî Release yayımlanmamış olabilir. Ayrıntı: "
+                                + e.getMessage());
+                        refreshVoiceStatus();
+                    });
+                }
+            }
+        });
+    }
+
+    private void offerUpdate(UpdateManager.UpdateInfo update) {
+        String details = "Kurulu sürümden daha yeni bir sürüm bulundu.\n\n"
+                + "Yeni sürüm: " + update.versionName + " (" + update.versionCode + ")\n"
+                + update.notes + "\n\nAPK indirilecek, SHA-256 ile doğrulanacak ve Android kurulum onayı açılacak.";
+        new AlertDialog.Builder(this)
+                .setTitle("JARVIS GÜNCELLEMESİ")
+                .setMessage(details)
+                .setPositiveButton("İNDİR VE KUR", (dialog, which) -> downloadAndInstall(update))
+                .setNegativeButton("SONRA", (dialog, which) -> append("JARVIS", "Güncelleme ertelendi."))
+                .show();
+    }
+
+    private void downloadAndInstall(UpdateManager.UpdateInfo update) {
+        status.setText("● DOWNLOADING UPDATE");
+        append("JARVIS", "JARVIS " + update.versionName + " indiriliyor ve bütünlük kontrolü yapılıyor.");
+        io.submit(() -> {
+            try {
+                File apk = new File(getCacheDir(), "jarvis-update-" + update.versionCode + ".apk");
+                updateManager.downloadAndVerify(update, apk);
+                runOnUiThread(() -> {
+                    pendingUpdateFile = apk;
+                    pendingUpdateVersion = update.versionName;
+                    updatePrefs.edit().putString("pending_apk", apk.getAbsolutePath())
+                            .putString("pending_version", pendingUpdateVersion).apply();
+                    beginUpdateInstall();
+                });
+            } catch (Exception e) {
+                runOnUiThread(() -> {
+                    append("JARVIS", "Güncelleme indirilemedi veya doğrulanamadı. Kurulum iptal edildi: " + e.getMessage());
+                    refreshVoiceStatus();
+                });
+            }
+        });
+    }
+
+    private void beginUpdateInstall() {
+        if (pendingUpdateFile == null || !pendingUpdateFile.isFile() || updateInstallInProgress) return;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
+                && !getPackageManager().canRequestPackageInstalls()) {
+            new AlertDialog.Builder(this)
+                    .setTitle("Kurulum izni gerekli")
+                    .setMessage("JARVIS'i resmî GitHub Release dosyasından indirdim ve bütünlük kontrolü geçti. Devam etmek için Android ayarlarında bu uygulamanın paket kurmasına izin ver.")
+                    .setPositiveButton("AYARLARI AÇ", (dialog, which) -> {
+                        try {
+                            Intent settings = new Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+                                    Uri.parse("package:" + getPackageName()));
+                            startActivity(settings);
+                        } catch (Exception e) {
+                            append("JARVIS", "Kurulum izni ayarları açılamadı: " + e.getMessage());
+                        }
+                    })
+                    .setNegativeButton("İPTAL", (dialog, which) -> {
+                        append("JARVIS", "Güncelleme indirildi fakat kurulum iptal edildi.");
+                        refreshVoiceStatus();
+                    })
+                    .show();
+            return;
+        }
+
+        updateInstallInProgress = true;
+        PackageInstaller installer = getPackageManager().getPackageInstaller();
+        int sessionId = -1;
+        try {
+            PackageInstaller.SessionParams params =
+                    new PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL);
+            params.setAppPackageName(getPackageName());
+            params.setSize(pendingUpdateFile.length());
+            sessionId = installer.createSession(params);
+
+            try (PackageInstaller.Session session = installer.openSession(sessionId);
+                 InputStream input = new FileInputStream(pendingUpdateFile);
+                 OutputStream output = session.openWrite("base.apk", 0, pendingUpdateFile.length())) {
+                byte[] buffer = new byte[65536];
+                int count;
+                while ((count = input.read(buffer)) != -1) output.write(buffer, 0, count);
+                session.fsync(output);
+
+                Intent callback = new Intent(this, UpdateInstallReceiver.class);
+                callback.setAction("com.stagepulse.jarvis.UPDATE_INSTALL_RESULT");
+                int flags = PendingIntent.FLAG_UPDATE_CURRENT;
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) flags |= PendingIntent.FLAG_MUTABLE;
+                PendingIntent resultIntent = PendingIntent.getBroadcast(this, sessionId, callback, flags);
+                session.commit(resultIntent.getIntentSender());
+            }
+
+            updatePrefs.edit().remove("pending_apk").remove("pending_version").apply();
+            pendingUpdateFile = null;
+            append("JARVIS", "APK doğrulandı. Android'in resmî kurulum onayı açılıyor.");
+            status.setText("● INSTALLING UPDATE");
+        } catch (Exception e) {
+            if (sessionId >= 0) {
+                try { installer.abandonSession(sessionId); } catch (Exception ignored) {}
+            }
+            updatePrefs.edit().remove("pending_apk").remove("pending_version").apply();
+            pendingUpdateFile = null;
+            append("JARVIS", "Güncelleme kurulumu başlatılamadı: " + e.getMessage());
+            refreshVoiceStatus();
+        } finally {
+            updateInstallInProgress = false;
+        }
+    }
+
+    @Override protected void onResume() {
+        super.onResume();
+        if (pendingUpdateFile == null) {
+            String path = updatePrefs == null ? "" : updatePrefs.getString("pending_apk", "");
+            if (path != null && !path.isEmpty()) {
+                File candidate = new File(path);
+                if (candidate.isFile()) pendingUpdateFile = candidate;
+            }
+        }
+        if (pendingUpdateFile != null && !updateInstallInProgress) beginUpdateInstall();
+    }
 
     private void showHostSettings(){
         LinearLayout box = new LinearLayout(this);
