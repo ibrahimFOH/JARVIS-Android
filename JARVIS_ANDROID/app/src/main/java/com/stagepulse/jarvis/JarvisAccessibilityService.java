@@ -540,6 +540,19 @@ public final class JarvisAccessibilityService extends AccessibilityService {
             overlaySpeak("Buradayım Patron. Komutunu söyle.");
             return;
         }
+        String normalizedCommand = norm(command);
+        boolean needsCameraPermission = (normalizedCommand.contains("fener")
+                || normalizedCommand.contains("el feneri") || normalizedCommand.contains("flashlight"))
+                && checkSelfPermission(Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED;
+        boolean needsBrightnessPermission = (normalizedCommand.contains("parlakligi artir")
+                || normalizedCommand.contains("parlakligi azalt") || normalizedCommand.contains("ekrani aydinlat")
+                || normalizedCommand.contains("ekrani karart"))
+                && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.System.canWrite(this);
+        if (needsCameraPermission || needsBrightnessPermission) {
+            stopOverlayVoice();
+            launchMainForCommand(command);
+            return;
+        }
         String local = handleOverlayDeviceCommand(command);
         if (local != null) {
             overlaySpeak(local);
@@ -754,7 +767,8 @@ public final class JarvisAccessibilityService extends AccessibilityService {
             return "Medya sesini kapattım.";
         }
         boolean launchRequested = x.startsWith("ac ") || x.contains(" ac ") || x.endsWith(" ac")
-                || x.startsWith("baslat ") || x.contains(" calistir");
+                || x.startsWith("baslat ") || x.contains(" calistir") || x.startsWith("open ")
+                || x.contains(" open ") || x.endsWith(" open");
         if (launchRequested) {
             if (x.contains("youtube")) return launchApp("com.google.android.youtube", "https://www.youtube.com/", "YouTube");
             if (x.contains("whatsapp")) return launchApp("com.whatsapp", "https://www.whatsapp.com/", "WhatsApp");
