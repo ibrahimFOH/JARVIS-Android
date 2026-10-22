@@ -152,6 +152,12 @@ class WindowsUpdateManager:
         target_dir = Path(sys.executable).resolve().parent
         if not (target_dir / "JARVIS.exe").is_file():
             raise RuntimeError("Geçerli kurulum klasöründe JARVIS.exe bulunamadı; güncelleme iptal edildi.")
+        if (target_dir / "main.py").exists() or (target_dir / "venv").is_dir() or (target_dir / "JARVIS_HOST").is_dir():
+            raise RuntimeError(
+                "Bu klasör bir kaynak kodu/venv çalışma alanına benziyor. "
+                "Güncelleme kaynak dosyalarını değiştirmemek için durduruldu; "
+                "önce JARVIS-Windows.zip paketini ayrı bir uygulama klasörüne kur."
+            )
 
         self.state_dir.mkdir(parents=True, exist_ok=True)
         zip_path = self.state_dir / f"JARVIS-Windows-{update.version_name}.zip"
