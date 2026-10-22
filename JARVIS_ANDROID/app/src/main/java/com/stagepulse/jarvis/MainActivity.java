@@ -788,7 +788,8 @@ public class MainActivity extends Activity {
         androidTts = new TextToSpeech(this, result -> runOnUiThread(() -> {
             if (result != TextToSpeech.SUCCESS) {
                 androidTtsReady = false;
-                if (piperFailed) append("SES MOTORU", "Android sistem TTS motoru da başlatılamadı. Yazılı komutlar kullanılabilir.");
+                append("SES ÇIKIŞI", "Android sistem ses motoru başlatılamadı. Yazılı yanıtlar kullanılabilir; Ayarlar > Metin okuma bölümünü kontrol et.");
+                refreshVoiceStatus();
                 return;
             }
             int language = androidTts.setLanguage(new Locale("tr", "TR"));
@@ -801,11 +802,11 @@ public class MainActivity extends Activity {
                 androidTtsReady = fallback != TextToSpeech.LANG_MISSING_DATA
                         && fallback != TextToSpeech.LANG_NOT_SUPPORTED;
             }
-            if (piperFailed) {
-                status.setText(androidTtsReady ? "● SYSTEM TTS READY" : "● TEXT MODE");
-                status.setTextColor(androidTtsReady ? gold() : 0xFFFFB74D);
-                if (androidTtsReady) speak("Patron, sistem ses motoru hazır.");
-                else append("SES MOTORU", "Cihazda kullanılabilir sistem sesi bulunamadı. Android Ayarlar > Metin okuma bölümünden bir ses motoru ve Türkçe ses yükle.");
+            refreshVoiceStatus();
+            if (androidTtsReady) {
+                append("SES ÇIKIŞI", "Piper kaldırıldı. Yanıtlar Android sistem ses motoruyla okunacak.");
+            } else {
+                append("SES ÇIKIŞI", "Türkçe sistem sesi bulunamadı. Android Ayarlar > Metin okuma bölümünden Türkçe ses indir veya etkinleştir.");
             }
         }));
     }
