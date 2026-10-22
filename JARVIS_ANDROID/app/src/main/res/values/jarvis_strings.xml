@@ -1,4 +1,4 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="jarvis_accessibility_description">JARVIS yalnızca kullanıcı komutuyla Ana ekran, Geri, Bildirimler, Hızlı Ayarlar ve Ekranı Kilitle gibi Android genel işlemlerini çalıştırır. Diğer uygulamaların ekran metnini okumaz veya etkinliklerini toplamaz.</string>
+    <string name="jarvis_accessibility_description">JARVIS yalnızca senin açık komutun üzerine görünür ekrandaki metni okuyabilir, belirttiğin metni arayabilir/tıklayabilir, odaktaki metin alanına yazabilir, kaydırabilir ve Android genel kontrollerini çalıştırabilir. Ekran metnini arka planda kaydetmez veya kendiliğinden göndermez. Bu güçlü izni yalnızca güveniyorsan etkinleştir.</string>
 </resources>
