@@ -30,10 +30,9 @@ public class MainActivity extends Activity {
     private TextView status,chat;
     private HudView hud;
     private SpeechRecognizer speech;
-    private PiperTts piper;
     private TextToSpeech androidTts;
     private volatile boolean androidTtsReady = false;
-    private volatile boolean piperFailed = false;
+    private volatile boolean speechRecognitionBusy = false;
     private AgencyAgent activeAgent;
     private android.content.SharedPreferences bridgePrefs;
     private android.content.SharedPreferences updatePrefs;
@@ -58,7 +57,6 @@ public class MainActivity extends Activity {
         }
         buildUi();
         initAndroidTts();
-        initPiper();
         initSpeech();
         append("JARVIS","PATRON, bağımsız Android çekirdeği hazır.");
         checkForUpdates(false);
@@ -404,28 +402,71 @@ public class MainActivity extends Activity {
         return null;
     }
 
-    private void initPiper(){
-        piper=new PiperTts(this);
-        status.setText("● VOICE INIT");
-        piper.initialize(
-                () -> runOnUiThread(() -> {
-                    status.setText("● ONLINE");
+    private void initSpeech(){
+        if(!SpeechRecognizer.isRecognitionAvailable(this)) {
+            append("SES ALGILAMA","Bu cihazda konuşma tanıma servisi bulunamadı. Google uygulamasını veya desteklenen bir konuşma tanıma motorunu kurup etkinleştir.");
+            return;
+        }
+        try {
+            speech=SpeechRecognizer.createSpeechRecognizer(this);
+            speech.setRecognitionListener(new RecognitionListener(){
+                public void onReadyForSpeech(Bundle b){
+                    speechRecognitionBusy = true;
+                    hud.setActive(true);
+                    status.setText("● ONLINE LISTENING");
                     status.setTextColor(gold());
-                    append("JARVIS","Türkçe DFKI ses motoru hazır. Doğrudan cihaz üzerinde çalışıyorum.");
-                    speak("PATRON, bağımsız Android çekirdeği hazır. Türkçe ses motoru da hazır.");
-                }),
-                () -> runOnUiThread(() -> {
-                    piperFailed = true;
-                    status.setText("● VOICE FALLBACK");
-                    status.setTextColor(0xFFFFB74D);
-                    String detail = piper.getLastError();
-                    append("SES MOTORU", "Piper başlatılamadı. Ayrıntı: " + (detail.isEmpty() ? "Ayrıntı alınamadı." : detail));
-                    append("JARVIS", androidTtsReady
-                        ? "Piper yerine cihazın sistem ses motorunu kullanacağım. Türkçe sistem sesi yüklü değilse Android TTS ayarlarından indir."
-                        : "Piper hata verdi; sistem ses motoru başlatılıyor. Bu sırada yazılı komutlar çalışmaya devam eder.");
-                    if (androidTtsReady) speak("Patron, Piper ses motoru açılamadı. Sistem ses motoruna geçtim.");
-                })
-        );
+                }
+                public void onBeginningOfSpeech(){}
+                public void onRmsChanged(float r){}
+                public void onBufferReceived(byte[] b){}
+                public void onEndOfSpeech(){
+                    hud.setActive(false);
+                    status.setText("● TRANSCRIBING");
+                }
+                public void onError(int e){
+                    speechRecognitionBusy = false;
+                    hud.setActive(false);
+                    refreshVoiceStatus();
+                    String detail;
+                    switch(e) {
+                        case SpeechRecognizer.ERROR_NETWORK:
+                            detail = "İnternet bağlantısı veya konuşma sunucusu kullanılamıyor."; break;
+                        case SpeechRecognizer.ERROR_NETWORK_TIMEOUT:
+                            detail = "Konuşma tanıma sunucusunun yanıtı zaman aşımına uğradı."; break;
+                        case SpeechRecognizer.ERROR_NO_MATCH:
+                            detail = "Konuşma anlaşılamadı. Biraz daha net ve kısa söyle."; break;
+                        case SpeechRecognizer.ERROR_AUDIO:
+                            detail = "Mikrofon ses akışı başlatılamadı."; break;
+                        case SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS:
+                            detail = "Mikrofon izni gerekli."; break;
+                        case SpeechRecognizer.ERROR_RECOGNIZER_BUSY:
+                            detail = "Konuşma tanıma motoru meşgul. Biraz sonra tekrar dene."; break;
+                        case SpeechRecognizer.ERROR_SERVER:
+                            detail = "Konuşma tanıma sunucusu hata verdi."; break;
+                        default:
+                            detail = "Ses tanıma tamamlanamadı. Hata kodu: " + e; break;
+                    }
+                    append("SES ALGILAMA",detail);
+                }
+                public void onResults(Bundle b){
+                    speechRecognitionBusy = false;
+                    hud.setActive(false);
+                    ArrayList<String> x=b.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION);
+                    if(x!=null&&!x.isEmpty()){
+                        command.setText(x.get(0));
+                        sendCommand(x.get(0));
+                    } else {
+                        refreshVoiceStatus();
+                        append("SES ALGILAMA","Sunucudan metin sonucu gelmedi.");
+                    }
+                }
+                public void onPartialResults(Bundle b){}
+                public void onEvent(int t,Bundle b){}
+            });
+        } catch (Exception e) {
+            speech = null;
+            append("SES ALGILAMA","Konuşma tanıma başlatılamadı: " + e.getClass().getSimpleName());
+        }
     }
 
     private void initSpeech(){
@@ -442,9 +483,26 @@ public class MainActivity extends Activity {
     }
 
     private void listen(){
-        if(speech==null){toast("Bu cihazda konuşma tanıma servisi yok.");return;}
+        if(speech==null){toast("Konuşma tanıma servisi yok. Google uygulamasını veya uyumlu ses hizmetini etkinleştir.");return;}
+        if(speechRecognitionBusy){try{speech.cancel();}catch(Exception ignored){} speechRecognitionBusy=false;hud.setActive(false);refreshVoiceStatus();return;}
         if(checkSelfPermission(Manifest.permission.RECORD_AUDIO)!=PackageManager.PERMISSION_GRANTED){requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO},REQ_AUDIO);return;}
-        Intent i=new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);i.putExtra(RecognizerIntent.EXTRA_LANGUAGE,"tr-TR");i.putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE,"tr-TR");i.putExtra(RecognizerIntent.EXTRA_MAX_RESULTS,3);speech.startListening(i);
+        try {
+            Intent i=new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
+            i.putExtra(RecognizerIntent.EXTRA_LANGUAGE,"tr-TR");
+            i.putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE,"tr-TR");
+            i.putExtra(RecognizerIntent.EXTRA_ONLY_RETURN_LANGUAGE_PREFERENCE,"tr-TR");
+            i.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL,RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
+            i.putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE,false);
+            i.putExtra(RecognizerIntent.EXTRA_MAX_RESULTS,3);
+            i.putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS,true);
+            i.putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE,getPackageName());
+            speech.startListening(i);
+            status.setText("● CONNECTING TO SPEECH");
+        } catch (Exception e) {
+            hud.setActive(false);
+            refreshVoiceStatus();
+            append("SES ALGILAMA","Mikrofon oturumu başlatılamadı: " + e.getClass().getSimpleName());
+        }
     }
 
     private void sendCommand(String text){
@@ -489,10 +547,13 @@ public class MainActivity extends Activity {
     private void statusPost(String text){runOnUiThread(()->status.setText(text));}
 
     private void refreshVoiceStatus(){
-        boolean ready=piper!=null&&piper.isReady();
-        boolean fallback=!ready&&androidTtsReady;
-        status.setText(ready?"● PIPER READY":(fallback?"● SYSTEM TTS READY":"● TEXT MODE"));
-        status.setTextColor((ready||fallback)?gold():0xFFFFB74D);
+        boolean recognitionReady = speech != null;
+        boolean voiceOutputReady = androidTtsReady;
+        String label = recognitionReady
+                ? (voiceOutputReady ? "● ONLINE VOICE READY" : "● ONLINE STT READY")
+                : (voiceOutputReady ? "● SYSTEM TTS ONLY" : "● TEXT MODE");
+        status.setText(label);
+        status.setTextColor((recognitionReady || voiceOutputReady) ? gold() : 0xFFFFB74D);
     }
 
     private boolean isResearchCommand(String c){
@@ -751,9 +812,7 @@ public class MainActivity extends Activity {
 
     private void speak(String s){
         if (s == null || s.trim().isEmpty()) return;
-        if (piper != null && piper.isReady()) {
-            piper.speak(s);
-        } else if (androidTtsReady && androidTts != null) {
+        if (androidTtsReady && androidTts != null) {
             androidTts.speak(s, TextToSpeech.QUEUE_FLUSH, null, "jarvis-" + System.currentTimeMillis());
         }
     }
@@ -762,7 +821,6 @@ public class MainActivity extends Activity {
 
     @Override protected void onDestroy(){
         if(speech!=null)speech.destroy();
-        if(piper!=null)piper.release();
         if(androidTts!=null){ androidTts.stop(); androidTts.shutdown(); }
         io.shutdownNow();
         super.onDestroy();
