@@ -32,6 +32,8 @@ import java.util.concurrent.*;
 public class MainActivity extends Activity {
     private static final int REQ_AUDIO=9001;
     private static final int REQ_CAMERA=9002;
+    private static final int REQ_OPEN_DOCUMENT=9003;
+    private volatile boolean pendingFileRead = false;
     private final ExecutorService io=Executors.newSingleThreadExecutor();
     private EditText command;
     private TextView status,chat,voiceControl;
@@ -627,6 +629,123 @@ public class MainActivity extends Activity {
                 + "\nDosya adı ve konumu hafızaya kaydedildi. 'Son dosyayı aç' diyebilirsin.";
     }
 
+    private void launchDocumentPicker(boolean readText) {
+        pendingFileRead = readText;
+        try {
+            Intent picker = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+            picker.addCategory(Intent.CATEGORY_OPENABLE);
+            picker.setType("*/*");
+            startActivityForResult(picker, REQ_OPEN_DOCUMENT);
+        } catch (Exception e) {
+            append("DOSYA", "Dosya seçici açılamadı: " + e.getMessage());
+        }
+    }
+
+    private void openContentUri(Uri uri) {
+        try {
+            Intent view = new Intent(Intent.ACTION_VIEW);
+            String mime = getContentResolver().getType(uri);
+            view.setDataAndType(uri, mime == null ? "*/*" : mime);
+            view.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            startActivity(view);
+        } catch (Exception e) {
+            append("DOSYA", "Dosyayı açacak uygun uygulama bulunamadı: " + e.getMessage());
+        }
+    }
+
+    private Uri findCreatedFile(String requestedName) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return null;
+        String needle = safeName(requestedName, "").toLowerCase(Locale.ROOT);
+        if (needle.isEmpty()) return null;
+        Cursor cursor = null;
+        try {
+            String[] columns = {MediaStore.MediaColumns._ID, MediaStore.MediaColumns.DISPLAY_NAME};
+            cursor = getContentResolver().query(MediaStore.Downloads.EXTERNAL_CONTENT_URI, columns,
+                    MediaStore.MediaColumns.RELATIVE_PATH + " LIKE ?",
+                    new String[]{Environment.DIRECTORY_DOWNLOADS + "/JARVIS/%"},
+                    MediaStore.MediaColumns.DATE_ADDED + " DESC");
+            if (cursor == null) return null;
+            while (cursor.moveToNext()) {
+                String name = cursor.getString(1);
+                if (name != null && (name.equalsIgnoreCase(needle)
+                        || name.toLowerCase(Locale.ROOT).contains(needle))) {
+                    return android.content.ContentUris.withAppendedId(
+                            MediaStore.Downloads.EXTERNAL_CONTENT_URI, cursor.getLong(0));
+                }
+            }
+        } catch (Exception ignored) {
+        } finally {
+            if (cursor != null) cursor.close();
+        }
+        return null;
+    }
+
+    private String readCreatedTextFile(String requestedName) {
+        Uri uri = findCreatedFile(requestedName);
+        if (uri == null) return null;
+        try (InputStream input = getContentResolver().openInputStream(uri)) {
+            if (input == null) return "Dosya okunamadı.";
+            byte[] buffer = new byte[8192];
+            java.io.ByteArrayOutputStream output = new java.io.ByteArrayOutputStream();
+            int count;
+            int limit = 24000;
+            while ((count = input.read(buffer)) != -1 && output.size() < limit) {
+                int remaining = limit - output.size();
+                output.write(buffer, 0, Math.min(count, remaining));
+            }
+            String content = new String(output.toByteArray(), java.nio.charset.StandardCharsets.UTF_8);
+            if (content.length() > 5000) content = content.substring(0, 5000) + "\n\n[Önizleme kısaltıldı.]";
+            return "DOSYA İÇERİĞİ — " + requestedName + "\n\n" + content;
+        } catch (Exception e) {
+            return "Dosya okunamadı: " + e.getMessage();
+        }
+    }
+
+    @Override protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode != REQ_OPEN_DOCUMENT) return;
+        if (resultCode != RESULT_OK || data == null || data.getData() == null) {
+            append("DOSYA", "Dosya seçimi iptal edildi.");
+            return;
+        }
+        Uri uri = data.getData();
+        boolean readText = pendingFileRead;
+        pendingFileRead = false;
+        try {
+            int grantFlags = data.getFlags() & (Intent.FLAG_GRANT_READ_URI_PERMISSION
+                    | Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
+            getContentResolver().takePersistableUriPermission(uri, grantFlags & Intent.FLAG_GRANT_READ_URI_PERMISSION);
+        } catch (Exception ignored) { }
+        if (readText) {
+            io.submit(() -> {
+                String content;
+                try (InputStream input = getContentResolver().openInputStream(uri)) {
+                    if (input == null) throw new IOException("Dosya açılamadı.");
+                    String mime = getContentResolver().getType(uri);
+                    if (mime != null && !mime.startsWith("text/") && !mime.equals("application/json")) {
+                        runOnUiThread(() -> append("DOSYA", "Seçilen dosya metin dosyası değil (" + mime + "). Dosyayı açmak için 'dosya aç' komutunu kullan."));
+                        return;
+                    }
+                    java.io.ByteArrayOutputStream output = new java.io.ByteArrayOutputStream();
+                    byte[] buffer = new byte[8192];
+                    int count;
+                    while ((count = input.read(buffer)) != -1 && output.size() < 24000) {
+                        int remaining = 24000 - output.size();
+                        output.write(buffer, 0, Math.min(count, remaining));
+                    }
+                    content = new String(output.toByteArray(), java.nio.charset.StandardCharsets.UTF_8);
+                    if (content.length() > 5000) content = content.substring(0, 5000) + "\n\n[Önizleme kısaltıldı.]";
+                } catch (Exception e) {
+                    content = "Seçilen dosya okunamadı: " + e.getMessage();
+                }
+                final String preview = content;
+                runOnUiThread(() -> append("DOSYA ÖNİZLEMESİ", preview));
+            });
+        } else {
+            openContentUri(uri);
+        }
+    }
+
     private String buildTrainingPackage() {
         String[] modules = {
                 "Canlı sesin temelleri: frekans, genlik, faz, dBFS, dBu ve dB SPL",
@@ -701,6 +820,36 @@ public class MainActivity extends Activity {
             } catch (Exception e) {
                 return "Eğitim dosyası oluşturulamadı: " + e.getMessage();
             }
+        }
+        if (x.startsWith("dosya oku ") || x.startsWith("dosyayi oku ") || x.startsWith("belge oku ")) {
+            int split = normalizeIntent(raw).indexOf(" oku ");
+            String requested = split >= 0 ? raw.substring(Math.min(raw.length(), split + 5)).trim() : "";
+            if (requested.isEmpty()) {
+                pendingFileRead = true;
+                runOnUiThread(() -> launchDocumentPicker(true));
+                return "Okunacak dosyayı seçmen için Android dosya seçicisini açıyorum.";
+            }
+            String text = readCreatedTextFile(requested);
+            if (text != null) return text;
+            pendingFileRead = true;
+            runOnUiThread(() -> launchDocumentPicker(true));
+            return "JARVIS klasöründe bu ada uygun dosya bulamadım. Telefonda dosya seçme ekranını açıyorum.";
+        }
+        if (x.startsWith("dosya ac ") || x.startsWith("dosyayi ac ") || x.startsWith("belge ac ")) {
+            int split = normalizeIntent(raw).indexOf(" ac ");
+            int start = split >= 0 ? split + 4 : -1;
+            String requested = start >= 0 && start < raw.length() ? raw.substring(Math.min(raw.length(), start)).trim() : "";
+            if (!requested.isEmpty()) {
+                Uri found = findCreatedFile(requested);
+                if (found != null) {
+                    Uri selected = found;
+                    runOnUiThread(() -> openContentUri(selected));
+                    return "JARVIS klasöründeki dosyayı açıyorum: " + requested;
+                }
+            }
+            pendingFileRead = false;
+            runOnUiThread(() -> launchDocumentPicker(false));
+            return "Telefondan açılacak dosyayı seçmen için Android dosya seçicisini açıyorum.";
         }
         if (x.contains("son dosyayi ac") || x.equals("dosyayi ac") || x.equals("dosyalarimdan sonuncuyu ac")) {
             String uriValue = profilePrefs.getString("last_file_uri", "");
