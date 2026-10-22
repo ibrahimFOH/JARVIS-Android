@@ -471,6 +471,7 @@ public class MainActivity extends Activity {
             speech.setRecognitionListener(new RecognitionListener(){
                 public void onReadyForSpeech(Bundle b){
                     speechRecognitionBusy = true;
+                    updateVoiceControl(true);
                     hud.setActive(true);
                     status.setText("● ONLINE LISTENING");
                     status.setTextColor(gold());
@@ -484,6 +485,7 @@ public class MainActivity extends Activity {
                 }
                 public void onError(int e){
                     speechRecognitionBusy = false;
+                    updateVoiceControl(false);
                     hud.setActive(false);
                     refreshVoiceStatus();
                     String detail;
@@ -509,6 +511,7 @@ public class MainActivity extends Activity {
                 }
                 public void onResults(Bundle b){
                     speechRecognitionBusy = false;
+                    updateVoiceControl(false);
                     hud.setActive(false);
                     ArrayList<String> x=b.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION);
                     if(x!=null&&!x.isEmpty()){
@@ -519,7 +522,14 @@ public class MainActivity extends Activity {
                         append("SES ALGILAMA","Sunucudan metin sonucu gelmedi.");
                     }
                 }
-                public void onPartialResults(Bundle b){}
+                public void onPartialResults(Bundle b){
+                    ArrayList<String> partial = b.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION);
+                    if (partial != null && !partial.isEmpty() && command != null
+                            && command.getText().toString().trim().isEmpty()) {
+                        command.setText(partial.get(0));
+                        command.setSelection(command.getText().length());
+                    }
+                }
                 public void onEvent(int t,Bundle b){}
             });
         } catch (Exception e) {
@@ -529,10 +539,24 @@ public class MainActivity extends Activity {
     }
 
     private void listen(){
-        if(speech==null){toast("Konuşma tanıma servisi yok. Google uygulamasını veya uyumlu ses hizmetini etkinleştir.");return;}
-        if(speechRecognitionBusy){try{speech.cancel();}catch(Exception ignored){} speechRecognitionBusy=false;hud.setActive(false);refreshVoiceStatus();return;}
+        if(speech==null){
+            append("SES ALGILAMA","Bu cihazda kullanılabilir bir konuşma tanıma servisi bulunamadı. Google uygulamasını veya cihazın konuşma tanıma hizmetini etkinleştir.");
+            return;
+        }
+        if(speechRecognitionBusy){
+            try{speech.cancel();}catch(Exception ignored){}
+            speechRecognitionBusy=false;
+            updateVoiceControl(false);
+            hud.setActive(false);
+            refreshVoiceStatus();
+            append("SES ALGILAMA","Dinleme durduruldu.");
+            return;
+        }
         if(checkSelfPermission(Manifest.permission.RECORD_AUDIO)!=PackageManager.PERMISSION_GRANTED){requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO},REQ_AUDIO);return;}
         try {
+            speechRecognitionBusy = true;
+            updateVoiceControl(true);
+            hud.setActive(true);
             Intent i=new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
             i.putExtra(RecognizerIntent.EXTRA_LANGUAGE,"tr-TR");
             i.putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE,"tr-TR");
@@ -541,9 +565,11 @@ public class MainActivity extends Activity {
             i.putExtra(RecognizerIntent.EXTRA_MAX_RESULTS,3);
             i.putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS,true);
             i.putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE,getPackageName());
-            speech.startListening(i);
             status.setText("● CONNECTING TO SPEECH");
+            speech.startListening(i);
         } catch (Exception e) {
+            speechRecognitionBusy = false;
+            updateVoiceControl(false);
             hud.setActive(false);
             refreshVoiceStatus();
             append("SES ALGILAMA","Mikrofon oturumu başlatılamadı: " + e.getClass().getSimpleName());
@@ -551,7 +577,21 @@ public class MainActivity extends Activity {
     }
 
     private void sendCommand(String text){
-        final String cmd=text.trim();if(cmd.isEmpty())return;append("PATRON",cmd);command.setText("");hud.setActive(true);status.setText("● PROCESSING");
+        final String cmd = text == null ? "" : text.trim();
+        if (cmd.isEmpty()) {
+            toast("Önce bir komut yaz veya konuş.");
+            return;
+        }
+        append("PATRON", cmd);
+        if (command != null) {
+            command.setText("");
+            try {
+                ((android.view.inputmethod.InputMethodManager) getSystemService(INPUT_METHOD_SERVICE))
+                        .hideSoftInputFromWindow(command.getWindowToken(), 0);
+            } catch (Exception ignored) {}
+        }
+        hud.setActive(true);
+        status.setText("● PROCESSING");
         io.submit(()->{
             String a;
             try{
@@ -862,7 +902,13 @@ public class MainActivity extends Activity {
             androidTts.speak(s, TextToSpeech.QUEUE_FLUSH, null, "jarvis-" + System.currentTimeMillis());
         }
     }
-    private void append(String who,String msg){chat.append((chat.length()>0?"\n\n":"")+who+"\n"+msg);}
+    private void append(String who,String msg){
+        if (chat == null) return;
+        chat.append((chat.length() > 0 ? "\n\n" : "") + who + "\n" + msg);
+        if (chatScroll != null) {
+            chatScroll.post(() -> chatScroll.fullScroll(ScrollView.FOCUS_DOWN));
+        }
+    }
     private void toast(String s){Toast.makeText(this,s,Toast.LENGTH_SHORT).show();}
 
     @Override public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
@@ -871,6 +917,8 @@ public class MainActivity extends Activity {
             if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
                 listen();
             } else {
+                speechRecognitionBusy = false;
+                updateVoiceControl(false);
                 append("SES ALGILAMA", "Sesli komut için mikrofon izni gerekiyor. İzni Android uygulama ayarlarından açabilirsin.");
             }
         }
