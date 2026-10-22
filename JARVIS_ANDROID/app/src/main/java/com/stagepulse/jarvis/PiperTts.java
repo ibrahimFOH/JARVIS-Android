@@ -38,6 +38,7 @@ public final class PiperTts {
     private final ExecutorService speechExecutor = Executors.newSingleThreadExecutor();
     private final AtomicBoolean stopRequested = new AtomicBoolean(false);
     private volatile boolean initialized = false;
+    private volatile String lastError = "";
     private Future<?> currentSpeech;
     private OrtEnvironment ortEnvironment;
     private OrtSession ortSession;
@@ -115,6 +116,7 @@ public final class PiperTts {
                 if (onReady != null) onReady.run();
             } catch (Throwable t) {
                 initialized = false;
+                lastError = t.getClass().getSimpleName() + ": " + String.valueOf(t.getMessage());
                 Log.e(TAG, "Direct Piper initialization failed", t);
                 if (onError != null) onError.run();
             }
@@ -122,6 +124,8 @@ public final class PiperTts {
     }
 
     public boolean isReady() { return initialized; }
+
+    public String getLastError() { return lastError; }
 
     public void speak(String text) {
         if (!initialized || text == null || text.trim().isEmpty()) return;
