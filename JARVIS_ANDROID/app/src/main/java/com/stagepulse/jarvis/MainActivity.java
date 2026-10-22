@@ -1752,7 +1752,7 @@ public class MainActivity extends Activity {
         }
         if (x.contains("mobil veri") || x.contains("veri baglantisi")) {
             if (JarvisAccessibilityService.isEnabled(this)
-                    && JarvisAccessibilityService.performGlobalAction(
+                    && JarvisAccessibilityService.requestGlobalAction(
                     android.accessibilityservice.AccessibilityService.GLOBAL_ACTION_QUICK_SETTINGS)) {
                 return "Hızlı Ayarlar açıldı. Android, mobil veriyi uygulamaların doğrudan değiştirmesine izin vermiyor; düğmeyi panelden kullan.";
             }
