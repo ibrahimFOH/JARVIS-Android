@@ -483,7 +483,7 @@ public class MainActivity extends Activity {
         form.addView(role);
         form.addView(organization);
         form.addView(context);
-        TextView notice = tv("Profil yalnızca bu cihazda saklanır. Bu özellik konuşmacıyı biyometrik olarak tanımaz; hassas işlemler için Android kilidi ve izinleri geçerlidir.", 11, muted());
+        TextView notice = tv("Profil bu cihazda saklanır; konuşmacı biyometrik olarak doğrulanmaz. Windows'a gönderilen komutlara profil bağlamı eklenebilir. Parola veya gizli erişim anahtarı kaydetme.", 11, muted());
         notice.setPadding(0, dp(8), 0, dp(4));
         form.addView(notice);
 
