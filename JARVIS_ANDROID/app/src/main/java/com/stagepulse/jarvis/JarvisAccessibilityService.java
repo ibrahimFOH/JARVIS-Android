@@ -2,6 +2,7 @@ package com.stagepulse.jarvis;
 
 import android.accessibilityservice.AccessibilityService;
 import android.view.accessibility.AccessibilityEvent;
+import android.view.accessibility.AccessibilityNodeInfo;
 import android.provider.Settings;
 import android.content.ComponentName;
 import android.content.Context;
@@ -34,15 +35,14 @@ public final class JarvisAccessibilityService extends AccessibilityService {
         String enabled = Settings.Secure.getString(
                 context.getContentResolver(), Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES);
         if (enabled == null || enabled.isEmpty()) return false;
-        String expected = ComponentName.flattenToString(
-                new ComponentName(context, JarvisAccessibilityService.class));
+        String expected = new ComponentName(context, JarvisAccessibilityService.class).flattenToString();
         for (String part : enabled.split(":")) {
             if (expected.equalsIgnoreCase(part)) return true;
         }
         return false;
     }
 
-    public static boolean performGlobalAction(int action) {
+    public static boolean requestGlobalAction(int action) {
         JarvisAccessibilityService current = instance;
         if (current == null) return false;
         current.main.post(() -> current.performGlobalAction(action));
