@@ -12,10 +12,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Validate JARVIS Python syntax and website routes
+      - name: Validate JARVIS Python syntax and website/update helpers
         shell: bash
         run: |
-          python -m py_compile JARVIS_HOST/core/ai_brain.py JARVIS_HOST/core/command_processor.py
+          python -m pip install --quiet requests
+          python -m py_compile JARVIS_HOST/core/ai_brain.py JARVIS_HOST/core/command_processor.py JARVIS_HOST/core/update_manager.py JARVIS_HOST/gui/main_window.py
           python - <<'PY'
           import ast
           import re
@@ -45,7 +46,20 @@ jobs:
               result = resolve(command)
               actual = result[0] if result else None
               assert actual == expected, f"{command!r}: expected {expected!r}, got {actual!r}"
-          print("JARVIS Python syntax and website routing: PASS")
+          print("JARVIS website route aliases: PASS")
+          PY
+          python - <<'PY'
+          import sys
+          sys.path.insert(0, "JARVIS_HOST")
+          from core.update_manager import WindowsUpdateManager
+          version = WindowsUpdateManager._version_tuple
+          trusted = WindowsUpdateManager._trusted_release_url
+          assert version("2.2.1-piper") == (2, 2, 1)
+          assert version("2.3.0") > version("2.2.1-piper")
+          assert trusted("https://github.com/ibrahimFOH/JARVIS-Android/releases/download/v2.3.0/JARVIS-Windows.zip")
+          assert not trusted("https://example.com/JARVIS-Windows.zip")
+          assert not trusted("http://github.com/ibrahimFOH/JARVIS-Android/releases/download/v2.3.0/JARVIS-Windows.zip")
+          print("JARVIS Windows updater URL/version checks: PASS")
           PY
 
       - name: Set up Java 17
