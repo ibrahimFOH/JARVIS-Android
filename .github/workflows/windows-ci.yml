@@ -35,6 +35,11 @@ jobs:
         run: |
           python -m py_compile JARVIS_HOST/main.py JARVIS_HOST/core/ai_brain.py JARVIS_HOST/core/command_processor.py JARVIS_HOST/core/update_manager.py JARVIS_HOST/gui/main_window.py
 
+      - name: Test persistent memory behavior
+        shell: pwsh
+        run: |
+          python -m unittest discover -s tests -v
+
       - name: Build packaged Windows application
         shell: pwsh
         working-directory: JARVIS_HOST
