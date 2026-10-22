@@ -1313,3 +1313,8 @@ If Jarvis V2 has been helpful, consider supporting its development:
 Copyright © 2025 Jarvis V2 Contributors | [MIT License](LICENSE)
 
 </div>
+
+
+## Android companion bridge
+
+When the packaged Windows JARVIS GUI starts, it attempts to start the authenticated Android LAN bridge in the same process. This avoids needing a separate Python console or a second bridge process. The bridge token is stored in `config/bridge_token.txt` beside the host configuration. Keep the token private and use the bridge only on a trusted local network; do not expose TCP 8765 to the public internet. If port 8765 is already occupied, the desktop GUI still starts, but the Android companion cannot use that bridge until the conflict is resolved.
