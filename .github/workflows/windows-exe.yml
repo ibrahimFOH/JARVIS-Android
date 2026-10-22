@@ -7,6 +7,11 @@ concurrency:
 on:
   workflow_dispatch:
   push:
+    branches: [main, feature/gemini-windows-android, feature/jarvis-fullscreen-pdf]
+    paths:
+      - 'JARVIS_HOST/**'
+      - '.github/workflows/windows-exe.yml'
+  pull_request:
     branches: [main, feature/gemini-windows-android]
     paths:
       - 'JARVIS_HOST/**'
@@ -31,10 +36,13 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install pyinstaller
           python -m pip install -r requirements.txt
+      - name: Compile Python sources
+        shell: pwsh
+        run: python -m compileall -q .
       - name: Build Windows executable
         shell: pwsh
         run: |
-          pyinstaller --noconfirm --clean --onedir --windowed --name StagepulseJARVIS --collect-all customtkinter --collect-all pystray --collect-all PIL --collect-all edge_tts --collect-all sherpa_onnx --hidden-import=win32timezone main.py
+          pyinstaller --noconfirm --clean --onedir --windowed --name StagepulseJARVIS --collect-all customtkinter --collect-all pystray --collect-all PIL --collect-all edge_tts --collect-all sherpa_onnx --hidden-import=win32timezone --hidden-import=core.updater --hidden-import=version main.py
       - name: Include runtime files
         shell: pwsh
         run: |

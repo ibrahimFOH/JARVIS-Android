@@ -16,6 +16,8 @@ from modules import (
     WindowManager
 )
 from datetime import datetime
+import os
+import webbrowser
 from core.ai_brain import AIBrain
 
 logger = get_logger()
@@ -39,8 +41,76 @@ class CommandProcessor:
         
         logger.info("Command processor initialized")
     
+    @staticmethod
+    def _resolve_stagepulse_route(command: str):
+        """Resolve Stagepulse-specific spoken commands before generic app/AI routing."""
+        text = (command or "").strip().lower()
+        folded = text.translate(str.maketrans({
+            "ı": "i", "İ": "i", "ş": "s", "ğ": "g",
+            "ü": "u", "ö": "o", "ç": "c"
+        }))
+        compact = " ".join(folded.replace("stagepulse.com.tr", "stagepulse").split())
+
+        # Most specific destinations first. "Benim sitem" means the owner's admin panel.
+        admin_phrases = (
+            "benim sitemi ac", "sitemin admin panelini ac",
+            "admin panelini ac", "admin paneli ac", "yonetim panelini ac",
+            "yonetim paneli ac", "stagepulse admin ac", "stagepulse yonetimini ac",
+            "yonetici panelini ac", "yonetici paneli ac",
+        )
+        staff_phrases = (
+            "personel sayfasini ac", "personel sayfasi ac",
+            "personel panelini ac", "personel paneli ac",
+            "personel portalini ac", "personel portali ac",
+            "portal ac", "calisan sayfasini ac",
+        )
+        public_phrases = (
+            "stagepulse ac", "stagepulse sitesini ac",
+            "siteyi ac", "siteyi ziyaret et", "ana sayfayi ac",
+            "public siteyi ac", "herkese acik siteyi ac",
+            "stagepulse ana sayfasini ac",
+        )
+
+        if any(phrase in compact for phrase in admin_phrases):
+            return ("admin", "https://stagepulse.com.tr/admin/")
+        if any(phrase in compact for phrase in staff_phrases):
+            return ("personel", "https://stagepulse.com.tr/portal/")
+        if any(phrase in compact for phrase in public_phrases):
+            return ("public", "https://stagepulse.com.tr/")
+        # Explicit bare domain should always open the public homepage.
+        if "stagepulse.com.tr" in text and not any(
+            word in folded for word in ("admin", "yonetim", "personel", "portal")
+        ):
+            return ("public", "https://stagepulse.com.tr/")
+        return None
+
     def process(self, command: str) -> Dict[str, Any]:
         logger.command(command)
+
+        # Resolve known Stagepulse destinations deterministically. Do not send these
+        # commands to generic app matching or web search, which can open the wrong site.
+        website = self._resolve_stagepulse_route(command)
+        if website:
+            section, url = website
+            opened = webbrowser.open(url, new=2)
+            if opened:
+                labels = {
+                    "admin": "Stagepulse yönetim paneli",
+                    "personel": "Stagepulse personel sayfası",
+                    "public": "Stagepulse herkese açık ana sayfası",
+                }
+                return {
+                    "success": True,
+                    "response": "{} açılıyor.".format(labels[section]),
+                    "intent": "open_website",
+                    "url": url,
+                }
+            return {
+                "success": False,
+                "response": "Tarayıcı açılamadı. Adres: {}".format(url),
+                "intent": "open_website",
+                "url": url,
+            }
         intent_result = self.intent_recognizer.recognize(command)
         intent = intent_result['intent']
         confidence = intent_result['confidence']
@@ -722,7 +792,46 @@ try:
 
         return None
 
+    def _jarvis_open_stagepulse_target(command):
+        """Open the requested Stagepulse destination deterministically."""
+        raw = str(command or "").strip().lower()
+        normalized = raw.replace("ı", "i").replace("ş", "s").replace("ğ", "g")
+        normalized = normalized.replace("ü", "u").replace("ö", "o").replace("ç", "c")
+        normalized = normalized.replace("?", "").replace("!", "").replace(".", "").strip()
+
+        site_terms = ("stagepulse", "stage pulse", "benim sitem", "sitem", "siteyi", "site")
+        admin_terms = ("admin", "yonetim", "panel", "benim sitem", "sitemi")
+        staff_terms = ("personel", "calisan", "staff", "ekip sayfasi", "personel sayfasi")
+        open_terms = ("ac", "gir", "goster", "git", "calistir", "getir")
+        specific_destination = any(term in normalized for term in admin_terms + staff_terms)
+        if not specific_destination and not any(term in normalized for term in site_terms):
+            return None
+        if not any(term in normalized for term in open_terms) and normalized not in ("sitem", "site", "stagepulse", "stage pulse"):
+            return None
+
+        public_url = os.environ.get("STAGEPULSE_PUBLIC_URL", "https://stagepulse.com.tr/")
+        admin_url = os.environ.get("STAGEPULSE_ADMIN_URL", "https://stagepulse.com.tr/admin")
+        staff_url = os.environ.get("STAGEPULSE_STAFF_URL", "https://stagepulse.com.tr/personel")
+
+        if any(term in normalized for term in ("personel", "calisan", "staff", "ekip sayfasi", "personel sayfasi")):
+            url, label = staff_url, "personel sayfası"
+        elif any(term in normalized for term in ("admin", "yonetim", "panel", "benim sitem", "sitemi")):
+            url, label = admin_url, "yönetim paneli"
+        else:
+            url, label = public_url, "herkese açık Stagepulse ana sayfası"
+
+        try:
+            opened = webbrowser.open(url, new=2)
+            if opened:
+                return {"success": True, "response": "Stagepulse " + label + " açılıyor: " + url, "intent": "open_stagepulse"}
+            return {"success": False, "response": "Tarayıcı bağlantıyı açamadı: " + url, "intent": "open_stagepulse"}
+        except Exception as exc:
+            return {"success": False, "response": "Stagepulse sayfası açılamadı: " + str(exc), "intent": "open_stagepulse"}
+
     def _jarvis_fast_process_command(self, command):
+        stagepulse_result = _jarvis_open_stagepulse_target(command)
+        if stagepulse_result is not None:
+            return stagepulse_result
         local = _jarvis_fast_local_response(command)
         if local is not None:
             return local
