@@ -1,4 +1,4 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="jarvis_accessibility_description">JARVIS'in isteğe bağlı telefon kontrol hizmeti, kullanıcı komutuyla görünür ekrandaki metni okuyabilir, belirtilen metni tıklamayı deneyebilir, odaktaki alana yazabilir, kaydırabilir ve Android genel kontrollerini çalıştırabilir. Kullanıcı ekrandaki altın MIC düğmesine dokununca ön planda mikrofon bildirimli sesli oturum başlar; düğmeye tekrar dokunarak durdurulur. Ekran metni arka planda kaydedilmez veya kendiliğinden gönderilmez. Bu güçlü izni yalnızca güveniyorsan etkinleştir.</string>
+    <string name="jarvis_accessibility_description">JARVIS telefon kontrol hizmeti, kullanıcı komutuyla görünür ekrandaki metni okuyabilir, belirtilen metni tıklamayı deneyebilir, odaktaki alana yazabilir, kaydırabilir ve Android genel kontrollerini çalıştırabilir. Kullanıcı ekrandaki altın MIC düğmesine dokununca ön planda mikrofon bildirimli sesli oturum başlar; düğmeye tekrar dokunarak durdurulur. Ekran metni arka planda kaydedilmez veya kendiliğinden gönderilmez. Bu güçlü izni yalnızca güveniyorsan etkinleştir.</string>
 </resources>
