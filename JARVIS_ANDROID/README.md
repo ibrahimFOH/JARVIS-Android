@@ -19,6 +19,10 @@ Bağımsız Android JARVIS uygulaması. Bu proje, Windows Asistan 0.1.5 EXE'sini
 - Windows otomatik değiştirme yalnızca yayınlanmış PyInstaller `JARVIS.exe` paketi içinde çalışır. Kaynak kodu/CLI ile çalıştırılan sürüm kendisini dosya üzerine yazarak güncellemez.
 - Tek bir GitHub Release, hem `JARVIS-Android-release.apk` hem `JARVIS-Windows.zip` dosyalarını ve ortak `update.json` sürüm manifestini içerir. Release iş akışı yalnızca sürüm etiketi gönderildiğinde çalışır; etiket adı `JARVIS_HOST/VERSION` ve Android `versionName` ile eşleşmelidir.
 
+### İlk sürüme geçiş notu
+
+Daha önce Actions'tan alınmış `debug` APK'sı veya farklı bir anahtarla imzalanmış Windows EXE'si, yeni yayınla her zaman yerinde güncellenemez. Android'in imza kuralı nedeniyle ilk imzalı Android sürümüne geçerken eski debug uygulamasını kaldırıp yeni imzalı APK'yı elle kurmak gerekebilir; kaldırma uygulama içindeki bağlantı ayarlarını siler, bu yüzden Windows host adresini ve erişim token'ını önceden güvenli şekilde sakla. Bundan sonraki sürümler aynı Android keystore ile imzalanır ve uygulama içinden güncellenebilir. Windows'ta updater içermeyen eski paket için de ilk geçişin elle kurulması gerekir.
+
 ### İlk imzalı Android yayınını etkinleştirme
 
 Android güncellemesinin mevcut kurulumun üzerine yüklenebilmesi için bütün sürümlerin **aynı kalıcı imzalama anahtarıyla** imzalanması gerekir. Keystore dosyasını Git deposuna koyma.
