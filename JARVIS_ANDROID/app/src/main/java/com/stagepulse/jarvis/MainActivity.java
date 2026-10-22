@@ -10,6 +10,7 @@ import android.content.pm.PackageInstaller;
 import android.os.*;
 import android.provider.Settings;
 import android.net.Uri;
+import android.media.AudioManager;
 import android.speech.*;
 import android.speech.tts.TextToSpeech;
 import android.view.Gravity;
@@ -517,12 +518,24 @@ public class MainActivity extends Activity {
         if (x.startsWith("hatirla") || x.startsWith("jarvis, hatirla") || x.startsWith("unut")
                 || x.equals("hafizami goster") || x.equals("hafizamda ne var")
                 || x.equals("ne hatirliyorsun")) return true;
-        return x.equals("merhaba") || x.equals("selam") || x.contains("kimsin")
-                || x.contains("adın ne") || x.contains("adin ne")
-                || x.contains("saat kaç") || x.contains("saat kac") || x.equals("saat")
-                || x.contains("tarih") || x.contains("bugün") || x.contains("bugun")
-                || x.contains("pil") || x.contains("batarya")
-                || x.contains("ayarlar") || x.contains("tarayici")
+        boolean launchVerb = x.contains(" ac") || x.startsWith("ac") || x.contains("baslat")
+                || x.contains("open") || x.contains("calistir");
+        boolean appCommand = launchVerb && (x.contains("youtube") || x.contains("whatsapp")
+                || x.contains("instagram") || x.contains("chrome") || x.contains("harita")
+                || x.contains("maps") || x.contains("music") || x.contains("muzik"));
+        boolean settingsCommand = (x.contains("wifi") || x.contains("wi-fi")
+                || x.contains("kablosuz ag") || x.contains("bluetooth")) && (launchVerb || x.contains("ayar"));
+        boolean fileCommand = x.contains("dosya") && (launchVerb || x.contains("sec"));
+        boolean volumeCommand = x.contains("ses artir") || x.contains("sesi yukselt")
+                || x.contains("ses azalt") || x.contains("sesi kis") || x.contains("sessize al")
+                || x.contains("sesi kapat") || x.contains("sesi ac");
+        return appCommand || settingsCommand || fileCommand || volumeCommand
+                || x.contains("kamera") || x.contains("telefon ara") || x.contains("arama yap")
+                || x.contains("ekran parlakligi") || x.contains("pil tasarrufu")
+                || x.equals("merhaba") || x.equals("selam") || x.contains("kimsin")
+                || x.contains("adin ne") || x.contains("saat kac") || x.equals("saat")
+                || x.contains("tarih") || x.contains("bugun") || x.contains("pil")
+                || x.contains("batarya") || x.contains("ayarlar") || x.contains("tarayici")
                 || x.contains("internet ac") || x.contains("yardim")
                 || x.contains("ne yapabiliyorsun") || x.contains("nasilsin")
                 || x.contains("iyi misin") || x.contains("tesekkur")
@@ -599,12 +612,90 @@ public class MainActivity extends Activity {
         }
     }
 
+    private String launchAndroidAppOrWeb(String packageName, String fallbackUrl, String label) {
+        try {
+            Intent launch = getPackageManager().getLaunchIntentForPackage(packageName);
+            if (launch != null) {
+                startActivity(launch);
+                return label + " uygulamasını açıyorum.";
+            }
+        } catch (Exception ignored) {}
+        try {
+            startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(fallbackUrl)));
+            return label + " uygulaması bulunamadı; web sürümünü açıyorum.";
+        } catch (Exception e) {
+            return label + " açılamadı. Uygulamanın yüklü olup olmadığını kontrol et.";
+        }
+    }
+
     private String processLocal(String raw){
         String memoryResponse = handleLocalMemory(raw);
         if (memoryResponse != null) return memoryResponse;
         String websiteResponse = openDirectWebsite(raw);
         if (websiteResponse != null) return websiteResponse;
         String c=raw.toLowerCase(new Locale("tr","TR")).trim();
+        String normalized=c.replace("ı","i").replace("ş","s").replace("ğ","g").replace("ü","u").replace("ö","o").replace("ç","c");
+        boolean launchVerb = c.contains("aç") || normalized.contains(" ac") || normalized.startsWith("ac")
+                || c.contains("başlat") || normalized.contains("baslat") || c.contains("open");
+        if ((c.contains("wifi") || c.contains("wi-fi") || normalized.contains("kablosuz ag"))
+                && (launchVerb || c.contains("ayar"))) {
+            try { startActivity(new Intent(Settings.ACTION_WIFI_SETTINGS)); return "Wi-Fi ayarlarını açıyorum."; }
+            catch (Exception e) { return "Wi-Fi ayarları açılamadı."; }
+        }
+        if (c.contains("bluetooth") && (launchVerb || c.contains("ayar"))) {
+            try { startActivity(new Intent(Settings.ACTION_BLUETOOTH_SETTINGS)); return "Bluetooth ayarlarını açıyorum."; }
+            catch (Exception e) { return "Bluetooth ayarları açılamadı."; }
+        }
+        if (c.contains("ses artır") || normalized.contains("ses artir") || c.contains("sesi yükselt") || normalized.contains("sesi yukselt")) {
+            AudioManager audio=(AudioManager)getSystemService(AUDIO_SERVICE);
+            if(audio!=null) audio.adjustStreamVolume(AudioManager.STREAM_MUSIC,AudioManager.ADJUST_RAISE,AudioManager.FLAG_SHOW_UI);
+            return "Medya sesini artırdım.";
+        }
+        if (c.contains("ses azalt") || normalized.contains("ses azalt") || c.contains("sesi kıs") || normalized.contains("sesi kis")) {
+            AudioManager audio=(AudioManager)getSystemService(AUDIO_SERVICE);
+            if(audio!=null) audio.adjustStreamVolume(AudioManager.STREAM_MUSIC,AudioManager.ADJUST_LOWER,AudioManager.FLAG_SHOW_UI);
+            return "Medya sesini azalttım.";
+        }
+        if (c.contains("sessize al") || c.contains("sesi kapat")) {
+            AudioManager audio=(AudioManager)getSystemService(AUDIO_SERVICE);
+            if(audio!=null) audio.adjustStreamVolume(AudioManager.STREAM_MUSIC,AudioManager.ADJUST_MUTE,AudioManager.FLAG_SHOW_UI);
+            return "Medya sesini kapattım.";
+        }
+        if (normalized.contains("sesi ac") || c.contains("sesi aç") || c.contains("sesi aç")) {
+            AudioManager audio=(AudioManager)getSystemService(AUDIO_SERVICE);
+            if(audio!=null) audio.adjustStreamVolume(AudioManager.STREAM_MUSIC,AudioManager.ADJUST_UNMUTE,AudioManager.FLAG_SHOW_UI);
+            return "Medya sesini açtım.";
+        }
+        if (c.contains("dosya") && (launchVerb || normalized.contains("dosya sec"))) {
+            try {
+                Intent pick=new Intent(Intent.ACTION_OPEN_DOCUMENT);
+                pick.addCategory(Intent.CATEGORY_OPENABLE);
+                pick.setType("*/*");
+                startActivity(pick);
+                return "Dosya seçiciyi açıyorum.";
+            } catch (Exception e) { return "Dosya seçici açılamadı."; }
+        }
+        if (c.contains("kamera")) {
+            try { startActivity(new Intent(android.provider.MediaStore.ACTION_IMAGE_CAPTURE)); return "Kamerayı açıyorum."; }
+            catch (Exception e) { return "Kamera açılamadı."; }
+        }
+        if (c.contains("telefon ara") || c.contains("arama yap")) {
+            try { startActivity(new Intent(Intent.ACTION_DIAL, Uri.parse("tel:"))); return "Telefon arama ekranını açıyorum."; }
+            catch (Exception e) { return "Telefon arama ekranı açılamadı."; }
+        }
+        if (c.contains("ekran parlaklığı") || normalized.contains("ekran parlakligi")) {
+            try { startActivity(new Intent(Settings.ACTION_DISPLAY_SETTINGS)); return "Ekran ayarlarını açıyorum."; }
+            catch (Exception e) { return "Ekran ayarları açılamadı."; }
+        }
+        if (c.contains("pil tasarrufu") || normalized.contains("pil tasarrufu")) {
+            try { startActivity(new Intent(Settings.ACTION_BATTERY_SAVER_SETTINGS)); return "Pil tasarrufu ayarlarını açıyorum."; }
+            catch (Exception e) { return "Pil tasarrufu ayarları açılamadı."; }
+        }
+        if (c.contains("youtube") && launchVerb) return launchAndroidAppOrWeb("com.google.android.youtube","https://www.youtube.com/","YouTube");
+        if (c.contains("whatsapp") && launchVerb) return launchAndroidAppOrWeb("com.whatsapp","https://www.whatsapp.com/","WhatsApp");
+        if (c.contains("instagram") && launchVerb) return launchAndroidAppOrWeb("com.instagram.android","https://www.instagram.com/","Instagram");
+        if (c.contains("chrome") && launchVerb) return launchAndroidAppOrWeb("com.android.chrome","https://www.google.com/","Chrome");
+        if ((c.contains("harita") || c.contains("maps")) && launchVerb) return launchAndroidAppOrWeb("com.google.android.apps.maps","https://maps.google.com/","Haritalar");
         if(c.equals("ajanlar")||c.equals("agentler")||c.contains("stagepulse agent"))return AgencyCatalog.listText();
         if(c.contains("aktif ajan")||c.contains("hangi ajan"))return activeAgent==null?"Şu anda aktif bir Stagepulse Agent yok.":"Aktif ajan: "+activeAgent.name+".";
         if(c.contains("merhaba")||c.equals("selam"))return "Merhaba Patron. Android JARVIS çekirdeği hazır.";
