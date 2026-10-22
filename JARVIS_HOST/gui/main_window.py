@@ -6,6 +6,7 @@ import threading
 import math
 import time
 import sys
+import socket
 from utils.logger import get_logger
 from utils.config_manager import get_config
 from core.update_manager import WindowsUpdateManager
@@ -116,6 +117,13 @@ class JarvisGUI:
                 progress_color=GOLD2, button_color=GOLD,
                 text_color=WHITE
             ).pack(anchor="w", padx=12, pady=4)
+
+        ctk.CTkButton(
+            left, text="ANDROID LINK", height=34,
+            fg_color=GOLD2, hover_color=GOLD, text_color="#050505",
+            font=("Consolas", 9, "bold"),
+            command=self._show_android_link
+        ).pack(fill="x", padx=10, pady=(12, 4))
 
         center = ctk.CTkFrame(self.root, fg_color=BG, corner_radius=0)
         center.grid(row=1, column=1, sticky="nsew", padx=7, pady=5)
@@ -522,6 +530,95 @@ class JarvisGUI:
         )
         self.activity.see("end")
         self.activity.configure(state="disabled")
+
+    def _show_android_link(self):
+        """Show the current LAN endpoint and let the user copy the bridge token."""
+        try:
+            from android_bridge import PORT, TOKEN_FILE
+            token = TOKEN_FILE.read_text(encoding="utf-8").strip()
+            if not token:
+                raise RuntimeError("Bridge token is empty.")
+        except Exception as exc:
+            messagebox.showerror(
+                "Android Link",
+                "Android köprüsü başlatılamadı veya token okunamadı.\n" + str(exc)
+            )
+            return
+
+        address = ""
+        try:
+            # UDP connect discovers the selected local interface without sending data.
+            with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as probe:
+                probe.connect(("8.8.8.8", 80))
+                address = probe.getsockname()[0]
+        except OSError:
+            candidates = []
+            try:
+                candidates = [
+                    item[4][0] for item in socket.getaddrinfo(
+                        socket.gethostname(), None, socket.AF_INET
+                    ) if not item[4][0].startswith("127.")
+                ]
+            except OSError:
+                pass
+            address = candidates[0] if candidates else ""
+
+        if not address:
+            messagebox.showerror(
+                "Android Link",
+                "Yerel IPv4 adresi bulunamadı. Windows'ta ipconfig komutuyla adresini kontrol et."
+            )
+            return
+
+        dialog = ctk.CTkToplevel(self.root)
+        dialog.title("J.A.R.V.I.S. // ANDROID LINK")
+        dialog.geometry("580x270")
+        dialog.resizable(False, False)
+        dialog.transient(self.root)
+        dialog.grab_set()
+        dialog.configure(fg_color=BG)
+
+        ctk.CTkLabel(
+            dialog, text="ANDROID COMPANION CONNECTION",
+            text_color=GOLD, font=("Consolas", 14, "bold")
+        ).pack(anchor="w", padx=20, pady=(18, 4))
+        ctk.CTkLabel(
+            dialog,
+            text="Telefon ve bilgisayar aynı güvenilir Wi-Fi/LAN ağında olmalı.",
+            text_color=MUTED, font=("Segoe UI", 10)
+        ).pack(anchor="w", padx=20, pady=(0, 12))
+
+        endpoint = ctk.CTkEntry(dialog, height=36, font=("Consolas", 11))
+        endpoint.pack(fill="x", padx=20, pady=4)
+        endpoint.insert(0, f"http://{address}:{PORT}")
+
+        token_entry = ctk.CTkEntry(dialog, height=36, font=("Consolas", 10), show="•")
+        token_entry.pack(fill="x", padx=20, pady=4)
+        token_entry.insert(0, token)
+
+        actions = ctk.CTkFrame(dialog, fg_color="transparent")
+        actions.pack(fill="x", padx=20, pady=(8, 4))
+
+        def copy_entry(entry, label):
+            self.root.clipboard_clear()
+            self.root.clipboard_append(entry.get())
+            self._activity(label + " COPIED")
+
+        ctk.CTkButton(
+            actions, text="COPY ADDRESS", command=lambda: copy_entry(endpoint, "ANDROID ADDRESS"),
+            fg_color=GOLD2, hover_color=GOLD, text_color="#050505"
+        ).pack(side="left", expand=True, fill="x", padx=(0, 5))
+        ctk.CTkButton(
+            actions, text="COPY TOKEN", command=lambda: copy_entry(token_entry, "ANDROID TOKEN"),
+            fg_color="#111417", hover_color="#20252A", text_color=WHITE,
+            border_width=1, border_color=GOLD2
+        ).pack(side="left", expand=True, fill="x", padx=(5, 0))
+
+        ctk.CTkLabel(
+            dialog,
+            text="Token'ı paylaşma ve 8765 portunu internete açma.",
+            text_color=RED, font=("Segoe UI", 10)
+        ).pack(anchor="w", padx=20, pady=(8, 12))
 
     def _toggle_wake_word(self):
         if self.wake_word_var.get():
