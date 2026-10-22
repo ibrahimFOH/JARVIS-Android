@@ -84,10 +84,12 @@ class JarvisGUI:
 
         threading.Thread(target=worker, daemon=True, name="JARVIS-Update-Check").start()
 
-    @staticmethod
-    def _download_and_install_update(release):
+    def _download_and_install_update(self, release):
         from core.updater import download_and_prepare_update
-        return download_and_prepare_update(release)
+        result = download_and_prepare_update(release)
+        # Let the UI display the result, then close so the helper can replace the EXE files.
+        self.root.after(2500, self._on_closing)
+        return result
 
 
     def _start_android_bridge(self):
