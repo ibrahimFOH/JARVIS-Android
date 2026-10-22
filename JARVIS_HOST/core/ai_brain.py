@@ -99,7 +99,7 @@ KULLANICI PROFİLİ (kalıcı çalışma bağlamı):
         if memory_context:
             prompt = (
                 str(prompt)
-                + "\\n\\nKALICI HAFIZA (yalnızca bu isteğe ilgiliyse kullan):\\n"
+                + "\n\nKALICI HAFIZA (yalnızca bu isteğe ilgiliyse kullan):\n"
                 + memory_context
             )
         return self._ollama(prompt,self._web(prompt) if self._needs_web(prompt) else "")
