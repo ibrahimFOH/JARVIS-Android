@@ -7,8 +7,12 @@ import android.app.PendingIntent;
 import android.content.*;
 import android.content.pm.PackageManager;
 import android.content.pm.PackageInstaller;
+import android.database.Cursor;
+import android.hardware.camera2.CameraCharacteristics;
+import android.hardware.camera2.CameraManager;
 import android.os.*;
 import android.provider.Settings;
+import android.provider.MediaStore;
 import android.net.Uri;
 import android.media.AudioManager;
 import android.speech.*;
@@ -18,6 +22,8 @@ import android.widget.*;
 import java.text.SimpleDateFormat;
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.*;
@@ -1180,6 +1186,28 @@ public class MainActivity extends Activity {
         if (x.startsWith("hatirla") || x.startsWith("jarvis, hatirla") || x.startsWith("unut")
                 || x.equals("hafizami goster") || x.equals("hafizamda ne var")
                 || x.equals("ne hatirliyorsun")) return true;
+        if (x.equals("jarvis") || x.equals("hey jarvis")
+                || x.contains("profilimi ayarla") || x.contains("profil ayarlari")
+                || x.contains("beni taniyor musun") || x.equals("ben kimim")
+                || x.contains("hakkimda ne biliyorsun") || x.startsWith("adimi ")
+                || x.startsWith("meslegimi ")) return true;
+        if (x.startsWith("dosya olustur ") || x.startsWith("dosya yarat ")
+                || x.startsWith("metin dosyasi olustur ") || x.startsWith("not al ")
+                || x.startsWith("not kaydet ") || x.startsWith("klasor olustur ")
+                || x.startsWith("klasor yarat ") || x.contains("son dosyayi ac")
+                || x.contains("jarvis dosyalarini listele") || x.contains("son dosyalari goster")
+                || x.contains("son dosyayi sil")) return true;
+        if (x.contains("erisilebilirlik") || x.contains("ana ekrana don")
+                || x.equals("ana ekran") || x.equals("geri") || x.equals("geri don")
+                || x.contains("bildirim panelini ac") || x.contains("hizli ayarlari ac")
+                || x.contains("son uygulamalari ac") || x.contains("ekrani kilitle")
+                || x.contains("guc menusunu ac") || x.contains("ekran goruntusu al")
+                || x.contains("fener") || x.contains("flashlight") || x.contains("zamanlayici")
+                || x.contains("geri sayim") || x.contains("alarm kur") || x.contains("alarm ayarla")
+                || x.contains("ucak modu") || x.contains("pil tasarrufu")
+                || x.contains("parlaklik ayarlari") || x.contains("rehber")
+                || x.contains("hesap makinesi") || x.contains("dosya yoneticisi")
+                || x.contains("mesaj yaz") || x.startsWith("sms ")) return true;
         boolean launchVerb = x.contains(" ac") || x.startsWith("ac") || x.contains("baslat")
                 || x.contains("open") || x.contains("calistir");
         boolean appCommand = launchVerb && (x.contains("youtube") || x.contains("whatsapp")
@@ -1482,6 +1510,14 @@ public class MainActivity extends Activity {
     }
 
     private String processLocal(String raw){
+        String profileResponse = handleOwnerProfileCommand(raw);
+        if (profileResponse != null) return profileResponse;
+        String accessibilityResponse = handleAccessibilityCommand(raw);
+        if (accessibilityResponse != null) return accessibilityResponse;
+        String fileResponse = handleLocalFileCommand(raw);
+        if (fileResponse != null) return fileResponse;
+        String phoneResponse = handlePhoneControlCommand(raw);
+        if (phoneResponse != null) return phoneResponse;
         String memoryResponse = handleLocalMemory(raw);
         if (memoryResponse != null) return memoryResponse;
         String websiteResponse = openDirectWebsite(raw);
@@ -1555,6 +1591,7 @@ public class MainActivity extends Activity {
             } catch (Exception e) { return "Bu cihazda varsayılan müzik uygulaması bulunamadı."; }
         }
         if ((c.contains("harita") || c.contains("maps")) && launchVerb) return launchAndroidAppOrWeb("com.google.android.apps.maps","https://maps.google.com/","Haritalar");
+        if (isWakePhraseOnly(normalizeVoiceCommand(raw))) return "Buradayım Patron. Komutunu söyle.";
         if(c.equals("ajanlar")||c.equals("agentler")||c.contains("stagepulse agent"))return AgencyCatalog.listText();
         if(c.contains("aktif ajan")||c.contains("hangi ajan"))return activeAgent==null?"Şu anda aktif bir Stagepulse Agent yok.":"Aktif ajan: "+activeAgent.name+".";
         if(c.contains("merhaba")||c.equals("selam"))return "Merhaba Patron. Android JARVIS çekirdeği hazır.";
