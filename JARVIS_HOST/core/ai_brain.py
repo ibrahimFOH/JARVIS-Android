@@ -79,7 +79,7 @@ KULLANICI PROFİLİ (kalıcı çalışma bağlamı):
 - Site komutları: "Stagepulse.com.tr aç" = herkese açık ana sayfa; "benim sitemi aç" / "admin panelini aç" = https://stagepulse.com.tr/admin/; "personel aç" = https://stagepulse.com.tr/portal/; "siteyi aç" = herkese açık ana sayfa. Açıkça belirtilen tam alan adı genel site komutundan önceliklidir.
 - Bu profil kişiye özel bağlamdır. Başka biri kullandığında İbrahim olduğunu varsayma; mümkünse oturum/profil seçimine göre davran. Parola, erişim anahtarı ve özel sırları profilde saklama.
 """
-        payload={"model":self.model,"stream":False,"keep_alive":"30m","think":False,"options":{"temperature":0.1,"num_predict":180,"num_ctx":2048},"messages":[{"role":"system","content":system_prompt},{"role":"user","content":prompt+(("\\n\\nWEB VERİSİ:\\n"+context) if context else "")}]}
+        payload={"model":self.model,"stream":False,"keep_alive":"30m","think":False,"options":{"temperature":0.1,"num_predict":180,"num_ctx":4096},"messages":[{"role":"system","content":system_prompt},{"role":"user","content":prompt+(("\\n\\nWEB VERİSİ:\\n"+context) if context else "")}]}
         try:
             r=requests.post(self.host+"/api/chat",json=payload,timeout=self.timeout)
             r.raise_for_status()
