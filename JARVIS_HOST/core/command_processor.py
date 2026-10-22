@@ -16,6 +16,8 @@ from modules import (
     WindowManager
 )
 from datetime import datetime
+import os
+import webbrowser
 from core.ai_brain import AIBrain
 
 logger = get_logger()
@@ -722,7 +724,43 @@ try:
 
         return None
 
+    def _jarvis_open_stagepulse_target(command):
+        """Open the requested Stagepulse destination deterministically."""
+        raw = str(command or "").strip().lower()
+        normalized = raw.replace("ı", "i").replace("ş", "s").replace("ğ", "g")
+        normalized = normalized.replace("ü", "u").replace("ö", "o").replace("ç", "c")
+        normalized = normalized.replace("?", "").replace("!", "").replace(".", "").strip()
+
+        site_terms = ("stagepulse", "stage pulse", "benim sitem", "sitem", "siteyi", "site")
+        open_terms = ("ac", "gir", "goster", "git", "calistir", "getir")
+        if not any(term in normalized for term in site_terms):
+            return None
+        if not any(term in normalized for term in open_terms) and normalized not in ("sitem", "site", "stagepulse", "stage pulse"):
+            return None
+
+        public_url = os.environ.get("STAGEPULSE_PUBLIC_URL", "https://stagepulse.com.tr/")
+        admin_url = os.environ.get("STAGEPULSE_ADMIN_URL", "https://stagepulse.com.tr/admin")
+        staff_url = os.environ.get("STAGEPULSE_STAFF_URL", "https://stagepulse.com.tr/personel")
+
+        if any(term in normalized for term in ("personel", "calisan", "staff", "ekip sayfasi", "personel sayfasi")):
+            url, label = staff_url, "personel sayfası"
+        elif any(term in normalized for term in ("admin", "yonetim", "panel", "benim sitem", "sitemi")):
+            url, label = admin_url, "yönetim paneli"
+        else:
+            url, label = public_url, "herkese açık Stagepulse ana sayfası"
+
+        try:
+            opened = webbrowser.open(url, new=2)
+            if opened:
+                return {"success": True, "response": "Stagepulse " + label + " açılıyor: " + url, "intent": "open_stagepulse"}
+            return {"success": False, "response": "Tarayıcı bağlantıyı açamadı: " + url, "intent": "open_stagepulse"}
+        except Exception as exc:
+            return {"success": False, "response": "Stagepulse sayfası açılamadı: " + str(exc), "intent": "open_stagepulse"}
+
     def _jarvis_fast_process_command(self, command):
+        stagepulse_result = _jarvis_open_stagepulse_target(command)
+        if stagepulse_result is not None:
+            return stagepulse_result
         local = _jarvis_fast_local_response(command)
         if local is not None:
             return local
