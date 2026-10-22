@@ -8,11 +8,12 @@ import json
 import os
 import secrets
 import sys
+import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlparse
 
-ROOT = Path(__file__).resolve().parent
+ROOT = Path(sys.executable).resolve().parent if getattr(sys, "frozen", False) else Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT))
 
 HOST = os.environ.get("JARVIS_BRIDGE_HOST", "0.0.0.0")
@@ -104,10 +105,33 @@ class Handler(BaseHTTPRequestHandler):
                                     "response": "Windows JARVIS komutu işlerken hata oluştu."})
 
 
-if __name__ == "__main__":
+_background_server = None
+
+
+def start_background_server():
+    """Start the authenticated LAN bridge once, inside the desktop EXE process."""
+    global _background_server
+    if _background_server is not None:
+        return _background_server
+    server = ThreadingHTTPServer((HOST, PORT), Handler)
+    server.daemon_threads = True
+    worker = threading.Thread(
+        target=server.serve_forever,
+        name="JARVIS-Android-Bridge",
+        daemon=True,
+    )
+    worker.start()
+    _background_server = server
     print(f"JARVIS bridge listening on http://{HOST}:{PORT}")
     print("LAN access requires Windows Firewall permission for this port.")
+    return server
+
+
+if __name__ == "__main__":
     try:
-        ThreadingHTTPServer((HOST, PORT), Handler).serve_forever()
+        server = start_background_server()
+        threading.Event().wait()
     except KeyboardInterrupt:
+        if _background_server is not None:
+            _background_server.shutdown()
         print("\nJARVIS bridge stopped.")
