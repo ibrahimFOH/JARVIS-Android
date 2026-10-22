@@ -21,6 +21,13 @@
         <package android:name="com.instagram.android" />
         <package android:name="com.android.chrome" />
         <package android:name="com.google.android.apps.maps" />
+        <package android:name="com.spotify.music" />
+        <package android:name="com.google.android.gm" />
+        <package android:name="com.facebook.katana" />
+        <package android:name="com.google.android.calculator" />
+        <package android:name="com.google.android.contacts" />
+        <package android:name="com.google.android.apps.messaging" />
+        <package android:name="com.google.android.deskclock" />
         <intent>
             <action android:name="android.intent.action.MAIN" />
             <category android:name="android.intent.category.LAUNCHER" />
