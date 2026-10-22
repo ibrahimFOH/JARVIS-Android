@@ -48,6 +48,7 @@ public class MainActivity extends Activity {
     private android.content.SharedPreferences updatePrefs;
     private android.content.SharedPreferences profilePrefs;
     private volatile boolean pendingTorchState = false;
+    private volatile int pendingBrightnessDelta = 0;
     private final UpdateManager updateManager = new UpdateManager();
     private File pendingUpdateFile;
     private String pendingUpdateVersion = "";
@@ -985,7 +986,7 @@ public class MainActivity extends Activity {
         int action = -1;
         String description = null;
         if (x.contains("ana ekrana don") || x.equals("ana ekran") || x.contains("ana ekrani ac")
-                || x.contains("uygulamadan cik")) {
+                || x.contains("uygulamadan cik") || x.equals("uygulamayi kapat")) {
             action = android.accessibilityservice.AccessibilityService.GLOBAL_ACTION_HOME;
             description = "Ana ekrana dönüyorum.";
         } else if (x.equals("geri") || x.equals("geri don") || x.contains("bir adim geri")) {
@@ -1007,9 +1008,10 @@ public class MainActivity extends Activity {
             } else {
                 return "Ekranı kilitleme genel işlemi bu Android sürümünde desteklenmiyor.";
             }
-        } else if (x.contains("guc menusunu ac") || x.contains("telefonu kapatma menusunu ac")) {
+        } else if (x.contains("guc menusunu ac") || x.contains("telefonu kapatma menusunu ac")
+                || x.equals("telefonu kapat") || x.equals("telefonu yeniden baslat")) {
             action = android.accessibilityservice.AccessibilityService.GLOBAL_ACTION_POWER_DIALOG;
-            description = "Android güç menüsünü açıyorum. Kapatma işlemini telefonda sen onaylamalısın.";
+            description = "Android güç menüsünü açıyorum. Kapatma/yeniden başlatmayı telefonda sen onaylamalısın.";
         } else if (x.contains("ekran goruntusu al")) {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
                 action = android.accessibilityservice.AccessibilityService.GLOBAL_ACTION_TAKE_SCREENSHOT;
@@ -1558,6 +1560,30 @@ public class MainActivity extends Activity {
         }
     }
 
+    private int safeCurrentBrightness() {
+        try { return Settings.System.getInt(getContentResolver(), Settings.System.SCREEN_BRIGHTNESS); }
+        catch (Exception e) { return 128; }
+    }
+
+    private String applyBrightness(int delta) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.System.canWrite(this)) {
+            return "Ekran parlaklığını değiştirme izni verilmedi.";
+        }
+        try {
+            Settings.System.putInt(getContentResolver(), Settings.System.SCREEN_BRIGHTNESS_MODE,
+                    Settings.System.SCREEN_BRIGHTNESS_MODE_MANUAL);
+            int current = safeCurrentBrightness();
+            int next = Math.max(5, Math.min(255, current + delta));
+            boolean saved = Settings.System.putInt(getContentResolver(),
+                    Settings.System.SCREEN_BRIGHTNESS, next);
+            if (!saved) return "Android parlaklık ayarını kaydetmedi.";
+            pendingBrightnessDelta = 0;
+            return "Ekran parlaklığını " + Math.round(next * 100f / 255f) + "% seviyesine ayarladım.";
+        } catch (Exception e) {
+            return "Parlaklık değiştirilemedi: " + e.getMessage();
+        }
+    }
+
     private String handlePhoneControlCommand(String raw) {
         String x = normalizeIntent(raw);
         boolean openVerb = x.startsWith("ac ") || x.startsWith("ac,") || x.startsWith("baslat ")
@@ -1589,6 +1615,29 @@ public class MainActivity extends Activity {
                 return "Uçak modu ayarlarını açıyorum. Bağlantı değişikliği için Android onayı gerekir.";
             } catch (Exception e) { return "Uçak modu ayarları açılamadı."; }
         }
+        if (x.contains("parlakligi artir") || x.contains("ekrani aydinlat")
+                || x.contains("parlakligi azalt") || x.contains("ekrani karart")
+                || x.matches(".*parlaklik.*\\b\\d{1,3}\\s*(yuzde|%).*")) {
+            int delta = (x.contains("azalt") || x.contains("karart")) ? -32 : 32;
+            java.util.regex.Matcher percent = java.util.regex.Pattern.compile("parlaklik.*?(\\d{1,3})\\s*(?:yuzde|%)").matcher(x);
+            Integer level = null;
+            if (percent.find()) {
+                try { level = Math.max(5, Math.min(100, Integer.parseInt(percent.group(1)))); }
+                catch (NumberFormatException ignored) { }
+            }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.System.canWrite(this)) {
+                pendingBrightnessDelta = level == null ? delta : (level * 255 / 100) - safeCurrentBrightness();
+                runOnUiThread(() -> {
+                    try {
+                        Intent permission = new Intent(Settings.ACTION_MANAGE_WRITE_SETTINGS,
+                                Uri.parse("package:" + getPackageName()));
+                        startActivity(permission);
+                    } catch (Exception e) { append("TELEFON", "Parlaklık izni ayarları açılamadı."); }
+                });
+                return "Ekran parlaklığını değiştirmek için Android'in 'Sistem ayarlarını değiştirme' izni gerekiyor. İzni verince değişiklik uygulanacak.";
+            }
+            return applyBrightness(level == null ? delta : (level * 255 / 100) - safeCurrentBrightness());
+        }
         if (x.contains("ekran parlakligi") || x.contains("parlaklik ayarlari")) {
             try {
                 runOnUiThread(() -> startActivity(new Intent(Settings.ACTION_DISPLAY_SETTINGS)));
@@ -1600,6 +1649,17 @@ public class MainActivity extends Activity {
                 runOnUiThread(() -> startActivity(new Intent(Settings.ACTION_BATTERY_SAVER_SETTINGS)));
                 return "Pil tasarrufu ayarlarını açıyorum.";
             } catch (Exception e) { return "Pil tasarrufu ayarları açılamadı."; }
+        }
+        if (x.contains("mobil veri") || x.contains("veri baglantisi")) {
+            if (JarvisAccessibilityService.isEnabled(this)
+                    && JarvisAccessibilityService.performGlobalAction(
+                    android.accessibilityservice.AccessibilityService.GLOBAL_ACTION_QUICK_SETTINGS)) {
+                return "Hızlı Ayarlar açıldı. Android, mobil veriyi uygulamaların doğrudan değiştirmesine izin vermiyor; düğmeyi panelden kullan.";
+            }
+            try {
+                runOnUiThread(this::requestAccessibilityEnable);
+                return "Mobil veri düğmesine hızlı erişim için JARVIS Telefon Kontrolleri izni gerekli. Dilersen hızlı ayarı Android panelinden de elle değiştirebilirsin.";
+            } catch (Exception e) { return "Mobil veri ayarları açılamadı."; }
         }
         if (x.contains("rahatsiz etme") || x.contains("bildirim izinleri")) {
             try {
