@@ -7,8 +7,8 @@ android {
         applicationId 'com.stagepulse.jarvis'
         minSdk 26
         targetSdk 35
-        versionCode 230
-        versionName '2.3.0-device-actions'
+        versionCode 240
+        versionName '2.4.0-cross-app-voice'
     }
 
     signingConfigs {
