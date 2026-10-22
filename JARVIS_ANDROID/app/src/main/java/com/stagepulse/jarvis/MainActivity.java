@@ -469,19 +469,6 @@ public class MainActivity extends Activity {
         }
     }
 
-    private void initSpeech(){
-        if(!SpeechRecognizer.isRecognitionAvailable(this))return;
-        speech=SpeechRecognizer.createSpeechRecognizer(this);
-        speech.setRecognitionListener(new RecognitionListener(){
-            public void onReadyForSpeech(Bundle b){hud.setActive(true);status.setText("● LISTENING");}
-            public void onBeginningOfSpeech(){} public void onRmsChanged(float r){} public void onBufferReceived(byte[] b){}
-            public void onEndOfSpeech(){hud.setActive(false);}
-            public void onError(int e){hud.setActive(false);refreshVoiceStatus();append("JARVIS","Ses algılanamadı veya anlaşılmadı.");}
-            public void onResults(Bundle b){hud.setActive(false);ArrayList<String>x=b.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION);if(x!=null&&!x.isEmpty()){command.setText(x.get(0));sendCommand(x.get(0));}}
-            public void onPartialResults(Bundle b){} public void onEvent(int t,Bundle b){}
-        });
-    }
-
     private void listen(){
         if(speech==null){toast("Konuşma tanıma servisi yok. Google uygulamasını veya uyumlu ses hizmetini etkinleştir.");return;}
         if(speechRecognitionBusy){try{speech.cancel();}catch(Exception ignored){} speechRecognitionBusy=false;hud.setActive(false);refreshVoiceStatus();return;}
