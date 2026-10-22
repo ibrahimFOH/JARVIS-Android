@@ -1,0 +1,66 @@
+name: JARVIS Windows Auto Update Release
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'JARVIS_HOST/**'
+      - '.github/workflows/windows-auto-release.yml'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: stagepulse-jarvis-release
+  cancel-in-progress: false
+
+jobs:
+  build-release:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: JARVIS_HOST
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+          cache-dependency-path: JARVIS_HOST/requirements.txt
+      - name: Set release version
+        shell: pwsh
+        run: |
+          $version = "2026.10.${{ github.run_number }}"
+          "__version__ = `"$version`"" | Set-Content -Encoding utf8 version.py
+          "VERSION=$version" >> $env:GITHUB_ENV
+      - name: Install build dependencies
+        shell: pwsh
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install pyinstaller
+          python -m pip install -r requirements.txt
+      - name: Build Windows application
+        shell: pwsh
+        run: |
+          pyinstaller --noconfirm --clean --onedir --windowed --name StagepulseJARVIS --collect-all customtkinter --collect-all pystray --collect-all PIL --collect-all edge_tts --collect-all sherpa_onnx --hidden-import=win32timezone main.py
+      - name: Include runtime files
+        shell: pwsh
+        run: |
+          Copy-Item -Recurse -Force core, gui, modules, personality, utils, config, assets, data, resources dist/StagepulseJARVIS/ -ErrorAction SilentlyContinue
+          Copy-Item -Force version.py dist/StagepulseJARVIS/version.py
+          Copy-Item -Force requirements.txt dist/StagepulseJARVIS/ -ErrorAction SilentlyContinue
+          @'
+          @echo off
+          cd /d "%~dp0"
+          StagepulseJARVIS.exe
+          '@ | Set-Content dist/StagepulseJARVIS/Start-StagepulseJARVIS.bat
+          Compress-Archive -Path dist/StagepulseJARVIS -DestinationPath dist/StagepulseJARVIS-Windows.zip -CompressionLevel Optimal
+      - name: Publish latest release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ env.VERSION }}
+          name: Stagepulse JARVIS v${{ env.VERSION }}
+          generate_release_notes: true
+          make_latest: true
+          files: JARVIS_HOST/dist/StagepulseJARVIS-Windows.zip
