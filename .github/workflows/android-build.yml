@@ -3,6 +3,8 @@ name: JARVIS Android Build
 on:
   push:
     branches: [ main ]
+  pull_request:
+    branches: [ main, feature/jarvis-persistent-memory ]
   workflow_dispatch:
 
 jobs:
