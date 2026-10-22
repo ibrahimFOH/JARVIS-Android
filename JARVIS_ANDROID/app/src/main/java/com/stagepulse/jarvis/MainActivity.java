@@ -511,11 +511,10 @@ public class MainActivity extends Activity {
 
     private String handleLocalMemory(String raw) {
         String original = raw == null ? "" : raw.trim();
-        String normalized = original.toLowerCase(new Locale("tr", "TR")).replace("ı", "i");
+        String normalized = original.toLowerCase(new Locale("tr", "TR")).replace("ı", "i").replace("ş", "s").replace("ğ", "g").replace("ü", "u").replace("ö", "o").replace("ç", "c");
         android.content.SharedPreferences prefs = getSharedPreferences("jarvis_local_memory", MODE_PRIVATE);
-        if (normalized.equals("hafızamı göster") || normalized.equals("hafizamı goster")
-                || normalized.equals("hafızamda ne var") || normalized.equals("hafizamda ne var")
-                || normalized.equals("ne hatırlıyorsun") || normalized.equals("ne hatirliyorsun")) {
+        if (normalized.equals("hafizami goster") || normalized.equals("hafizamda ne var")
+                || normalized.equals("ne hatirliyorsun")) {
             Set<String> stored = prefs.getStringSet("facts", Collections.emptySet());
             if (stored == null || stored.isEmpty()) return "Yerel hafızam henüz boş. 'Hatırla: ...' komutuyla bilgi kaydedebilirsin.";
             StringBuilder result = new StringBuilder("Bu cihazdaki kalıcı hafızam:\n");
