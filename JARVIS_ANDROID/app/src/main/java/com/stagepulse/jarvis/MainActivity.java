@@ -27,7 +27,8 @@ public class MainActivity extends Activity {
     private static final int REQ_AUDIO=9001;
     private final ExecutorService io=Executors.newSingleThreadExecutor();
     private EditText command;
-    private TextView status,chat;
+    private TextView status,chat,voiceControl;
+    private ScrollView chatScroll;
     private HudView hud;
     private SpeechRecognizer speech;
     private TextToSpeech androidTts;
@@ -66,112 +67,156 @@ public class MainActivity extends Activity {
         TextView v=new TextView(this); v.setText(s); v.setTextSize(size); v.setTextColor(color); return v;
     }
 
+    private int dp(float value) {
+        return Math.round(value * getResources().getDisplayMetrics().density);
+    }
+
+    private TextView control(String label, int backgroundColor, int foregroundColor, float textSize) {
+        TextView view = tv(label, (int) textSize, foregroundColor);
+        view.setGravity(Gravity.CENTER);
+        view.setTypeface(null, 1);
+        view.setPadding(dp(6), dp(4), dp(6), dp(4));
+        view.setMinHeight(dp(40));
+        android.graphics.drawable.GradientDrawable shape = new android.graphics.drawable.GradientDrawable();
+        shape.setColor(backgroundColor);
+        shape.setCornerRadius(dp(7));
+        view.setBackground(shape);
+        view.setClickable(true);
+        view.setFocusable(true);
+        view.setIncludeFontPadding(true);
+        return view;
+    }
+
+    private void updateVoiceControl(boolean listening) {
+        if (voiceControl != null) {
+            voiceControl.setText(listening ? "DURDUR" : "KONUŞ");
+            voiceControl.setContentDescription(listening
+                    ? "Sesli komutu durdur" : "Türkçe sesli komut başlat");
+        }
+    }
+
     private void buildUi(){
-        LinearLayout root=new LinearLayout(this);
+        LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
-        root.setPadding(16,12,16,12);
+        root.setPadding(dp(12), dp(6), dp(12), dp(6));
         root.setBackgroundColor(0xFF050505);
+        root.setFocusableInTouchMode(true);
 
-        LinearLayout header=new LinearLayout(this);
+        LinearLayout header = new LinearLayout(this);
         header.setOrientation(LinearLayout.VERTICAL);
-        TextView title=tv("J.A.R.V.I.S.",28,gold());
-        title.setTypeface(null,1);
-        header.addView(title);
-        header.addView(tv("STAGEPULSE  //  PERSONAL AI SYSTEM",10,muted()));
-        status=tv("● STARTING LOCAL CORE",12,gold());
-        status.setTypeface(null,1);
-        LinearLayout.LayoutParams statusLp=new LinearLayout.LayoutParams(-1,-2);
-        statusLp.topMargin=6;
-        header.addView(status,statusLp);
-        root.addView(header);
+        TextView title = tv("J.A.R.V.I.S.", 26, gold());
+        title.setTypeface(null, 1);
+        header.addView(title, new LinearLayout.LayoutParams(-1, -2));
+        header.addView(tv("STAGEPULSE  //  PERSONAL AI SYSTEM", 10, muted()),
+                new LinearLayout.LayoutParams(-1, -2));
+        status = tv("● STARTING LOCAL CORE", 12, gold());
+        status.setTypeface(null, 1);
+        LinearLayout.LayoutParams statusLp = new LinearLayout.LayoutParams(-1, -2);
+        statusLp.topMargin = dp(3);
+        header.addView(status, statusLp);
+        root.addView(header, new LinearLayout.LayoutParams(-1, -2));
 
-        hud=new HudView(this);
-        LinearLayout.LayoutParams hudLp=new LinearLayout.LayoutParams(-1,112);
-        hudLp.topMargin=4;
-        root.addView(hud,hudLp);
+        hud = new HudView(this);
+        LinearLayout.LayoutParams hudLp = new LinearLayout.LayoutParams(-1, dp(60));
+        hudLp.topMargin = dp(2);
+        root.addView(hud, hudLp);
 
-        TextView systemLine=tv("LOCAL COMMANDS READY  •  WINDOWS LINK OPTIONAL",10,muted());
-        systemLine.setPadding(2,4,2,8);
-        root.addView(systemLine);
+        TextView systemLine = tv("LOCAL COMMANDS READY  •  WINDOWS LINK OPTIONAL", 10, muted());
+        systemLine.setSingleLine(true);
+        systemLine.setEllipsize(android.text.TextUtils.TruncateAt.END);
+        systemLine.setGravity(Gravity.CENTER_VERTICAL);
+        systemLine.setPadding(dp(2), 0, dp(2), 0);
+        root.addView(systemLine, new LinearLayout.LayoutParams(-1, dp(24)));
 
-        chat=tv("JARVIS  //  SESSION\n\nBağımsız Android çekirdeği başlatılıyor.\nWindows bağlantısı isteğe bağlıdır.",14,white());
-        chat.setGravity(Gravity.TOP|Gravity.START);
-        chat.setPadding(12,12,12,12);
+        chat = tv("JARVIS  //  SESSION\n\nBağımsız Android çekirdeği başlatılıyor.\nWindows bağlantısı isteğe bağlıdır.", 14, white());
+        chat.setGravity(Gravity.TOP | Gravity.START);
+        chat.setPadding(dp(10), dp(10), dp(10), dp(10));
         chat.setBackgroundColor(panel());
-        ScrollView scroll=new ScrollView(this);
-        scroll.setFillViewport(true);
-        scroll.addView(chat);
-        LinearLayout.LayoutParams chatLp=new LinearLayout.LayoutParams(-1,0,1f);
-        chatLp.bottomMargin=8;
-        root.addView(scroll,chatLp);
+        chat.setTextIsSelectable(true);
+        chatScroll = new ScrollView(this);
+        chatScroll.setFillViewport(true);
+        chatScroll.setVerticalScrollBarEnabled(true);
+        chatScroll.addView(chat, new ScrollView.LayoutParams(-1, -2));
+        LinearLayout.LayoutParams chatLp = new LinearLayout.LayoutParams(-1, 0, 1f);
+        chatLp.topMargin = dp(2);
+        chatLp.bottomMargin = dp(5);
+        root.addView(chatScroll, chatLp);
 
-        command=new EditText(this);
-        command.setHint("Komutunu yaz veya mikrofonu kullan...");
+        LinearLayout commandBar = new LinearLayout(this);
+        commandBar.setOrientation(LinearLayout.HORIZONTAL);
+        commandBar.setGravity(Gravity.CENTER_VERTICAL);
+        commandBar.setBaselineAligned(false);
+
+        command = new EditText(this);
+        command.setHint("Komutunu yaz...");
         command.setHintTextColor(muted());
         command.setTextColor(white());
         command.setTextSize(15);
         command.setSingleLine(true);
-        command.setMinLines(1);
         command.setMaxLines(1);
+        command.setImeOptions(android.view.inputmethod.EditorInfo.IME_ACTION_SEND);
+        command.setInputType(android.text.InputType.TYPE_CLASS_TEXT
+                | android.text.InputType.TYPE_TEXT_FLAG_AUTO_CORRECT);
         command.setBackgroundColor(panel());
-        command.setPadding(14,10,14,10);
-        LinearLayout.LayoutParams commandLp = new LinearLayout.LayoutParams(-1,52);
-        commandLp.topMargin=4;
-        root.addView(command,commandLp);
+        command.setPadding(dp(10), dp(5), dp(8), dp(5));
+        command.setSelectAllOnFocus(false);
+        LinearLayout.LayoutParams inputLp = new LinearLayout.LayoutParams(0, dp(48), 1f);
+        inputLp.rightMargin = dp(5);
+        commandBar.addView(command, inputLp);
 
-        LinearLayout primary=new LinearLayout(this);
-        primary.setOrientation(LinearLayout.HORIZONTAL);
-        Button send=button("GÖNDER");
-        Button voice=button("🎙 KONUŞ");
-        send.setBackgroundColor(gold());
-        send.setTextColor(0xFF080808);
-        send.setTextSize(13);
-        voice.setBackgroundColor(0xFF242014);
-        voice.setTextColor(gold());
-        voice.setTextSize(13);
-        send.setMinHeight(52);
-        voice.setMinHeight(52);
-        primary.setMinimumHeight(54);
-        primary.addView(send,new LinearLayout.LayoutParams(0,54,1f));
-        primary.addView(voice,new LinearLayout.LayoutParams(0,54,1f));
-        LinearLayout.LayoutParams primaryLp=new LinearLayout.LayoutParams(-1,-2);
-        primaryLp.topMargin=4;
-        primaryLp.bottomMargin=4;
-        root.addView(primary,primaryLp);
+        TextView send = control("GÖNDER", gold(), 0xFF080808, 13);
+        send.setContentDescription("Yazılan komutu gönder");
+        LinearLayout.LayoutParams sendLp = new LinearLayout.LayoutParams(dp(78), dp(48));
+        sendLp.rightMargin = dp(5);
+        commandBar.addView(send, sendLp);
 
-        LinearLayout secondary=new LinearLayout(this);
+        voiceControl = control("KONUŞ", 0xFF242014, gold(), 13);
+        voiceControl.setContentDescription("Türkçe sesli komut başlat");
+        commandBar.addView(voiceControl, new LinearLayout.LayoutParams(dp(78), dp(48)));
+
+        LinearLayout.LayoutParams commandBarLp = new LinearLayout.LayoutParams(-1, dp(48));
+        commandBarLp.bottomMargin = dp(5);
+        root.addView(commandBar, commandBarLp);
+
+        LinearLayout secondary = new LinearLayout(this);
         secondary.setOrientation(LinearLayout.HORIZONTAL);
-        Button agents=button("UZMANLAR");
-        Button host=button("PC BAĞLANTISI");
-        Button update=button("GÜNCELLE");
-        Button help=button("YARDIM");
-        agents.setTextSize(9); host.setTextSize(9); update.setTextSize(9); help.setTextSize(9);
-        agents.setMinHeight(44); host.setMinHeight(44); update.setMinHeight(44); help.setMinHeight(44);
-        secondary.addView(agents,new LinearLayout.LayoutParams(0,48,1f));
-        secondary.addView(host,new LinearLayout.LayoutParams(0,48,1.2f));
-        secondary.addView(update,new LinearLayout.LayoutParams(0,48,1f));
-        secondary.addView(help,new LinearLayout.LayoutParams(0,48,1f));
-        root.addView(secondary);
+        secondary.setGravity(Gravity.CENTER_VERTICAL);
+        TextView agents = control("UZMANLAR", panel(), gold(), 9);
+        TextView host = control("PC BAĞLANTI", panel(), gold(), 9);
+        TextView update = control("GÜNCELLE", panel(), gold(), 9);
+        TextView help = control("YARDIM", panel(), gold(), 9);
+        TextView[] tools = {agents, host, update, help};
+        for (int index = 0; index < tools.length; index++) {
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, dp(38), 1f);
+            if (index > 0) lp.leftMargin = dp(4);
+            secondary.addView(tools[index], lp);
+        }
+        root.addView(secondary, new LinearLayout.LayoutParams(-1, dp(38)));
 
         setContentView(root);
-        send.setOnClickListener(v->sendCommand(command.getText().toString()));
-        command.setOnEditorActionListener((v,actionId,event)->{
-            if(event!=null && event.getKeyCode()==android.view.KeyEvent.KEYCODE_ENTER
-                    && event.getAction()==android.view.KeyEvent.ACTION_DOWN
-                    && !event.isShiftPressed()){
+        getWindow().setSoftInputMode(
+                android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
+
+        send.setOnClickListener(v -> sendCommand(command.getText().toString()));
+        command.setOnEditorActionListener((v, actionId, event) -> {
+            boolean keyboardSend = actionId == android.view.inputmethod.EditorInfo.IME_ACTION_SEND
+                    || actionId == android.view.inputmethod.EditorInfo.IME_ACTION_DONE;
+            boolean enterPressed = event != null
+                    && event.getKeyCode() == android.view.KeyEvent.KEYCODE_ENTER
+                    && event.getAction() == android.view.KeyEvent.ACTION_DOWN
+                    && !event.isShiftPressed();
+            if (keyboardSend || enterPressed) {
                 sendCommand(command.getText().toString());
                 return true;
             }
             return false;
         });
-        voice.setOnClickListener(v->listen());
-        agents.setOnClickListener(v->showAgents());
-        host.setOnClickListener(v->showHostSettings());
-        update.setOnClickListener(v->checkForUpdates(true));
-        help.setOnClickListener(v->sendCommand("yardım"));
+        voiceControl.setOnClickListener(v -> listen());
+        agents.setOnClickListener(v -> showAgents());
+        host.setOnClickListener(v -> showHostSettings());
+        update.setOnClickListener(v -> checkForUpdates(true));
+        help.setOnClickListener(v -> sendCommand("yardım"));
     }
-
-    private Button button(String s){Button b=new Button(this);b.setText(s);b.setTextColor(gold());b.setTextSize(11);b.setBackgroundColor(panel());return b;}
 
     private void checkForUpdates(boolean manual) {
         final long now = System.currentTimeMillis();
