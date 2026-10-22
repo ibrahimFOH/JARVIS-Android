@@ -29,6 +29,10 @@ class JarvisGUI:
         self._angle = 0.0
         self._pulse = 0.0
         self._voice_busy = False
+        self._voice_listening = False
+        self._voice_stop_event = threading.Event()
+        self._voice_response_event = threading.Event()
+        self._voice_last_response = None
         self._pdf_path = None
         self._pdf_text = ""
 
@@ -1001,6 +1005,9 @@ class JarvisGUI:
 
 # === JARVIS THREAD SAFE GUI PATCH ===
 def _jarvis_gui_response(self, result):
+    if getattr(self, "_voice_listening", False):
+        self._voice_last_response = result
+        self._voice_response_event.set()
     try:
         self.root.after(0, lambda r=result: self._render_response_safe(r))
     except Exception:
