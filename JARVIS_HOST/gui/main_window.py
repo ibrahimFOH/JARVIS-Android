@@ -52,6 +52,43 @@ class JarvisGUI:
         self._animate_hud()
         self._clock_tick()
         self._start_android_bridge()
+        # Check for a signed-off GitHub Release shortly after startup, off the UI thread.
+        self.root.after(5000, self._check_for_updates)
+
+    def _check_for_updates(self):
+        def worker():
+            try:
+                from core.updater import check_latest_release
+                release = check_latest_release()
+                if not release:
+                    return
+                def offer():
+                    if not self._running:
+                        return
+                    answer = messagebox.askyesno(
+                        "JARVIS güncellemesi",
+                        "Yeni bir JARVIS sürümü bulundu: " + release["version"] +
+                        "\\n\\nŞimdi indirip uygulamayı güncellemek ister misin? JARVIS kapatılıp yeniden açılacak.",
+                        parent=self.root
+                    )
+                    if answer:
+                        self._activity("UPDATE DOWNLOAD STARTED")
+                        self._run_ai_task(
+                            "JARVIS güncellemesi indiriliyor",
+                            lambda: self._download_and_install_update(release),
+                            should_speak=False
+                        )
+                self.root.after(0, offer)
+            except Exception as exc:
+                logger.info("Update check skipped: %s", exc)
+
+        threading.Thread(target=worker, daemon=True, name="JARVIS-Update-Check").start()
+
+    @staticmethod
+    def _download_and_install_update(release):
+        from core.updater import download_and_prepare_update
+        return download_and_prepare_update(release)
+
 
     def _start_android_bridge(self):
         try:
