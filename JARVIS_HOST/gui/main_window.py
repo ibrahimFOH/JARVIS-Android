@@ -1000,6 +1000,8 @@ class JarvisGUI:
 
     def _on_closing(self):
         self._running = False
+        self._voice_stop_event.set()
+        self._voice_response_event.set()
         self.jarvis.stop()
         self.root.destroy()
 
@@ -1041,47 +1043,77 @@ def _render_response_safe(self, result):
         )
 
 def _jarvis_gui_voice(self):
-    if getattr(self, "_voice_busy", False):
+    # A single click starts persistent listening; closing the app stops the loop.
+    if getattr(self, "_voice_listening", False):
         return
     if not self.voice_var.get():
         self._append_to_chat("SYSTEM", "Önce Voice anahtarını açın.", "yellow")
         return
+    recognizer = getattr(self.jarvis, "speech_recognizer", None)
+    if recognizer is None:
+        self._append_to_chat("SYSTEM", "Mikrofon / ses tanıma sistemi kullanılamıyor.", "red")
+        return
 
+    self._voice_listening = True
     self._voice_busy = True
-    try:
-        self.voice_button.configure(
-            text="◉ LISTENING",
-            fg_color="#38240A",
-            text_color=GOLD
-        )
-        self.phase.configure(text="LISTENING")
-        self.status.configure(text="● LISTENING", text_color=GOLD)
-        self._activity("VOICE INPUT ACTIVE")
-    except Exception:
-        pass
+    self._voice_stop_event.clear()
+    self.voice_button.configure(text="◉ ALWAYS LISTENING", fg_color="#38240A", text_color=GOLD)
+    self.phase.configure(text="LISTENING")
+    self.status.configure(text="● LISTENING", text_color=GOLD)
+    self._activity("PERSISTENT VOICE CONTROL STARTED")
 
     def worker():
         try:
-            result = self.jarvis.process_voice_command()
-            # A successful return may only mean the command was queued. The actual
-            # recognized command is surfaced through Jarvis.on_command.
-            self.root.after(0, lambda r=result: self._voice_result_safe(r))
-        except Exception as e:
-            try:
-                self.root.after(0, lambda e=e: self._voice_error_safe(e))
-            except Exception:
-                pass
+            while not self._voice_stop_event.is_set() and self._running:
+                result = recognizer.listen(timeout=5, phrase_time_limit=8)
+                if self._voice_stop_event.is_set() or not self._running:
+                    break
+                if not result.get("success"):
+                    if result.get("error") not in ("timeout", "no_recognition"):
+                        message = result.get("message", "Mikrofon hatası.")
+                        self.root.after(0, lambda m=message: self._activity("VOICE INPUT: " + str(m)[:65]))
+                        self._voice_stop_event.wait(0.5)
+                    continue
+
+                command = str(result.get("text", "")).strip()
+                if not command:
+                    continue
+                if command.lower().strip(" .,!?:;") in ("jarvis kapat", "uygulamayı kapat", "uygulamayi kapat"):
+                    self.root.after(0, self._on_closing)
+                    break
+
+                self._voice_response_event.clear()
+                self._voice_last_response = None
+                self.jarvis.process_command(command, speak_response=False)
+                # Wait for the result before listening again, so TTS isn't re-captured.
+                completed = self._voice_response_event.wait(timeout=180)
+                if self._voice_stop_event.is_set() or not self._running:
+                    break
+                if not completed:
+                    self.root.after(0, lambda: self._append_to_chat(
+                        "SYSTEM", "Komut yanıtı zaman aşımına uğradı; dinlemeye devam ediyorum.", "yellow"
+                    ))
+                    continue
+                response = self._voice_last_response or {}
+                spoken = str(response.get("response", "")).strip()
+                if spoken and self.voice_var.get():
+                    try:
+                        self.jarvis.speak(spoken, wait=True)
+                    except Exception as exc:
+                        self.root.after(0, lambda e=exc: self._append_to_chat("SYSTEM", "Sesli yanıt hatası: " + str(e), "red"))
+                self._voice_stop_event.wait(0.25)
+        except Exception as exc:
+            if not self._voice_stop_event.is_set():
+                self.root.after(0, lambda e=exc: self._append_to_chat("SYSTEM", "Sürekli ses hatası: " + str(e), "red"))
         finally:
+            self._voice_listening = False
+            self._voice_busy = False
             try:
                 self.root.after(0, self._voice_finished_safe)
             except Exception:
                 pass
 
-    threading.Thread(
-        target=worker,
-        daemon=True,
-        name="JARVIS-Voice"
-    ).start()
+    threading.Thread(target=worker, daemon=True, name="JARVIS-Persistent-Voice").start()
 
 def _voice_result_safe(self, result):
     if isinstance(result, dict) and result.get("success"):
