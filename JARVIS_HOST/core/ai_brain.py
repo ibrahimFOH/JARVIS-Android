@@ -93,16 +93,20 @@ KULLANICI PROFİLİ (kalıcı çalışma bağlamı):
         memory_response = self.memory.handle_command(prompt)
         if memory_response:
             return memory_response
-        instant=self._instant(prompt)
+        original_prompt = str(prompt)
+        instant=self._instant(original_prompt)
         if instant: return instant
+        ai_prompt = original_prompt
         memory_context = self.memory.context()
         if memory_context:
-            prompt = (
-                str(prompt)
+            ai_prompt = (
+                original_prompt
                 + "\n\nKALICI HAFIZA (yalnızca bu isteğe ilgiliyse kullan):\n"
                 + memory_context
             )
-        return self._ollama(prompt,self._web(prompt) if self._needs_web(prompt) else "")
+        # Never include private saved memories in external web-search queries.
+        web_context = self._web(original_prompt) if self._needs_web(original_prompt) else ""
+        return self._ollama(ai_prompt, web_context)
 
     respond=ask
     generate=ask
