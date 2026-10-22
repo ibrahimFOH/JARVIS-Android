@@ -67,3 +67,12 @@ Köprüyü internete açma ve token'ı repoya yükleme. Token dosyası yerel kal
 ## Build
 
 Android Studio veya [GitHub Actions](https://github.com/ibrahimFOH/JARVIS-Android/actions) üzerinden build edilebilir. Android build'i için internet bağlantısı gerekir; Gradle görevi Piper ses modeli ve eSpeak varlıklarını indirir. GitHub Actions'tan kurulum dosyası almak için başarılı build çalışmasının sayfasındaki `JARVIS-Android-PIPER-debug` artifact'ini indir.
+
+
+## Android local mode and voice recovery
+
+- The app uses the bundled Piper DFKI Turkish voice first. If Piper cannot initialize, the UI displays the actual initialization error and attempts the device's Android Text-to-Speech engine instead.
+- System TTS fallback depends on a usable voice being installed on the phone. For offline speech, install/download a Turkish voice in Android's Text-to-Speech settings. If neither engine is available, typed commands remain usable.
+- Basic commands, local persistent memory ("Hatırla: ...", "Hafızamı göster", "Unut: ...") and Stagepulse public/admin/personnel links work without a Windows host.
+- If the saved Windows host is unreachable, the app falls back to local Android command handling. Windows-only file/window/process automation still requires the PC to be online and the authenticated LAN bridge to be reachable.
+- UI supports portrait and landscape orientation. CI build success is not a substitute for testing microphone permissions, Piper audio output and system TTS on a physical device.
