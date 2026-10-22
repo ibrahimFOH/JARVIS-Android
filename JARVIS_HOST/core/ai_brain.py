@@ -2,9 +2,11 @@ import re
 import html
 import requests
 from urllib.parse import quote
+from core.memory_manager import MemoryManager
 
 class AIBrain:
     def __init__(self):
+        self.memory = MemoryManager()
         self.host="http://127.0.0.1:11434"
         self.model="qwen3:0.6b"
         self.timeout=18
@@ -88,8 +90,18 @@ KULLANICI PROFİLİ (kalıcı çalışma bağlamı):
             return "Ollama bağlantısında sorun oluştu: "+str(e)
 
     def ask(self,prompt):
+        memory_response = self.memory.handle_command(prompt)
+        if memory_response:
+            return memory_response
         instant=self._instant(prompt)
         if instant: return instant
+        memory_context = self.memory.context()
+        if memory_context:
+            prompt = (
+                str(prompt)
+                + "\\n\\nKALICI HAFIZA (yalnızca bu isteğe ilgiliyse kullan):\\n"
+                + memory_context
+            )
         return self._ollama(prompt,self._web(prompt) if self._needs_web(prompt) else "")
 
     respond=ask
