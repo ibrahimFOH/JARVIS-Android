@@ -6,6 +6,7 @@ The bridge only accepts authenticated JSON requests and binds to the local netwo
 """
 import json
 import os
+import re
 import secrets
 import sys
 import threading
@@ -81,6 +82,17 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(400, {"success": False, "error": "empty_command"})
             if len(command) > 4000:
                 return self._send(413, {"success": False, "error": "command_too_long"})
+            profile_context = data.get("profile_context", "")
+            if not isinstance(profile_context, str):
+                return self._send(400, {"success": False, "error": "invalid_profile_context"})
+            profile_context = profile_context.strip()
+            if len(profile_context) > 1200:
+                return self._send(413, {"success": False, "error": "profile_context_too_long"})
+            # Treat a phone profile as factual context only and never pass obvious secrets to the model.
+            profile_context = re.sub(
+                r"(?i)\\b(password|parola|şifre|sifre|access[_ -]?token|api[_ -]?key|secret)\\s*[:=]\\s*[^\\s,;]+",
+                r"\\1=[REDACTED]", profile_context
+            )
 
             from core import get_jarvis
             jarvis = get_jarvis()
@@ -88,7 +100,7 @@ class Handler(BaseHTTPRequestHandler):
                 jarvis.start()
 
             # Use the same command processor and AI configuration as the Windows app.
-            result = jarvis.command_processor.process(command)
+            result = jarvis.command_processor.process(command, profile_context=profile_context)
             if not isinstance(result, dict):
                 result = {"success": False, "response": "JARVIS geçerli bir yanıt döndürmedi."}
             response = {
