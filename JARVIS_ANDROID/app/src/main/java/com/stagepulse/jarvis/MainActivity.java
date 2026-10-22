@@ -86,7 +86,7 @@ public class MainActivity extends Activity {
         root.addView(header);
 
         hud=new HudView(this);
-        LinearLayout.LayoutParams hudLp=new LinearLayout.LayoutParams(-1,190);
+        LinearLayout.LayoutParams hudLp=new LinearLayout.LayoutParams(-1,112);
         hudLp.topMargin=4;
         root.addView(hud,hudLp);
 
@@ -110,21 +110,33 @@ public class MainActivity extends Activity {
         command.setHintTextColor(muted());
         command.setTextColor(white());
         command.setTextSize(15);
-        command.setSingleLine(false);
+        command.setSingleLine(true);
         command.setMinLines(1);
-        command.setMaxLines(3);
+        command.setMaxLines(1);
         command.setBackgroundColor(panel());
         command.setPadding(14,10,14,10);
-        root.addView(command,new LinearLayout.LayoutParams(-1,-2));
+        LinearLayout.LayoutParams commandLp = new LinearLayout.LayoutParams(-1,52);
+        commandLp.topMargin=4;
+        root.addView(command,commandLp);
 
         LinearLayout primary=new LinearLayout(this);
         primary.setOrientation(LinearLayout.HORIZONTAL);
-        Button send=button("KOMUTU ÇALIŞTIR");
-        Button voice=button("◉ KONUŞ");
-        primary.addView(send,new LinearLayout.LayoutParams(0,54,1.35f));
+        Button send=button("GÖNDER");
+        Button voice=button("🎙 KONUŞ");
+        send.setBackgroundColor(gold());
+        send.setTextColor(0xFF080808);
+        send.setTextSize(13);
+        voice.setBackgroundColor(0xFF242014);
+        voice.setTextColor(gold());
+        voice.setTextSize(13);
+        send.setMinHeight(52);
+        voice.setMinHeight(52);
+        primary.setMinimumHeight(54);
+        primary.addView(send,new LinearLayout.LayoutParams(0,54,1f));
         primary.addView(voice,new LinearLayout.LayoutParams(0,54,1f));
         LinearLayout.LayoutParams primaryLp=new LinearLayout.LayoutParams(-1,-2);
-        primaryLp.topMargin=6;
+        primaryLp.topMargin=4;
+        primaryLp.bottomMargin=4;
         root.addView(primary,primaryLp);
 
         LinearLayout secondary=new LinearLayout(this);
@@ -133,6 +145,8 @@ public class MainActivity extends Activity {
         Button host=button("PC BAĞLANTISI");
         Button update=button("GÜNCELLE");
         Button help=button("YARDIM");
+        agents.setTextSize(9); host.setTextSize(9); update.setTextSize(9); help.setTextSize(9);
+        agents.setMinHeight(44); host.setMinHeight(44); update.setMinHeight(44); help.setMinHeight(44);
         secondary.addView(agents,new LinearLayout.LayoutParams(0,48,1f));
         secondary.addView(host,new LinearLayout.LayoutParams(0,48,1.2f));
         secondary.addView(update,new LinearLayout.LayoutParams(0,48,1f));
