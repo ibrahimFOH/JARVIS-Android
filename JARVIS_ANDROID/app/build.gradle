@@ -162,6 +162,18 @@ def preparePiperAssets = tasks.register('preparePiperAssets') {
             }
         }
 
+        // The bundled NekoSpeak data includes Turkish language rules under
+        // lang/trk/tr, but may omit the named voice entry that
+        // espeak_SetVoiceByName("tr") requires. Add the minimal voice mapping.
+        File turkishVoice = new File(espeakDir, 'voices/tr')
+        if (!turkishVoice.exists()) {
+            turkishVoice.parentFile.mkdirs()
+            turkishVoice.setText("name Turkish\\nlanguage tr\\n", "UTF-8")
+        }
+        if (!turkishVoice.isFile() || !turkishVoice.getText("UTF-8").contains("language tr")) {
+            throw new GradleException('eSpeak-NG Turkish voice definition missing')
+        }
+
         new File(espeakDir, '.prepared').text = 'prepared'
     }
 }
