@@ -126,3 +126,37 @@ def test_onefile_first_launch_finds_bundled_turkish_default_config(tmp_path, mon
     assert writable_path.is_file()
     assert config.get("voice.recognition_language") == "tr-TR"
     assert config.get("personality.language") == "tr-TR"
+
+
+def test_legacy_api_provider_settings_are_preserved(tmp_path, monkeypatch):
+    import utils.config_manager as config_module
+
+    legacy_ai = {
+        "provider": "openai",
+        "ollama_url": "http://127.0.0.1:11434",
+        "ollama_model": "qwen3:0.6b",
+        "providers": {
+            "gemini": {"api_key": "legacy-gemini-key", "model": "gemini-legacy"},
+            "openai": {
+                "api_key": "legacy-openai-key",
+                "base_url": "https://example.invalid/v1/chat/completions",
+                "model": "legacy-model",
+            },
+        },
+    }
+
+    class LegacyConfig:
+        def get(self, key, default=None):
+            return legacy_ai if key == "ai" else default
+
+    monkeypatch.setattr(config_module, "get_config", lambda: LegacyConfig())
+    monkeypatch.setattr(
+        AIBrain, "_settings_file",
+        staticmethod(lambda: tmp_path / "no-settings-yet.json")
+    )
+    brain = AIBrain()
+    assert brain.provider == "openai"
+    assert brain.gemini_key == "legacy-gemini-key"
+    assert brain.api_keys["openai"] == "legacy-openai-key"
+    assert brain.api_models["openai"] == "legacy-model"
+    assert brain.api_base_urls["openai"] == "https://example.invalid/v1"
