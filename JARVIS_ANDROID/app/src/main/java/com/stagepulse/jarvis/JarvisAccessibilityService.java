@@ -571,7 +571,8 @@ public final class JarvisAccessibilityService extends AccessibilityService {
             String profile = buildOverlayProfileContext();
             remoteWorker.submit(() -> {
                 try {
-                    BridgeClient.Result result = BridgeClient.command(hostUrl, token, command, profile);
+                    String selectedAgentId = getSharedPreferences("jarvis_agents", MODE_PRIVATE).getString("active_agent_id", "");
+                    BridgeClient.Result result = BridgeClient.command(hostUrl, token, command, profile, selectedAgentId);
                     String response = result.response == null ? "" : result.response.trim();
                     if (response.isEmpty()) response = result.success
                             ? "Windows JARVIS komutu işledi ancak yanıt metni döndürmedi."
