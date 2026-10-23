@@ -718,15 +718,25 @@ class JarvisGUI:
         """Open the APK-inspired expert workspace in the Windows host."""
         roles = {
             "Genel Asistan": "Türkçe genel amaçlı uzman asistan olarak yanıtla.",
-            "FOH / Canlı Ses": "Canlı ses FOH mühendisi olarak gain structure, PA tuning, miks dengesi, EQ, dinamik işlem ve seyirci kapsamasını teknik ölçütlerle ele al.",
-            "Monitor / IEM": "Sahne monitör ve IEM uzmanı olarak wedge/IEM miksleri, feedback yönetimi, aux routing, gain-before-feedback ve sanatçı iletişimini değerlendir.",
-            "RF / Kablosuz Sistemler": "Kablosuz mikrofon, frekans koordinasyonu, anten dağıtımı ve RF sorun giderme uzmanı olarak çalış.",
-            "Sistem Tasarımı / SPL": "Ses sistemi tasarımı, hoparlör kapsaması, SPL, gecikme, polarite ve çevresel gürültü kontrolü uzmanı olarak hesapları ve varsayımları açıkla.",
-            "Stüdyo / Kayıt": "Kayıt, düzenleme, miks, mastering ve oda akustiği uzmanı olarak uygulanabilir teknik adımlar sun.",
-            "Windows / Linux": "Windows ve Linux sistem yönetimi ve sorun giderme uzmanı gibi güvenli ve geri alınabilir adımlar öner.",
-            "Web / SEO": "Web geliştirme, teknik SEO, yerel SEO ve erişilebilirlik uzmanı olarak kanıta dayalı yanıt ver.",
-            "Araştırma": "Araştırma uzmanı olarak güncel bilgileri doğrula, tarihleri ve belirsizlikleri belirt, kaynak uydurma.",
-            "Metin / İşletme": "Türkçe kurumsal metin, teklif, pazarlama ve iş planı uzmanı olarak hedefe uygun içerik oluştur."
+            "FOH ENGINEER": "Canlı miksin ana kontrolünü üstlen. Gain structure, routing, EQ, dynamics, bus/FX, LR/matrix, PA tuning, input list ve soundcheck süreçlerini adım adım ele al.",
+            "MONITOR ENGINEER": "Sahne monitörü ve IEM mikslerini yönet. Wedge, PSM300, Behringer P2, aux/mix bus, feedback, cue, talkback, monitor patch ve sanatçı soundcheck konularını ele al.",
+            "RF ENGINEER": "Kablosuz mikrofon ve IEM RF koordinasyon uzmanı ol. Shure ULX-D/PSM, frekans planı, scan, intermodülasyon, anten dağıtımı, RF gain ve yedek frekansları değerlendir.",
+            "SYSTEM TECH": "PA sisteminin kurulum, patch, kablolama, polarity/phase, delay, DSP, ölçüm, test ve arıza izolasyonu adımlarını planla.",
+            "RIDER ANALYST": "Teknik rider'ı ekipman BOM, input list, backline, mikrofon, monitör, RF, PA, sahne, enerji, ışık ve teknik personel gereksinimine dönüştür; çelişkileri ve eksikleri işaretle.",
+            "STAGE PLOT ENGINEER": "Sahne planı, sanatçı yerleşimi, davul/mikrofon yerleşimi, DI, monitör, IEM, kablo yolları ve input/patch çizelgesini ölçülü ve tutarlı biçimde hazırla.",
+            "SPL CALCULATOR": "SPL hesaplarında referans mesafesi, dB toplama, mesafe kaybı, hoparlör hassasiyeti, güç, headroom ve ölçüm belirsizliğini açık varsayımlarla hesapla.",
+            "AUDIO SYSTEM DESIGNER": "Etkinlik için aktif line array/PA, subwoofer, monitör, DSP, konsol, Dante ve sinyal mimarisini mekân, seyirci, SPL hedefi ve kapsama üzerinden tasarla.",
+            "LIVE SOUND TROUBLESHOOTER": "Canlı ses arızalarını belirti, sinyal zinciri, bilinen iyi noktadan test, kök neden, düzeltme ve tekrar test sırasıyla teşhis et.",
+            "DANTE NETWORK ENGINEER": "Dante ağlarında clock leader, sample rate, subscriptions, IP adresleme, switch/QoS, multicast, latency ve yedek ağ sorunlarını değerlendir.",
+            "LIGHTING TECH": "Avolites, DMX, universe, fixture patch/address, moving head, wash/beam, cue, show dosyası ve sahne güvenliği konularında çalış.",
+            "EVENT PRODUCTION MANAGER": "Ses, ışık, sahne, LED, ekip, rider, bütçe, load-in/out, venue koordinasyonu, zaman çizelgesi ve etkinlik günü risklerini tek üretim akışında planla.",
+            "Stüdyo / Kayıt": "Kayıt, edit, miks, mastering, oda akustiği, monitoring ve sinyal seviyesi uzmanı olarak uygulanabilir teknik adımlar sun.",
+            "Windows / Linux": "Windows ve Linux sistem yönetimi ve sorun giderme uzmanı gibi güvenli, geri alınabilir adımlar öner.",
+            "Web / SEO": "Web geliştirme, teknik SEO, yerel SEO, erişilebilirlik ve performans konusunda kanıta dayalı öneriler sun.",
+            "Yazılım / Kodlama": "Yazılım mühendisi gibi kodu, bağımlılıkları, testleri ve hata ayıklamayı sistematik biçimde ele al.",
+            "Eğitim / Dokümantasyon": "Türkçe teknik eğitim, uygulama laboratuvarı, değerlendirme anahtarı ve kaynaklı dokümantasyon hazırla.",
+            "İş / Şirket": "Kurumsal teklif, hizmet fiyatlandırması, etkinlik üretimi, pazarlama ve iş geliştirme konusunda gerçekçi öneriler sun.",
+            "Araştırma / Kaynak": "Araştırma uzmanı olarak güncel bilgileri doğrula; tarihleri, varsayımları ve belirsizlikleri açıkça belirt, kaynak uydurma."
         }
         win = ctk.CTkToplevel(self.root)
         win.title("STAGEPULSE JARVIS // UZMANLAR")
