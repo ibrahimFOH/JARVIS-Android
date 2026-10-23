@@ -123,9 +123,13 @@ class CommandProcessor:
                     "url": url,
                 }
 
-        # An explicitly selected Stagepulse expert owns technical requests until the user switches back.
-        # Website and memory commands are handled above, so selecting an expert cannot hijack them.
-        if agent_id:
+        intent_result = self.intent_recognizer.recognize(command)
+        intent = intent_result['intent']
+        confidence = intent_result['confidence']
+
+        # Let ordinary computer-control intents keep working while an expert is selected.
+        # The selected agent receives free-form/technical requests, not every command blindly.
+        if agent_id and (intent == 'unknown' or confidence < 0.3):
             try:
                 from core.specialist_agents import get_agent
                 spec = get_agent(agent_id)
@@ -147,9 +151,6 @@ class CommandProcessor:
                     "agent_id": agent_id,
                 }
 
-        intent_result = self.intent_recognizer.recognize(command)
-        intent = intent_result['intent']
-        confidence = intent_result['confidence']
         parameters = intent_result['parameters']
         logger.debug(f"Intent: {intent}, Confidence: {confidence:.2f}, Params: {parameters}")
 
