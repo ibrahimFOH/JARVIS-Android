@@ -91,12 +91,12 @@ KULLANICI PROFİLİ (kalıcı çalışma bağlamı):
         from core.specialist_agents import prepare_expert_task
         expert_system, tool_output = prepare_expert_task(agent_id, prompt)
         if expert_system:
-            system_prompt += "\\n\\n" + expert_system
+            system_prompt += "\n\n" + expert_system
         user_prompt = prompt
         if tool_output:
-            user_prompt += "\\n\\nDOĞRULANABİLİR ARAÇ ÇIKTISI (bunu değiştirme; varsayım sınırlarını açıkla):\\n" + tool_output
+            user_prompt += "\n\nDOĞRULANABİLİR ARAÇ ÇIKTISI (bunu değiştirme; varsayım sınırlarını açıkla):\n" + tool_output
         if context:
-            user_prompt += "\\n\\nWEB VERİSİ:\\n" + context
+            user_prompt += "\n\nWEB VERİSİ:\n" + context
         payload={"model":self.model,"stream":False,"keep_alive":"30m","think":False,"options":{"temperature":0.1,"num_predict":650 if expert_system else 180,"num_ctx":4096},"messages":[{"role":"system","content":system_prompt},{"role":"user","content":user_prompt}]}
         try:
             r=requests.post(self.host+"/api/chat",json=payload,timeout=self.timeout)
@@ -110,7 +110,7 @@ KULLANICI PROFİLİ (kalıcı çalışma bağlamı):
         if memory_response:
             return memory_response
         original_prompt = str(prompt)
-        instant=self._instant(original_prompt)
+        instant=self._instant(original_prompt) if not agent_id else None
         if instant: return instant
         ai_prompt = original_prompt
         memory_context = self.memory.context()
