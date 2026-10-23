@@ -66,10 +66,10 @@ Köprüyü internete açma ve token'ı repoya yükleme. Token dosyası yerel kal
 
 ## Build
 
-Android Studio veya [GitHub Actions](https://github.com/ibrahimFOH/JARVIS-Android/actions) üzerinden build edilebilir. Derleme için Android SDK/Gradle paketlerine internet erişimi gerekir; Piper modeli, eSpeak veya NDK/CMake varlıkları indirilmez. Güncel test APK'sı başarılı CI çalışmasının `JARVIS-Android-2.4.0-cross-app-voice` artifact'idir. CI başarısı gerçek telefonda elle test yapıldığı anlamına gelmez.
+Android Studio veya [GitHub Actions](https://github.com/ibrahimFOH/JARVIS-Android/actions) üzerinden build edilebilir. Derleme için Android SDK/Gradle paketlerine internet erişimi gerekir; Piper modeli, eSpeak veya NDK/CMake varlıkları indirilmez. Güncel test APK'sı başarılı CI çalışmasının `JARVIS-Android-2.4.1-specialist-agents` artifact'idir. CI başarısı gerçek telefonda elle test yapıldığı anlamına gelmez.
 
 
-## Android 2.4.0: uygulamalar arası sesli kontrol, profil ve dosyalar
+## Android 2.4.1: uygulamalar arası sesli kontrol, profil ve dosyalar
 
 ### Ses ve kişisel profil
 - Ses girişi Android SpeechRecognizer ile Türkçe `tr-TR` kullanır; çevrimiçi tanıma tercih edilir. Sonuç sağlayıcının kalitesine ve internetine bağlıdır. Alternatif sonuçlar puanlanır ve sık karşılaşılan "Heijan biz" / "eğitim pakeylri baziela" benzeri hatalar için sınırlı normalizasyon uygulanır.
