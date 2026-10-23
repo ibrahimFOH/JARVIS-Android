@@ -1,8 +1,11 @@
-name: JARVIS Windows Package CI
+name: JARVIS Windows Single-EXE Build
 
 on:
   push:
     branches: [ main ]
+    paths:
+      - 'JARVIS_HOST/**'
+      - '.github/workflows/windows-ci.yml'
   pull_request:
     branches: [ main ]
   workflow_dispatch:
@@ -12,7 +15,9 @@ permissions:
 
 jobs:
   build:
+    name: Test and build StagepulseJARVIS.exe
     runs-on: windows-latest
+    timeout-minutes: 40
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -21,6 +26,7 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
+          architecture: 'x64'
           cache: pip
           cache-dependency-path: JARVIS_HOST/requirements.txt
 
@@ -30,24 +36,34 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install -r JARVIS_HOST/requirements.txt pyinstaller
 
-      - name: Check updater and host Python syntax
+      - name: Check Python syntax
         shell: pwsh
         run: |
-          python -m py_compile JARVIS_HOST/main.py JARVIS_HOST/core/ai_brain.py JARVIS_HOST/core/command_processor.py JARVIS_HOST/core/update_manager.py JARVIS_HOST/gui/main_window.py
+          python -m py_compile JARVIS_HOST/main.py JARVIS_HOST/core/ai_brain.py JARVIS_HOST/core/command_processor.py JARVIS_HOST/core/update_manager.py JARVIS_HOST/gui/main_window.py JARVIS_HOST/android_bridge.py
+          if ($LASTEXITCODE -ne 0) { throw "Python syntax check failed" }
 
-      - name: Build packaged Windows application
+      - name: Verify expert workspace is wired into the desktop GUI
+        shell: pwsh
+        run: |
+          python -c "from pathlib import Path; s=Path('JARVIS_HOST/gui/main_window.py').read_text(encoding='utf-8'); assert 'text=\"UZMANLAR\"' in s; assert 'def _open_experts(self):' in s; print('Expert workspace verified')"
+          if ($LASTEXITCODE -ne 0) { throw "Expert workspace check failed" }
+
+      - name: Build single-file Windows EXE
         shell: pwsh
         working-directory: JARVIS_HOST
         run: |
-          python -m PyInstaller --noconfirm --clean --name JARVIS --onedir --contents-directory . --windowed --add-data "config\config.example.json;config" --add-data "VERSION;." --collect-all customtkinter --collect-all pystray --collect-all pyttsx3 --collect-all speech_recognition --collect-all pvporcupine --hidden-import win32timezone main.py
-          if (!(Test-Path "dist\JARVIS\JARVIS.exe")) { throw "PyInstaller did not create JARVIS.exe" }
-          if (!(Test-Path "dist\JARVIS\VERSION")) { throw "VERSION is missing from the packaged application" }
-          if (!(Test-Path "dist\JARVIS\config\config.example.json")) { throw "Default configuration is missing from the packaged application" }
+          python -m PyInstaller --noconfirm --clean --onefile --windowed --name StagepulseJARVIS --add-data "config\\config.example.json;config" --add-data "VERSION;." --collect-all customtkinter --collect-all pystray --collect-all pyttsx3 --collect-all speech_recognition --collect-all pvporcupine --collect-all pyaudio --collect-all PIL --hidden-import win32timezone --hidden-import pythoncom --hidden-import pywintypes main.py
+          if ($LASTEXITCODE -ne 0) { throw "PyInstaller failed" }
+          $exe = "dist/StagepulseJARVIS.exe"
+          if (!(Test-Path $exe)) { throw "Single-file EXE was not created" }
+          $size = (Get-Item $exe).Length
+          if ($size -lt 1000000) { throw "EXE looks invalid; file size is only $size bytes" }
+          Write-Host "Verified $exe ($size bytes)"
 
-      - name: Upload Windows package smoke-build
+      - name: Upload single-file EXE
         uses: actions/upload-artifact@v4
         with:
-          name: JARVIS-Windows-CI-smoke-build
-          path: JARVIS_HOST/dist/JARVIS/
+          name: StagepulseJARVIS-Windows-x64-EXE
+          path: JARVIS_HOST/dist/StagepulseJARVIS.exe
           if-no-files-found: error
-          retention-days: 7
+          retention-days: 14
