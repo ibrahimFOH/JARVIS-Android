@@ -314,9 +314,21 @@ from pathli    def __init__(self):
             if target == "gemini":
                 answer = self._gemini_api("Sadece 'Bağlantı başarılı' yaz.")
             elif target == "groq":
-                answer = self._compatible_api(
-                    "custom_groq", "Sadece 'Bağlantı başarılı' yaz."
+                if not self.groq_key:
+                    raise RuntimeError("Groq API anahtarı boş. AI SETTINGS bölümünden ekleyin.")
+                response = self.session.post(
+                    "https://api.groq.com/openai/v1/chat/completions",
+                    headers={"Authorization": "Bearer " + self.groq_key, "Content-Type": "application/json"},
+                    json={"model": self.groq_model, "stream": False,
+                          "messages": [{"role": "user", "content": "Sadece 'Bağlantı başarılı' yaz."}]},
+                    timeout=min(self.timeout, 30),
                 )
+                if not response.ok:
+                    raise RuntimeError("Groq API HTTP {}: {}".format(response.status_code, response.text[:300]))
+                choices = response.json().get("choices") or []
+                answer = (choices[0].get("message") or {}).get("content", "") if choices else ""
+                if not str(answer).strip():
+                    raise RuntimeError("Groq boş yanıt döndürdü.")
             elif target in self.api_defaults:
                 answer = self._compatible_api(target, "Sadece 'Bağlantı başarılı' yaz.")
             else:
