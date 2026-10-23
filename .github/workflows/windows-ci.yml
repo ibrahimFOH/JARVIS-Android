@@ -48,6 +48,13 @@ jobs:
           python -c "from pathlib import Path; s=Path('JARVIS_HOST/gui/main_window.py').read_text(encoding='utf-8'); assert 'UZMANLAR' in s and '_open_experts' in s; print('Expert workspace verified')"
           if ($LASTEXITCODE -ne 0) { throw "Expert workspace check failed" }
 
+      - name: Run AI provider regression tests
+        shell: pwsh
+        working-directory: JARVIS_HOST
+        run: |
+          python -m pytest tests/test_ai_provider_config.py -q
+          if ($LASTEXITCODE -ne 0) { throw "AI provider regression tests failed" }
+
       - name: Build single-file Windows EXE
         shell: pwsh
         working-directory: JARVIS_HOST
