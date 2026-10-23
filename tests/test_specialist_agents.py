@@ -5,12 +5,17 @@ from pathlib import Path
 HOST = Path(__file__).resolve().parents[1] / "JARVIS_HOST"
 sys.path.insert(0, str(HOST))
 
-from core.specialist_agents import (
-    get_agent,
-    list_agents,
-    prepare_expert_task,
-    route_agent,
-)
+import importlib.util
+
+AGENT_PATH = HOST / "core" / "specialist_agents.py"
+AGENT_SPEC = importlib.util.spec_from_file_location("jarvis_specialist_agents_test", AGENT_PATH)
+AGENT_MODULE = importlib.util.module_from_spec(AGENT_SPEC)
+sys.modules[AGENT_SPEC.name] = AGENT_MODULE
+AGENT_SPEC.loader.exec_module(AGENT_MODULE)
+get_agent = AGENT_MODULE.get_agent
+list_agents = AGENT_MODULE.list_agents
+prepare_expert_task = AGENT_MODULE.prepare_expert_task
+route_agent = AGENT_MODULE.route_agent
 
 
 class SpecialistAgentTests(unittest.TestCase):
