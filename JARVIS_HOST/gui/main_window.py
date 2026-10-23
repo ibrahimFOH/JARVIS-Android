@@ -189,18 +189,26 @@ class JarvisGUI:
         self.voice_button.grid(row=0, column=2, padx=4)
 
         ctk.CTkButton(
+            bottom, text="UZMANLAR", width=105, height=44,
+            fg_color="#11100A", hover_color="#28210D",
+            border_width=1, border_color=GOLD, text_color=GOLD,
+            font=("Consolas", 10, "bold"),
+            command=self._open_experts
+        ).grid(row=0, column=3, padx=(4, 0))
+
+        ctk.CTkButton(
             bottom, text="CLEAR", width=80, height=44,
             fg_color="#090B0D", hover_color="#15181C",
             border_width=1, border_color="#34383D",
             text_color=MUTED, command=self._clear_chat
-        ).grid(row=0, column=3, padx=(4, 0))
+        ).grid(row=0, column=4, padx=(4, 0))
 
         ctk.CTkButton(
             bottom, text="UPDATE", width=90, height=44,
             fg_color="#090B0D", hover_color="#171B20",
             border_width=1, border_color=GOLD, text_color=GOLD,
             command=lambda: self._check_for_updates(manual=True)
-        ).grid(row=0, column=4, padx=(4, 0))
+        ).grid(row=0, column=5, padx=(4, 0))
 
         self.chat_display = ctk.CTkTextbox(
             center, width=1, height=1, fg_color=BG,
@@ -541,6 +549,92 @@ class JarvisGUI:
         self.chat_display.delete("1.0", "end")
         self.chat_display.configure(state="disabled")
         self._activity("CHAT CLEARED")
+
+    def _open_experts(self):
+        """Open the APK-inspired expert workspace in the Windows host."""
+        roles = {
+            "Genel Asistan": "Türkçe genel amaçlı uzman asistan olarak yanıtla.",
+            "FOH / Canlı Ses": "Canlı ses FOH mühendisi olarak gain structure, PA tuning, miks dengesi, EQ, dinamik işlem ve seyirci kapsamasını teknik ölçütlerle ele al.",
+            "Monitor / IEM": "Sahne monitör ve IEM uzmanı olarak wedge/IEM miksleri, feedback yönetimi, aux routing, gain-before-feedback ve sanatçı iletişimini değerlendir.",
+            "RF / Kablosuz Sistemler": "Kablosuz mikrofon, frekans koordinasyonu, anten dağıtımı ve RF sorun giderme uzmanı olarak çalış.",
+            "Sistem Tasarımı / SPL": "Ses sistemi tasarımı, hoparlör kapsaması, SPL, gecikme, polarite ve çevresel gürültü kontrolü uzmanı olarak hesapları ve varsayımları açıkla.",
+            "Stüdyo / Kayıt": "Kayıt, düzenleme, miks, mastering ve oda akustiği uzmanı olarak uygulanabilir teknik adımlar sun.",
+            "Windows / Linux": "Windows ve Linux sistem yönetimi ve sorun giderme uzmanı gibi güvenli ve geri alınabilir adımlar öner.",
+            "Web / SEO": "Web geliştirme, teknik SEO, yerel SEO ve erişilebilirlik uzmanı olarak kanıta dayalı yanıt ver.",
+            "Araştırma": "Araştırma uzmanı olarak güncel bilgileri doğrula, tarihleri ve belirsizlikleri belirt, kaynak uydurma.",
+            "Metin / İşletme": "Türkçe kurumsal metin, teklif, pazarlama ve iş planı uzmanı olarak hedefe uygun içerik oluştur."
+        }
+        win = ctk.CTkToplevel(self.root)
+        win.title("STAGEPULSE JARVIS // UZMANLAR")
+        win.geometry("760x600")
+        win.minsize(620, 500)
+        win.configure(fg_color=BG)
+        win.transient(self.root)
+
+        ctk.CTkLabel(
+            win, text="UZMAN MODÜLLERİ", text_color=GOLD,
+            font=("Segoe UI", 20, "bold")
+        ).pack(anchor="w", padx=22, pady=(20, 4))
+        ctk.CTkLabel(
+            win, text="Bir uzmanlık seç ve görevini yaz. Yanıt ana JARVIS sohbetinde gösterilir.",
+            text_color=MUTED, wraplength=680, justify="left"
+        ).pack(anchor="w", padx=22, pady=(0, 14))
+
+        role_var = tk.StringVar(value="Genel Asistan")
+        ctk.CTkLabel(win, text="UZMANLIK", text_color=GOLD2).pack(anchor="w", padx=22)
+        ctk.CTkOptionMenu(
+            win, variable=role_var, values=list(roles.keys()),
+            fg_color="#17191C", button_color=GOLD2,
+            button_hover_color=GOLD, text_color=WHITE,
+            dropdown_fg_color="#101214", dropdown_text_color=WHITE,
+            width=330, height=38
+        ).pack(anchor="w", padx=22, pady=(5, 14))
+
+        ctk.CTkLabel(win, text="GÖREV / SORU", text_color=GOLD2).pack(anchor="w", padx=22)
+        question = ctk.CTkTextbox(
+            win, height=260, fg_color="#08090A",
+            text_color=WHITE, border_width=1, border_color=GOLD2,
+            font=("Consolas", 11), wrap="word"
+        )
+        question.pack(fill="both", expand=True, padx=22, pady=(5, 16))
+
+        def submit():
+            query = question.get("1.0", "end").strip()
+            if not query:
+                messagebox.showwarning("Uzmanlar", "Önce bir görev veya soru yaz.", parent=win)
+                return
+            role = role_var.get()
+            prompt = (
+                "UZMANLIK: " + role + "\\n" + roles[role] +
+                "\\n\\nKullanıcı isteği: " + query +
+                "\\n\\nYanıtı Türkçe ver. Gerektiğinde adım adım yönerge, kontrol listesi, "
+                "riskler ve doğrulanması gereken varsayımları ekle."
+            )
+            self._append_to_chat("YOU / " + role, query, "gold")
+            self._activity("EXPERT TASK: " + role)
+            win.destroy()
+
+            def worker():
+                try:
+                    self.jarvis.process_command(
+                        prompt, speak_response=self.voice_var.get()
+                    )
+                    self.root.after(0, lambda: self._activity("EXPERT TASK COMPLETE"))
+                except Exception as exc:
+                    self.root.after(
+                        0, lambda err=exc: self._append_to_chat(
+                            "SYSTEM", "Uzman görevi başarısız: " + str(err), "red"
+                        )
+                    )
+            threading.Thread(
+                target=worker, daemon=True, name="JARVIS-Expert-Task"
+            ).start()
+
+        ctk.CTkButton(
+            win, text="UZMAN YANITINI AL", height=44,
+            fg_color=GOLD2, hover_color=GOLD, text_color="#050505",
+            font=("Consolas", 10, "bold"), command=submit
+        ).pack(fill="x", padx=22, pady=(0, 20))
 
     def run(self):
         self.root.protocol("WM_DELETE_WINDOW", self._on_closing)
