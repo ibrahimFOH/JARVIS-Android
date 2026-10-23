@@ -1155,23 +1155,39 @@ public class MainActivity extends Activity {
 
     private void showAgents(){
         final List<AgencyAgent> list=AgencyCatalog.all();
-        String[] names=new String[list.size()];
-        for(int i=0;i<list.size();i++) names[i]=list.get(i).name;
+        String[] names=new String[list.size()+1];
+        names[0]="JARVIS / GENEL MOD";
+        for(int i=0;i<list.size();i++) names[i+1]=list.get(i).name;
         new AlertDialog.Builder(this)
                 .setTitle("STAGEPULSE AGENTS")
-                .setItems(names,(d,which)->activateAgent(list.get(which),null))
+                .setItems(names,(d,which)->{
+                    if(which==0){
+                        activeAgent=null;
+                        append("JARVIS MODU","Uzman seçimi kapatıldı. Genel JARVIS yönlendirmesi etkin.");
+                        status.setText("● JARVIS READY");
+                        status.setTextColor(gold());
+                        speak("Genel JARVIS modu etkin.");
+                    }else{
+                        activateAgent(list.get(which-1),null);
+                    }
+                })
                 .setNegativeButton("KAPAT",null)
                 .show();
     }
 
     private void activateAgent(AgencyAgent agent,String task){
         activeAgent=agent;
-        String t=(task==null||task.trim().isEmpty()) ? "Bu uzmanlık alanında gelen sonraki teknik görevi değerlendir." : task.trim();
-        String prompt=agent.activationPrompt(t);
-        append("AGENT AKTİF",agent.name+"\n\n"+prompt);
+        append("UZMAN AKTİF",agent.name+"\n\nGÖREV: "+agent.mission+"\n\nYETENEKLER: "+agent.capabilities
+                +"\n\nUzman seçildi. Sonraki teknik görevin bu uzmana yönlendirilecek.");
         status.setText("● AGENT: "+agent.name);
         status.setTextColor(gold());
-        speak(agent.name+" aktif. Patron, teknik görevinizi bekliyorum.");
+        boolean hostReady=!bridgePrefs.getString("url","").trim().isEmpty()
+                && !bridgePrefs.getString("token","").trim().isEmpty();
+        if(hostReady){
+            speak(agent.name+" aktif. Teknik görevinizi bekliyorum.");
+        }else{
+            speak(agent.name+" seçildi. Gerçek yapay zeka analizi için Windows JARVIS bağlantısını kur.");
+        }
     }
 
     private AgencyAgent detectAgent(String c){
@@ -2026,7 +2042,7 @@ public class MainActivity extends Activity {
         if(c.contains("müzik"))return "Müzik komutları için Android çekirdeğine ses kontrol modülü eklenebilir.";
         if(c.contains("merhaba jarvis")||c.contains("selam jarvis"))return "Emrinizdeyim Patron.";
         if(c.endsWith("?"))return "Sorunuzu aldım Patron. Bu Android sürümünde henüz bu soruya cevap verecek yerel bilgi modülü bulunmuyor.";
-        if(activeAgent!=null)return activeAgent.name+" aktif. Bu Android çekirdeğinde henüz bağlı bir LLM bulunmadığı için uzman ajan şu aşamada görev bağlamını ve çalışma talimatını hazırlar, fakat kendi başına üretken akıl yürütme yapmaz.";
+        if(activeAgent!=null)return activeAgent.name+" seçili; ancak Windows JARVIS HOST bağlı değil ve bu Android sürümünde yerel dil modeli bulunmuyor. Bu nedenle uzman analizi üretilemedi. HOST bağlantısını kurup teknik görevi yeniden gönder.";
         return "Komutunuz alındı Patron. Bu komut için Android yerel çekirdeğinde henüz bir işlem tanımlı değil.";
     }
 
