@@ -7,6 +7,7 @@ are not separate trained models and never claim to have measured real venues.
 """
 from __future__ import annotations
 
+import ipaddress
 import math
 import re
 import unicodedata
@@ -201,6 +202,71 @@ def _engineering_tool_output(agent_id: str, task: str) -> str:
                 lines.append("HESAPLAMA HATASI: delay_distance_m negatif olamaz.")
             else:
                 lines.append(f"ARAÇ SONUCU: {distance / 343.0 * 1000.0:.2f} ms (343 m/s ses hızı varsayımı, yaklaşık 20 °C).")
+    if agent_id == "spl_calculator":
+        level1 = _number(task, "level1_db")
+        level2 = _number(task, "level2_db")
+        if level1 is not None and level2 is not None:
+            combined = 10.0 * math.log10((10.0 ** (level1 / 10.0)) + (10.0 ** (level2 / 10.0)))
+            lines.append(f"ARAÇ SONUCU: İki bağımsız enerji kaynağının ideal enerji toplamı {combined:.2f} dB. Faz/koherens ve konum etkileri modele dahil değil.")
+
+    if agent_id == "foh_engineer":
+        peak = _number(task, "peak_dbfs")
+        target_peak = _number(task, "target_peak_dbfs")
+        if peak is not None and target_peak is not None:
+            trim = target_peak - peak
+            if trim < 0:
+                lines.append(f"ARAÇ SONUCU: Belirtilen tepe seviyesini hedefe indirmek için yaklaşık {abs(trim):.2f} dB kazanç azaltımı gerekir.")
+            else:
+                lines.append(f"ARAÇ SONUCU: Verilen tepe/hedef değerlerine göre {trim:.2f} dB dijital pay bulunuyor. Bu, analog giriş headroom'unu tek başına doğrulamaz.")
+
+    if agent_id == "audio_system_designer":
+        distance = _number(task, "throw_m")
+        angle = _number(task, "horizontal_coverage_deg")
+        if distance is not None and angle is not None:
+            if distance < 0 or angle <= 0 or angle >= 180:
+                lines.append("HESAPLAMA HATASI: throw_m negatif olamaz; horizontal_coverage_deg 0 ile 180 arasında olmalı.")
+            else:
+                width = 2.0 * distance * math.tan(math.radians(angle) / 2.0)
+                lines.append(f"ARAÇ SONUCU: {distance:g} m mesafede {angle:g}° yatay açı için ideal geometrik genişlik yaklaşık {width:.2f} m. Gerçek akustik kapsama/level uniformity garantisi değildir.")
+
+    if agent_id == "lighting_tech":
+        address = _number(task, "address")
+        channels = _number(task, "channels")
+        universe = _number(task, "universe")
+        if address is not None and channels is not None:
+            if int(address) != address or int(channels) != channels or address < 1 or address > 512 or channels < 1 or channels > 512:
+                lines.append("HESAPLAMA HATASI: DMX address 1–512, channels ise 1–512 tam sayı olmalı.")
+            elif address + channels - 1 > 512:
+                lines.append(f"HESAPLAMA HATASI: Fixture {int(address)} adresinden başlayıp {int(channels)} kanal kullanırsa DMX 512 sınırını aşar.")
+            else:
+                suffix = f", universe={int(universe)}" if universe is not None and universe > 0 else ""
+                lines.append(f"ARAÇ SONUCU: DMX adres aralığı {int(address)}–{int(address + channels - 1)}{suffix}; bir sonraki fixture için önerilen başlangıç {int(address + channels)}. Fixture mode kanal sayısı doğrulanmalı.")
+
+    if agent_id == "dante_network_engineer":
+        device_ip = re.search(r"(?i)\bdevice_ip\s*=\s*([0-9.]+)", task)
+        peer_ip = re.search(r"(?i)\bpeer_ip\s*=\s*([0-9.]+)", task)
+        subnet_mask = re.search(r"(?i)\bsubnet_mask\s*=\s*([0-9.]+)", task)
+        if device_ip and peer_ip and subnet_mask:
+            try:
+                network = ipaddress.IPv4Network(f"{device_ip.group(1)}/{subnet_mask.group(1)}", strict=False)
+                peer = ipaddress.IPv4Address(peer_ip.group(1))
+                lines.append(f"ARAÇ SONUCU: {device_ip.group(1)} / {subnet_mask.group(1)} ağı {network}; karşı cihaz {peer} " + ("aynı alt ağda." if peer in network else "aynı alt ağda DEĞİL."))
+            except ipaddress.AddressValueError:
+                lines.append("HESAPLAMA HATASI: device_ip, peer_ip veya subnet_mask geçerli IPv4 adresi değil.")
+            except ipaddress.NetmaskValueError:
+                lines.append("HESAPLAMA HATASI: subnet_mask geçerli IPv4 maskesi değil.")
+
+    if agent_id == "event_production_manager":
+        duration = _number(task, "duration_min")
+        buffer_pct = _number(task, "buffer_pct")
+        if duration is not None:
+            buffer_pct = 0.0 if buffer_pct is None else buffer_pct
+            if duration < 0 or buffer_pct < 0 or buffer_pct > 500:
+                lines.append("HESAPLAMA HATASI: duration_min negatif olamaz; buffer_pct 0–500 arasında olmalı.")
+            else:
+                total = duration * (1.0 + buffer_pct / 100.0)
+                lines.append(f"ARAÇ SONUCU: {duration:g} dk temel süre + %{buffer_pct:g} tampon = {total:.1f} dk planlama süresi. Gerçek üretim süresi bağımlılık ve saha koşullarına bağlıdır.")
+
     if agent_id == "system_tech":
         distance = _number(task, "delay_distance_m")
         if distance is not None and distance >= 0:
