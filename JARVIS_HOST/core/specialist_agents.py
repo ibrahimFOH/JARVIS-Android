@@ -206,7 +206,8 @@ def _engineering_tool_output(agent_id: str, task: str) -> str:
         level1 = _number(task, "level1_db")
         level2 = _number(task, "level2_db")
         if level1 is not None and level2 is not None:
-            combined = 10.0 * math.log10((10.0 ** (level1 / 10.0)) + (10.0 ** (level2 / 10.0)))
+            high, low = max(level1, level2), min(level1, level2)
+            combined = high + 10.0 * math.log10(1.0 + (10.0 ** ((low - high) / 10.0)))
             lines.append(f"ARAÇ SONUCU: İki bağımsız enerji kaynağının ideal enerji toplamı {combined:.2f} dB. Faz/koherens ve konum etkileri modele dahil değil.")
 
     if agent_id == "foh_engineer":
