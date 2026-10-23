@@ -66,7 +66,7 @@ class JarvisGUI:
 
         ctk.CTkLabel(
             top,
-            text="JUST A RATHER VERY INTELLIGENT SYSTEM   //   STAGEPULSE",
+            text="KİŞİSEL YAPAY ZEKÂ SİSTEMİ   //   STAGEPULSE",
             text_color=MUTED, font=("Consolas", 10)
         ).grid(row=1, column=0, sticky="w")
 
@@ -87,23 +87,23 @@ class JarvisGUI:
         )
         left.grid(row=1, column=0, sticky="ns", padx=(18, 7), pady=5)
 
-        self._section(left, "SYSTEMS")
-        self._telemetry(left, "AI CORE", "OLLAMA", GREEN)
-        self._telemetry(left, "LOCAL CORE", "OLLAMA", GREEN)
-        self._telemetry(left, "VOICE", "READY", GREEN)
-        self._telemetry(left, "NETWORK", "ONLINE", GREEN)
+        self._section(left, "SİSTEMLER")
+        self._telemetry(left, "YAPAY ZEKÂ", str(config.get("ai.provider", "auto")).upper(), GREEN)
+        self._telemetry(left, "YEREL ÇEKİRDEK", "OLLAMA", GREEN)
+        self._telemetry(left, "SES", "HAZIR", GREEN)
+        self._telemetry(left, "AĞ", "ÇEVRİMİÇİ", GREEN)
 
-        self._section(left, "AUDIO")
+        self._section(left, "SES SİSTEMİ")
         self._meter(left, "MIC INPUT")
         self._meter(left, "TTS OUTPUT")
         self._meter(left, "SIGNAL")
 
-        self._section(left, "CONTROL")
+        self._section(left, "KONTROL")
         self.voice_var = ctk.BooleanVar(
             value=config.get("voice.enabled", True)
         )
         ctk.CTkSwitch(
-            left, text="Voice", variable=self.voice_var,
+            left, text="Sesli kontrol", variable=self.voice_var,
             command=self._toggle_voice,
             progress_color=GOLD2, button_color=GOLD,
             button_hover_color=WHITE, text_color=WHITE
@@ -120,14 +120,14 @@ class JarvisGUI:
         if self.jarvis.wake_word_detector:
             self.wake_word_var = ctk.BooleanVar(value=False)
             ctk.CTkSwitch(
-                left, text="Wake word", variable=self.wake_word_var,
+                left, text="Uyandırma sözcüğü", variable=self.wake_word_var,
                 command=self._toggle_wake_word,
                 progress_color=GOLD2, button_color=GOLD,
                 text_color=WHITE
             ).pack(anchor="w", padx=12, pady=4)
 
         ctk.CTkButton(
-            left, text="ANDROID LINK", height=34,
+            left, text="ANDROID BAĞLANTISI", height=34,
             fg_color=GOLD2, hover_color=GOLD, text_color="#050505",
             font=("Consolas", 9, "bold"),
             command=self._show_android_link
@@ -150,21 +150,21 @@ class JarvisGUI:
         )
         right.grid(row=1, column=2, sticky="ns", padx=(7, 18), pady=5)
 
-        self._section(right, "JARVIS STATUS")
+        self._section(right, "JARVIS DURUMU")
         self.phase = ctk.CTkLabel(
-            right, text="IDLE", text_color=GOLD,
+            right, text="BEKLEMEDE", text_color=GOLD,
             font=("Consolas", 18, "bold")
         )
         self.phase.pack(anchor="w", padx=12, pady=(2, 12))
 
-        self._section(right, "CURRENT TASK")
+        self._section(right, "GÖREV")
         self.task = ctk.CTkLabel(
-            right, text="Waiting for command...", text_color=WHITE,
+            right, text="Komut bekleniyor...", text_color=WHITE,
             justify="left", wraplength=180, font=("Consolas", 10)
         )
         self.task.pack(anchor="w", padx=12, pady=(2, 16))
 
-        self._section(right, "ACTIVITY")
+        self._section(right, "İŞLEM GEÇMİŞİ")
         self.activity = ctk.CTkTextbox(
             right, width=190, height=245,
             fg_color="#030405", text_color=MUTED,
@@ -179,7 +179,7 @@ class JarvisGUI:
         bottom.grid_columnconfigure(0, weight=1)
 
         self.command_entry = ctk.CTkEntry(
-            bottom, placeholder_text="COMMAND // Türkçe komut gir...",
+            bottom, placeholder_text="Türkçe komutunu yaz...",
             height=44, fg_color="#090B0D",
             border_color=GOLD2, border_width=1,
             text_color=WHITE, placeholder_text_color=MUTED,
@@ -189,14 +189,14 @@ class JarvisGUI:
         self.command_entry.bind("<Return>", self._on_enter_pressed)
 
         ctk.CTkButton(
-            bottom, text="EXECUTE", width=105, height=44,
+            bottom, text="GÖNDER", width=105, height=44,
             fg_color=GOLD2, hover_color=GOLD, text_color="#050505",
             font=("Consolas", 10, "bold"),
             command=self._on_send_clicked
         ).grid(row=0, column=1, padx=4)
 
         self.voice_button = ctk.CTkButton(
-            bottom, text="◉ VOICE", width=105, height=44,
+            bottom, text="◉ KONUŞ", width=105, height=44,
             fg_color="#0A0D10", hover_color="#171B20",
             border_width=1, border_color=GOLD, text_color=GOLD,
             font=("Consolas", 10, "bold"),
@@ -205,14 +205,14 @@ class JarvisGUI:
         self.voice_button.grid(row=0, column=2, padx=4)
 
         ctk.CTkButton(
-            bottom, text="CLEAR", width=80, height=44,
+            bottom, text="TEMİZLE", width=80, height=44,
             fg_color="#090B0D", hover_color="#15181C",
             border_width=1, border_color="#34383D",
             text_color=MUTED, command=self._clear_chat
         ).grid(row=0, column=3, padx=(4, 0))
 
         ctk.CTkButton(
-            bottom, text="UPDATE", width=90, height=44,
+            bottom, text="GÜNCELLE", width=90, height=44,
             fg_color="#090B0D", hover_color="#171B20",
             border_width=1, border_color=GOLD, text_color=GOLD,
             command=lambda: self._check_for_updates(manual=True)
@@ -227,11 +227,11 @@ class JarvisGUI:
         self.chat_display.configure(state="disabled")
 
         self._append_to_chat(
-            "JARVIS", "PATRON, JARVIS çevrimiçi. Sistemler hazır.", "green"
+            "JARVIS", "Patron, JARVIS çevrimiçi. Sistemler hazır.", "green"
         )
-        self._activity("SYSTEM INITIALIZED")
-        self._activity("AI CORE: OLLAMA ONLY")
-        self._activity("LOCAL CORE: OLLAMA")
+        self._activity("SİSTEM BAŞLATILDI")
+        self._activity("YAPAY ZEKÂ: SAĞLAYICI SEÇİLEBİLİR")
+        self._activity("YEREL MODEL: OLLAMA")
 
     def _section(self, parent, text):
         ctk.CTkLabel(
