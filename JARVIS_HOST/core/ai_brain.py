@@ -16,6 +16,22 @@ class AIBrain:
         self.web_timeout = 5
         self.settings_path = self._settings_file()
         saved = self._read_settings()
+        legacy_ai = {}
+        try:
+            from utils.config_manager import get_config
+            legacy_ai = get_config().get("ai", {}) or {}
+        except Exception:
+            pass
+        if not isinstance(legacy_ai, dict):
+            legacy_ai = {}
+        legacy_providers = legacy_ai.get("providers", {})
+        if not isinstance(legacy_providers, dict):
+            legacy_providers = {}
+
+        def legacy_value(name, field, default=""):
+            provider_settings = legacy_providers.get(name, {})
+            return provider_settings.get(field, default) if isinstance(provider_settings, dict) else default
+
         self.api_defaults = {
             "openai": ("https://api.openai.com/v1", "gpt-4.1-mini"),
             "grok": ("https://api.x.ai/v1", "grok-4.1"),
@@ -26,24 +42,40 @@ class AIBrain:
             "custom": ("https://api.openai.com/v1", "model-name"),
         }
         self.gemini_key = os.environ.get(
-            "GEMINI_API_KEY", self._unprotect_key(saved.get("gemini_api_key", ""))
+            "GEMINI_API_KEY", self._unprotect_key(saved.get("gemini_api_key", legacy_value("gemini", "api_key", "")))
         ).strip()
         self.gemini_model = os.environ.get(
-            "GEMINI_MODEL", saved.get("gemini_model", "gemini-2.5-flash")
+            "GEMINI_MODEL", saved.get("gemini_model", legacy_value("gemini", "model", "gemini-2.5-flash"))
         )
         self.gemini_image_model = saved.get("gemini_image_model", "gemini-2.5-flash-image")
         self.groq_key = os.environ.get(
-            "GROQ_API_KEY", self._unprotect_key(saved.get("groq_api_key", ""))
+            "GROQ_API_KEY", self._unprotect_key(saved.get("groq_api_key", legacy_value("groq", "api_key", "")))
         ).strip()
-        self.groq_model = os.environ.get("GROQ_MODEL", saved.get("groq_model", "openai/gpt-oss-20b"))
-        self.host = os.environ.get("OLLAMA_HOST", saved.get("ollama_host", self.host)).rstrip("/")
-        self.model = os.environ.get("OLLAMA_MODEL", saved.get("ollama_model", self.model))
+        self.groq_model = os.environ.get("GROQ_MODEL", saved.get("groq_model", legacy_value("groq", "model", "openai/gpt-oss-20b")))
+        self.host = os.environ.get("OLLAMA_HOST", saved.get("ollama_host", legacy_ai.get("ollama_url", self.host))).rstrip("/")
+        self.model = os.environ.get("OLLAMA_MODEL", saved.get("ollama_model", legacy_ai.get("ollama_model", self.model)))
         self.api_keys = {
             str(key).lower(): self._unprotect_key(value)
             for key, value in saved.get("api_keys", {}).items()
         } if isinstance(saved.get("api_keys", {}), dict) else {}
         self.api_models = dict(saved.get("api_models", {})) if isinstance(saved.get("api_models", {}), dict) else {}
         self.api_base_urls = dict(saved.get("api_base_urls", {})) if isinstance(saved.get("api_base_urls", {}), dict) else {}
+        for name in self.api_defaults:
+            old_provider = legacy_providers.get(name, {})
+            if not isinstance(old_provider, dict):
+                continue
+            if not self.api_keys.get(name) and old_provider.get("api_key"):
+                self.api_keys[name] = self._unprotect_key(old_provider.get("api_key"))
+            if name not in self.api_models and old_provider.get("model"):
+                self.api_models[name] = str(old_provider["model"])
+            old_url = str(old_provider.get("base_url", "") or "").strip().rstrip("/")
+            if name not in self.api_base_urls and old_url:
+                for suffix in ("/chat/completions", "/messages"):
+                    if old_url.endswith(suffix):
+                        old_url = old_url[:-len(suffix)]
+                        break
+                self.api_base_urls[name] = old_url
+
         for name, env_key in {
             "openai": "OPENAI_API_KEY", "grok": "XAI_API_KEY",
             "anthropic": "ANTHROPIC_API_KEY", "deepseek": "DEEPSEEK_API_KEY",
@@ -53,7 +85,7 @@ class AIBrain:
             if os.environ.get(env_key):
                 self.api_keys[name] = os.environ[env_key].strip()
         self.provider = str(
-            saved.get("provider", os.environ.get("JARVIS_AI_PROVIDER", "ollama"))
+            saved.get("provider", os.environ.get("JARVIS_AI_PROVIDER", legacy_ai.get("provider", "ollama")))
         ).strip().lower()
         if self.provider not in ("auto", "gemini", "groq", "ollama", *self.api_defaults.keys()):
             self.provider = "ollama"
