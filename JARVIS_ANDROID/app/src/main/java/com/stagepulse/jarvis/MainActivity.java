@@ -691,6 +691,74 @@ public class MainActivity extends Activity {
                 + "\nDosya adı ve konumu hafızaya kaydedildi. 'Son dosyayı aç' diyebilirsin.";
     }
 
+    private String createDownloadPdf(String requestedName, String body, String childFolder) throws IOException {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+            return "Bu Android sürümünde doğrudan İndirilenler PDF kaydı desteklenmiyor. Metin sürümünü oluşturmayı dene.";
+        }
+        String fileName = safeName(requestedName, "JARVIS-Egitim");
+        if (!fileName.toLowerCase(Locale.ROOT).endsWith(".pdf")) fileName += ".pdf";
+        String stamp = new SimpleDateFormat("yyyyMMdd-HHmmss", Locale.ROOT).format(new Date());
+        fileName = fileName.substring(0, fileName.length() - 4) + "-" + stamp + ".pdf";
+        String folder = "JARVIS/" + safeName(childFolder, "Dosyalar");
+        ContentValues values = new ContentValues();
+        values.put(MediaStore.MediaColumns.DISPLAY_NAME, fileName);
+        values.put(MediaStore.MediaColumns.MIME_TYPE, "application/pdf");
+        values.put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS + "/" + folder + "/");
+        values.put(MediaStore.MediaColumns.IS_PENDING, 1);
+        Uri uri = getContentResolver().insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values);
+        if (uri == null) throw new IOException("PDF dosyası oluşturulamadı.");
+        android.graphics.pdf.PdfDocument pdf = new android.graphics.pdf.PdfDocument();
+        android.graphics.Paint paint = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
+        paint.setColor(android.graphics.Color.BLACK);
+        paint.setTextSize(10f);
+        int pageNumber = 1;
+        android.graphics.pdf.PdfDocument.Page page = null;
+        android.graphics.Canvas canvas = null;
+        int y = 0;
+        try {
+            String all = "STAGEPULSE | SES MÜHENDİSLİĞİ EĞİTİM PAKETİ\\n\\n" + (body == null ? "" : body);
+            String[] lines = all.split("\\n");
+            for (String line : lines) {
+                String remaining = line;
+                do {
+                    if (page == null || y > 790) {
+                        if (page != null) pdf.finishPage(page);
+                        android.graphics.pdf.PdfDocument.PageInfo info =
+                                new android.graphics.pdf.PdfDocument.PageInfo.Builder(595, 842, pageNumber++).create();
+                        page = pdf.startPage(info);
+                        canvas = page.getCanvas();
+                        y = 42;
+                        paint.setTextSize(10f);
+                        canvas.drawText("STAGEPULSE  |  EĞİTİM REHBERİ", 40, 25, paint);
+                    }
+                    String chunk = remaining;
+                    while (paint.measureText(chunk) > 510 && chunk.length() > 1) chunk = chunk.substring(0, chunk.length() - 1);
+                    canvas.drawText(chunk, 40, y, paint);
+                    y += 15;
+                    remaining = remaining.substring(chunk.length());
+                } while (!remaining.isEmpty());
+            }
+            if (page != null) pdf.finishPage(page);
+            try (OutputStream out = getContentResolver().openOutputStream(uri, "w")) {
+                if (out == null) throw new IOException("PDF yazma akışı açılamadı.");
+                pdf.writeTo(out);
+            }
+            ContentValues ready = new ContentValues();
+            ready.put(MediaStore.MediaColumns.IS_PENDING, 0);
+            getContentResolver().update(uri, ready, null, null);
+            String savedPath = Environment.DIRECTORY_DOWNLOADS + "/" + folder + "/" + fileName;
+            profilePrefs.edit().putString("last_file_uri", uri.toString())
+                    .putString("last_file_name", fileName).putString("last_file_path", savedPath).apply();
+            return "PDF gerçekten oluşturuldu ve kaydedildi: " + savedPath + "\\nSayfa sayısı: " + (pageNumber - 1);
+        } catch (Exception e) {
+            getContentResolver().delete(uri, null, null);
+            if (e instanceof IOException) throw (IOException)e;
+            throw new IOException("PDF üretimi başarısız: " + e.getMessage(), e);
+        } finally {
+            pdf.close();
+        }
+    }
+
     private void launchDocumentPicker(boolean readText) {
         pendingFileRead = readText;
         try {
@@ -876,12 +944,15 @@ public class MainActivity extends Activity {
 
     private String handleLocalFileCommand(String raw) {
         String x = normalizeIntent(raw);
-        if ((x.contains("egitim paketi") || x.contains("ses muhendisligi egitimi"))
-                && (x.contains("hazirla") || x.contains("olustur") || x.contains("yap"))) {
+        boolean asksTraining = x.contains("egitim") || x.contains("ders kitabi") || x.contains("ses muhendisligi");
+        boolean asksCreate = x.contains("hazirla") || x.contains("olustur") || x.contains("yap") || x.contains("uret");
+        boolean asksPdf = x.contains("pdf");
+        if (asksTraining && asksCreate) {
             try {
-                String result = createDownloadTextFile("Stagepulse-Egitim-Paketi.md",
-                        buildTrainingPackage(), "Egitim");
-                return "Eğitim paketi hazırlandı.\n" + result;
+                String body = buildTrainingPackage();
+                if (asksPdf) return createDownloadPdf("Stagepulse-Ses-Muhendisligi-Egitim.pdf", body, "Egitim");
+                String result = createDownloadTextFile("Stagepulse-Egitim-Paketi.md", body, "Egitim");
+                return "Eğitim paketi hazırlandı.\\n" + result;
             } catch (Exception e) {
                 return "Eğitim dosyası oluşturulamadı: " + e.getMessage();
             }
