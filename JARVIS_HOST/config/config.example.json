@@ -116,13 +116,23 @@
   },
   "ai": {
     "enabled": true,
-    "strategy": "ollama_only",
-    "free_only": true,
-    "max_output_tokens": 120,
-    "timeout_seconds": 18,
-    "provider": "ollama",
+    "strategy": "auto",
+    "free_only": false,
+    "max_output_tokens": 650,
+    "timeout_seconds": 45,
+    "provider": "auto",
     "ollama_url": "http://127.0.0.1:11434",
     "ollama_model": "qwen3:0.6b",
+    "openai_model": "gpt-4o-mini",
+    "gemini_model": "gemini-2.5-flash",
+    "grok_model": "grok-3-mini",
+    "custom_base_url": "",
+    "providers": {
+      "openai": {"api_key": "", "base_url": "https://api.openai.com/v1/chat/completions", "model": "gpt-4o-mini"},
+      "gemini": {"api_key": "", "base_url": "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions", "model": "gemini-2.5-flash"},
+      "grok": {"api_key": "", "base_url": "https://api.x.ai/v1/chat/completions", "model": "grok-3-mini"},
+      "custom": {"api_key": "", "base_url": "", "model": ""}
+    },
     "web_enabled": true
   },
   "android_bridge": {
