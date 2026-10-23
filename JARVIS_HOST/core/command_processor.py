@@ -73,8 +73,25 @@ class CommandProcessor:
         
         logger.info("Command processor initialized")
     
-    def process(self, command: str) -> Dict[str, Any]:
+    def process(self, command: str, profile_context: str = "", agent_id: str = "") -> Dict[str, Any]:
         logger.command(command)
+
+        # Explicit memory commands bypass intent classification so they remain reliable.
+        try:
+            memory_response = self.ai_brain.memory.handle_command(command)
+            if memory_response:
+                return {
+                    "success": True,
+                    "response": memory_response,
+                    "intent": "memory",
+                }
+        except Exception as exc:
+            logger.error(f"Persistent memory command failed: {exc}")
+            return {
+                "success": False,
+                "response": "Kalıcı hafıza işlemi sırasında hata oluştu.",
+                "intent": "memory",
+            }
 
         # Run explicit personal website aliases before generic app/AI recognition.
         # This prevents "Stagepulse.com.tr" from being misheard as Facebook or
@@ -109,12 +126,37 @@ class CommandProcessor:
         intent_result = self.intent_recognizer.recognize(command)
         intent = intent_result['intent']
         confidence = intent_result['confidence']
+
+        # Let ordinary computer-control intents keep working while an expert is selected.
+        # The selected agent receives free-form/technical requests, not every command blindly.
+        if agent_id and (intent == 'unknown' or confidence < 0.3):
+            try:
+                from core.specialist_agents import get_agent
+                spec = get_agent(agent_id)
+                if spec is not None:
+                    ai_response = self.ai_brain.ask(command, profile_context=profile_context, agent_id=spec.id)
+                    return {
+                        "success": bool(ai_response and not ai_response.startswith("Ollama bağlantısında sorun")),
+                        "response": ai_response,
+                        "intent": "specialist_agent",
+                        "agent_id": spec.id,
+                        "agent_name": spec.name,
+                    }
+            except Exception as exc:
+                logger.error(f"Specialist agent failed ({agent_id}): {exc}")
+                return {
+                    "success": False,
+                    "response": "Uzman ajan çalıştırılamadı. Windows JARVIS günlüklerinde teknik ayrıntı bulunabilir.",
+                    "intent": "specialist_agent",
+                    "agent_id": agent_id,
+                }
+
         parameters = intent_result['parameters']
         logger.debug(f"Intent: {intent}, Confidence: {confidence:.2f}, Params: {parameters}")
 
         if intent == 'unknown' or confidence < 0.3:
             try:
-                ai_response = self.ai_brain.ask(command)
+                ai_response = self.ai_brain.ask(command, profile_context=profile_context)
                 return {'success': True, 'response': ai_response, 'intent': 'ai'}
             except Exception:
                 pass

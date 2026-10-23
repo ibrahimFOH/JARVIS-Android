@@ -6,13 +6,15 @@ The bridge only accepts authenticated JSON requests and binds to the local netwo
 """
 import json
 import os
+import re
 import secrets
 import sys
+import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlparse
 
-ROOT = Path(__file__).resolve().parent
+ROOT = Path(sys.executable).resolve().parent if getattr(sys, "frozen", False) else Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT))
 
 HOST = os.environ.get("JARVIS_BRIDGE_HOST", "0.0.0.0")
@@ -80,6 +82,25 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(400, {"success": False, "error": "empty_command"})
             if len(command) > 4000:
                 return self._send(413, {"success": False, "error": "command_too_long"})
+            profile_context = data.get("profile_context", "")
+            if not isinstance(profile_context, str):
+                return self._send(400, {"success": False, "error": "invalid_profile_context"})
+            profile_context = profile_context.strip()
+            if len(profile_context) > 1200:
+                return self._send(413, {"success": False, "error": "profile_context_too_long"})
+            agent_id = data.get("agent_id", "")
+            if not isinstance(agent_id, str):
+                return self._send(400, {"success": False, "error": "invalid_agent_id"})
+            agent_id = agent_id.strip().lower()[:80]
+            if agent_id:
+                from core.specialist_agents import get_agent
+                if get_agent(agent_id) is None:
+                    return self._send(400, {"success": False, "error": "unknown_agent_id"})
+            # Treat a phone profile as factual context only and never pass obvious secrets to the model.
+            profile_context = re.sub(
+                r"(?i)\b(password|parola|şifre|sifre|access[_ -]?token|api[_ -]?key|secret)\s*[:=]\s*[^\s,;]+",
+                r"\1=[REDACTED]", profile_context
+            )
 
             from core import get_jarvis
             jarvis = get_jarvis()
@@ -87,7 +108,7 @@ class Handler(BaseHTTPRequestHandler):
                 jarvis.start()
 
             # Use the same command processor and AI configuration as the Windows app.
-            result = jarvis.command_processor.process(command)
+            result = jarvis.command_processor.process(command, profile_context=profile_context, agent_id=agent_id)
             if not isinstance(result, dict):
                 result = {"success": False, "response": "JARVIS geçerli bir yanıt döndürmedi."}
             response = {
@@ -104,10 +125,33 @@ class Handler(BaseHTTPRequestHandler):
                                     "response": "Windows JARVIS komutu işlerken hata oluştu."})
 
 
-if __name__ == "__main__":
+_background_server = None
+
+
+def start_background_server():
+    """Start the authenticated LAN bridge once, inside the desktop EXE process."""
+    global _background_server
+    if _background_server is not None:
+        return _background_server
+    server = ThreadingHTTPServer((HOST, PORT), Handler)
+    server.daemon_threads = True
+    worker = threading.Thread(
+        target=server.serve_forever,
+        name="JARVIS-Android-Bridge",
+        daemon=True,
+    )
+    worker.start()
+    _background_server = server
     print(f"JARVIS bridge listening on http://{HOST}:{PORT}")
     print("LAN access requires Windows Firewall permission for this port.")
+    return server
+
+
+if __name__ == "__main__":
     try:
-        ThreadingHTTPServer((HOST, PORT), Handler).serve_forever()
+        server = start_background_server()
+        threading.Event().wait()
     except KeyboardInterrupt:
+        if _background_server is not None:
+            _background_server.shutdown()
         print("\nJARVIS bridge stopped.")

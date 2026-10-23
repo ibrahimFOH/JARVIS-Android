@@ -6,6 +6,7 @@ import threading
 import math
 import time
 import sys
+import socket
 from utils.logger import get_logger
 from utils.config_manager import get_config
 from core.update_manager import WindowsUpdateManager
@@ -65,7 +66,7 @@ class JarvisGUI:
 
         ctk.CTkLabel(
             top,
-            text="JUST A RATHER VERY INTELLIGENT SYSTEM   //   STAGEPULSE",
+            text="KİŞİSEL YAPAY ZEKÂ SİSTEMİ   //   STAGEPULSE",
             text_color=MUTED, font=("Consolas", 10)
         ).grid(row=1, column=0, sticky="w")
 
@@ -86,36 +87,51 @@ class JarvisGUI:
         )
         left.grid(row=1, column=0, sticky="ns", padx=(18, 7), pady=5)
 
-        self._section(left, "SYSTEMS")
-        self._telemetry(left, "AI CORE", "OLLAMA", GREEN)
-        self._telemetry(left, "LOCAL CORE", "OLLAMA", GREEN)
-        self._telemetry(left, "VOICE", "READY", GREEN)
-        self._telemetry(left, "NETWORK", "ONLINE", GREEN)
+        self._section(left, "SİSTEMLER")
+        self._telemetry(left, "YAPAY ZEKÂ", str(config.get("ai.provider", "auto")).upper(), GREEN)
+        self._telemetry(left, "YEREL ÇEKİRDEK", "OLLAMA", GREEN)
+        self._telemetry(left, "SES", "HAZIR", GREEN)
+        self._telemetry(left, "AĞ", "ÇEVRİMİÇİ", GREEN)
 
-        self._section(left, "AUDIO")
+        self._section(left, "SES SİSTEMİ")
         self._meter(left, "MIC INPUT")
         self._meter(left, "TTS OUTPUT")
         self._meter(left, "SIGNAL")
 
-        self._section(left, "CONTROL")
+        self._section(left, "KONTROL")
         self.voice_var = ctk.BooleanVar(
             value=config.get("voice.enabled", True)
         )
         ctk.CTkSwitch(
-            left, text="Voice", variable=self.voice_var,
+            left, text="Sesli kontrol", variable=self.voice_var,
             command=self._toggle_voice,
             progress_color=GOLD2, button_color=GOLD,
             button_hover_color=WHITE, text_color=WHITE
         ).pack(anchor="w", padx=12, pady=4)
 
+        ctk.CTkButton(
+            left, text="AI API SETUP", height=34,
+            fg_color="#111417", hover_color="#20252A", text_color=GOLD,
+            border_width=1, border_color=GOLD2,
+            font=("Consolas", 9, "bold"),
+            command=self._show_ai_setup
+        ).pack(fill="x", padx=10, pady=(5, 4))
+
         if self.jarvis.wake_word_detector:
             self.wake_word_var = ctk.BooleanVar(value=False)
             ctk.CTkSwitch(
-                left, text="Wake word", variable=self.wake_word_var,
+                left, text="Uyandırma sözcüğü", variable=self.wake_word_var,
                 command=self._toggle_wake_word,
                 progress_color=GOLD2, button_color=GOLD,
                 text_color=WHITE
             ).pack(anchor="w", padx=12, pady=4)
+
+        ctk.CTkButton(
+            left, text="ANDROID BAĞLANTISI", height=34,
+            fg_color=GOLD2, hover_color=GOLD, text_color="#050505",
+            font=("Consolas", 9, "bold"),
+            command=self._show_android_link
+        ).pack(fill="x", padx=10, pady=(12, 4))
 
         center = ctk.CTkFrame(self.root, fg_color=BG, corner_radius=0)
         center.grid(row=1, column=1, sticky="nsew", padx=7, pady=5)
@@ -134,21 +150,21 @@ class JarvisGUI:
         )
         right.grid(row=1, column=2, sticky="ns", padx=(7, 18), pady=5)
 
-        self._section(right, "JARVIS STATUS")
+        self._section(right, "JARVIS DURUMU")
         self.phase = ctk.CTkLabel(
-            right, text="IDLE", text_color=GOLD,
+            right, text="BEKLEMEDE", text_color=GOLD,
             font=("Consolas", 18, "bold")
         )
         self.phase.pack(anchor="w", padx=12, pady=(2, 12))
 
-        self._section(right, "CURRENT TASK")
+        self._section(right, "GÖREV")
         self.task = ctk.CTkLabel(
-            right, text="Waiting for command...", text_color=WHITE,
+            right, text="Komut bekleniyor...", text_color=WHITE,
             justify="left", wraplength=180, font=("Consolas", 10)
         )
         self.task.pack(anchor="w", padx=12, pady=(2, 16))
 
-        self._section(right, "ACTIVITY")
+        self._section(right, "İŞLEM GEÇMİŞİ")
         self.activity = ctk.CTkTextbox(
             right, width=190, height=245,
             fg_color="#030405", text_color=MUTED,
@@ -163,7 +179,7 @@ class JarvisGUI:
         bottom.grid_columnconfigure(0, weight=1)
 
         self.command_entry = ctk.CTkEntry(
-            bottom, placeholder_text="COMMAND // Türkçe komut gir...",
+            bottom, placeholder_text="Türkçe komutunu yaz...",
             height=44, fg_color="#090B0D",
             border_color=GOLD2, border_width=1,
             text_color=WHITE, placeholder_text_color=MUTED,
@@ -173,14 +189,14 @@ class JarvisGUI:
         self.command_entry.bind("<Return>", self._on_enter_pressed)
 
         ctk.CTkButton(
-            bottom, text="EXECUTE", width=105, height=44,
+            bottom, text="GÖNDER", width=105, height=44,
             fg_color=GOLD2, hover_color=GOLD, text_color="#050505",
             font=("Consolas", 10, "bold"),
             command=self._on_send_clicked
         ).grid(row=0, column=1, padx=4)
 
         self.voice_button = ctk.CTkButton(
-            bottom, text="◉ VOICE", width=105, height=44,
+            bottom, text="◉ KONUŞ", width=105, height=44,
             fg_color="#0A0D10", hover_color="#171B20",
             border_width=1, border_color=GOLD, text_color=GOLD,
             font=("Consolas", 10, "bold"),
@@ -189,14 +205,14 @@ class JarvisGUI:
         self.voice_button.grid(row=0, column=2, padx=4)
 
         ctk.CTkButton(
-            bottom, text="CLEAR", width=80, height=44,
+            bottom, text="TEMİZLE", width=80, height=44,
             fg_color="#090B0D", hover_color="#15181C",
             border_width=1, border_color="#34383D",
             text_color=MUTED, command=self._clear_chat
         ).grid(row=0, column=3, padx=(4, 0))
 
         ctk.CTkButton(
-            bottom, text="UPDATE", width=90, height=44,
+            bottom, text="GÜNCELLE", width=90, height=44,
             fg_color="#090B0D", hover_color="#171B20",
             border_width=1, border_color=GOLD, text_color=GOLD,
             command=lambda: self._check_for_updates(manual=True)
@@ -211,11 +227,11 @@ class JarvisGUI:
         self.chat_display.configure(state="disabled")
 
         self._append_to_chat(
-            "JARVIS", "PATRON, JARVIS çevrimiçi. Sistemler hazır.", "green"
+            "JARVIS", "Patron, JARVIS çevrimiçi. Sistemler hazır.", "green"
         )
-        self._activity("SYSTEM INITIALIZED")
-        self._activity("AI CORE: OLLAMA ONLY")
-        self._activity("LOCAL CORE: OLLAMA")
+        self._activity("SİSTEM BAŞLATILDI")
+        self._activity("YAPAY ZEKÂ: SAĞLAYICI SEÇİLEBİLİR")
+        self._activity("YEREL MODEL: OLLAMA")
 
     def _section(self, parent, text):
         ctk.CTkLabel(
@@ -522,6 +538,196 @@ class JarvisGUI:
         )
         self.activity.see("end")
         self.activity.configure(state="disabled")
+
+    def _show_ai_setup(self):
+        dialog = ctk.CTkToplevel(self.root)
+        dialog.title("J.A.R.V.I.S. // AI API SETUP")
+        dialog.geometry("680x570")
+        dialog.minsize(640, 540)
+        dialog.transient(self.root)
+        dialog.grab_set()
+        dialog.configure(fg_color=BG)
+
+        ctk.CTkLabel(dialog, text="YAPAY ZEKÂ SAĞLAYICILARI",
+                     text_color=GOLD, font=("Consolas", 16, "bold")).pack(anchor="w", padx=20, pady=(18, 3))
+        ctk.CTkLabel(dialog,
+                     text="Gemini, OpenAI/ChatGPT API, Grok veya OpenAI-uyumlu başka bir API ekleyebilirsin.",
+                     text_color=MUTED, font=("Segoe UI", 10), wraplength=620,
+                     justify="left").pack(anchor="w", padx=20, pady=(0, 12))
+
+        ai = config.get("ai", {}) or {}
+        providers = ai.get("providers", {}) or {}
+        selected = str(ai.get("provider", "auto")).lower()
+        provider_var = ctk.StringVar(value=selected if selected in ("auto", "ollama", "gemini", "openai", "grok", "custom") else "custom")
+
+        def field(label, initial="", secret=False):
+            ctk.CTkLabel(dialog, text=label, text_color=WHITE,
+                         font=("Segoe UI", 10, "bold")).pack(anchor="w", padx=20, pady=(5, 2))
+            entry = ctk.CTkEntry(dialog, height=34, show="•" if secret else "")
+            entry.pack(fill="x", padx=20)
+            if initial:
+                entry.insert(0, initial)
+            return entry
+
+        ctk.CTkLabel(dialog, text="Aktif sağlayıcı", text_color=WHITE).pack(anchor="w", padx=20, pady=(3, 2))
+        menu = ctk.CTkOptionMenu(dialog, variable=provider_var,
+            values=["auto", "ollama", "gemini", "openai", "grok", "anthropic", "deepseek", "perplexity", "openrouter", "custom"],
+            fg_color=GOLD2, button_color=GOLD2, button_hover_color=GOLD, text_color="#050505")
+        menu.pack(fill="x", padx=20)
+
+        base_entry = field("API URL / Ollama adresi")
+        model_entry = field("Model adı")
+        key_entry = field("API anahtarı (yalnızca bu bilgisayarda config dosyasına kaydedilir)", secret=True)
+
+        def defaults_for(name):
+            defaults = {
+                "ollama": (str(ai.get("ollama_url", "http://127.0.0.1:11434")), str(ai.get("ollama_model", "qwen3:0.6b")), ""),
+                "gemini": ("https://generativelanguage.googleapis.com/v1beta/openai/chat/completions", str(ai.get("gemini_model", "gemini-2.5-flash")), ""),
+                "openai": ("https://api.openai.com/v1/chat/completions", str(ai.get("openai_model", "gpt-4o-mini")), ""),
+                "grok": ("https://api.x.ai/v1/chat/completions", str(ai.get("grok_model", "grok-3-mini")), ""),
+                "anthropic": ("https://api.anthropic.com/v1/messages", "claude-3-5-haiku-latest", ""),
+                "deepseek": ("https://api.deepseek.com/chat/completions", "deepseek-chat", ""),
+                "perplexity": ("https://api.perplexity.ai/chat/completions", "sonar", ""),
+                "openrouter": ("https://openrouter.ai/api/v1/chat/completions", "openai/gpt-4o-mini", ""),
+                "custom": ("", "", ""),
+            }
+            if name in ("gemini", "openai", "grok", "custom"):
+                p = providers.get(name, {}) or {}
+                durl, dmodel, _ = defaults[name]
+                return str(p.get("base_url", durl)), str(p.get("model", dmodel)), str(p.get("api_key", ""))
+            return defaults.get(name, ("", "", ""))
+
+        def load_selected(name=None):
+            name = name or provider_var.get()
+            url, model, key = defaults_for(name)
+            for entry, value in ((base_entry, url), (model_entry, model), (key_entry, key)):
+                entry.delete(0, "end")
+                if value:
+                    entry.insert(0, value)
+        menu.configure(command=lambda value: load_selected(value))
+        load_selected()
+
+        ctk.CTkLabel(dialog,
+            text="auto: Gemini anahtarı varsa Gemini, aksi durumda yerel Ollama. Otomatik geri dönüş için AI stratejisi auto olmalı. API kullanımı sağlayıcı ücretlerine tabi olabilir.",
+            text_color=MUTED, font=("Segoe UI", 10), wraplength=620,
+            justify="left").pack(anchor="w", padx=20, pady=(12, 8))
+
+        def save_settings():
+            name = provider_var.get()
+            url, model, key = base_entry.get().strip(), model_entry.get().strip(), key_entry.get().strip()
+            if name not in ("auto", "ollama") and (not url or not model or not key):
+                messagebox.showerror("API ayarları", "Bu sağlayıcı için API URL, model adı ve API anahtarı gerekli.", parent=dialog)
+                return
+            config.set("ai.provider", name, save=False)
+            config.set("ai.strategy", "auto", save=False)
+            if name == "ollama":
+                config.set("ai.ollama_url", url or "http://127.0.0.1:11434", save=False)
+                config.set("ai.ollama_model", model or "qwen3:0.6b", save=False)
+            elif name not in ("auto",):
+                for field_name, value in (("api_key", key), ("base_url", url), ("model", model)):
+                    config.set("ai.providers." + name + "." + field_name, value, save=False)
+                if name in ("gemini", "openai", "grok"):
+                    config.set("ai." + name + "_model", model, save=False)
+            if not config.save_config():
+                messagebox.showerror("API ayarları", "Ayar dosyası kaydedilemedi.", parent=dialog)
+                return
+            self._activity("AI PROVIDER SET: " + name.upper())
+            self.status.configure(text="● AI: " + name.upper(), text_color=GOLD)
+            messagebox.showinfo("JARVIS AI", "Sağlayıcı ayarları kaydedildi. Yeni isteklerde kullanılacak.", parent=dialog)
+            dialog.destroy()
+
+        ctk.CTkButton(dialog, text="AYARLARI KAYDET", height=40, command=save_settings,
+            fg_color=GOLD2, hover_color=GOLD, text_color="#050505",
+            font=("Consolas", 10, "bold")).pack(fill="x", padx=20, pady=(6, 18))
+
+    def _show_android_link(self):
+        """Show the current LAN endpoint and let the user copy the bridge token."""
+        try:
+            from android_bridge import PORT, TOKEN_FILE
+            token = TOKEN_FILE.read_text(encoding="utf-8").strip()
+            if not token:
+                raise RuntimeError("Bridge token is empty.")
+        except Exception as exc:
+            messagebox.showerror(
+                "Android Link",
+                "Android köprüsü başlatılamadı veya token okunamadı.\n" + str(exc)
+            )
+            return
+
+        address = ""
+        try:
+            # UDP connect discovers the selected local interface without sending data.
+            with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as probe:
+                probe.connect(("8.8.8.8", 80))
+                address = probe.getsockname()[0]
+        except OSError:
+            candidates = []
+            try:
+                candidates = [
+                    item[4][0] for item in socket.getaddrinfo(
+                        socket.gethostname(), None, socket.AF_INET
+                    ) if not item[4][0].startswith("127.")
+                ]
+            except OSError:
+                pass
+            address = candidates[0] if candidates else ""
+
+        if not address:
+            messagebox.showerror(
+                "Android Link",
+                "Yerel IPv4 adresi bulunamadı. Windows'ta ipconfig komutuyla adresini kontrol et."
+            )
+            return
+
+        dialog = ctk.CTkToplevel(self.root)
+        dialog.title("J.A.R.V.I.S. // ANDROID LINK")
+        dialog.geometry("580x270")
+        dialog.resizable(False, False)
+        dialog.transient(self.root)
+        dialog.grab_set()
+        dialog.configure(fg_color=BG)
+
+        ctk.CTkLabel(
+            dialog, text="ANDROID COMPANION CONNECTION",
+            text_color=GOLD, font=("Consolas", 14, "bold")
+        ).pack(anchor="w", padx=20, pady=(18, 4))
+        ctk.CTkLabel(
+            dialog,
+            text="Telefon ve bilgisayar aynı güvenilir Wi-Fi/LAN ağında olmalı.",
+            text_color=MUTED, font=("Segoe UI", 10)
+        ).pack(anchor="w", padx=20, pady=(0, 12))
+
+        endpoint = ctk.CTkEntry(dialog, height=36, font=("Consolas", 11))
+        endpoint.pack(fill="x", padx=20, pady=4)
+        endpoint.insert(0, f"http://{address}:{PORT}")
+
+        token_entry = ctk.CTkEntry(dialog, height=36, font=("Consolas", 10), show="•")
+        token_entry.pack(fill="x", padx=20, pady=4)
+        token_entry.insert(0, token)
+
+        actions = ctk.CTkFrame(dialog, fg_color="transparent")
+        actions.pack(fill="x", padx=20, pady=(8, 4))
+
+        def copy_entry(entry, label):
+            self.root.clipboard_clear()
+            self.root.clipboard_append(entry.get())
+            self._activity(label + " COPIED")
+
+        ctk.CTkButton(
+            actions, text="COPY ADDRESS", command=lambda: copy_entry(endpoint, "ANDROID ADDRESS"),
+            fg_color=GOLD2, hover_color=GOLD, text_color="#050505"
+        ).pack(side="left", expand=True, fill="x", padx=(0, 5))
+        ctk.CTkButton(
+            actions, text="COPY TOKEN", command=lambda: copy_entry(token_entry, "ANDROID TOKEN"),
+            fg_color="#111417", hover_color="#20252A", text_color=WHITE,
+            border_width=1, border_color=GOLD2
+        ).pack(side="left", expand=True, fill="x", padx=(5, 0))
+
+        ctk.CTkLabel(
+            dialog,
+            text="Token'ı paylaşma ve 8765 portunu internete açma.",
+            text_color=RED, font=("Segoe UI", 10)
+        ).pack(anchor="w", padx=20, pady=(8, 12))
 
     def _toggle_wake_word(self):
         if self.wake_word_var.get():

@@ -223,6 +223,14 @@ def main():
         elif args.mode == 'voice':
             run_voice_mode(jarvis)
         elif args.mode == 'gui':
+            # The authenticated LAN bridge lives inside the desktop process so
+            # Android can use the same command engine without a second console.
+            try:
+                from android_bridge import start_background_server
+                start_background_server()
+                logger.info("Android LAN bridge started")
+            except Exception as bridge_error:
+                logger.warning(f"Android LAN bridge unavailable: {bridge_error}")
             run_gui_mode(jarvis)
         elif args.mode == 'daemon':
             run_daemon_mode(jarvis)

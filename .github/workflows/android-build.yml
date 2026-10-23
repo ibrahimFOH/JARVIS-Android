@@ -2,7 +2,9 @@ name: JARVIS Android Build
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main, feature/android-independent-voice-ui-parity ]
+  pull_request:
+    branches: [ main, feature/jarvis-persistent-memory ]
   workflow_dispatch:
 
 jobs:
@@ -16,7 +18,7 @@ jobs:
         shell: bash
         run: |
           python -m pip install --quiet requests
-          python -m py_compile JARVIS_HOST/core/ai_brain.py JARVIS_HOST/core/command_processor.py JARVIS_HOST/core/update_manager.py JARVIS_HOST/gui/main_window.py
+          python -m py_compile JARVIS_HOST/main.py JARVIS_HOST/android_bridge.py JARVIS_HOST/core/ai_brain.py JARVIS_HOST/core/specialist_agents.py JARVIS_HOST/core/command_processor.py JARVIS_HOST/core/update_manager.py JARVIS_HOST/gui/main_window.py
           python - <<'PY'
           import ast
           import re
@@ -67,6 +69,51 @@ jobs:
           print("JARVIS Windows updater URL/version checks: PASS")
           PY
 
+      - name: Test Stagepulse specialist routing and engineering tools
+        shell: bash
+        run: python -m unittest discover -s tests -v
+
+      - name: Validate responsive voice command controls
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          source = Path("JARVIS_ANDROID/app/src/main/java/com/stagepulse/jarvis/MainActivity.java").read_text(encoding="utf-8")
+          service = Path("JARVIS_ANDROID/app/src/main/java/com/stagepulse/jarvis/JarvisAccessibilityService.java").read_text(encoding="utf-8")
+          manifest = Path("JARVIS_ANDROID/app/src/main/AndroidManifest.xml").read_text(encoding="utf-8")
+          service_config = Path("JARVIS_ANDROID/app/src/main/res/xml/jarvis_accessibility_service.xml").read_text(encoding="utf-8")
+          checks = {
+              "visible send control": 'control("GÖNDER"' in source,
+              "visible voice control": 'control("KONUŞ"' in source,
+              "density-aware dimensions": "private int dp(float value)" in source,
+              "voice toggle state": 'listening ? "DURDUR" : "KONUŞ"' in source,
+              "continuous voice conversation": "setOnUtteranceProgressListener" in source and "resumeVoiceConversation()" in source,
+              "separate phone profile context": 'BridgeClient.command(hostUrl, hostToken, cmd, profileContext, activeAgent == null ? "" : activeAgent.id)' in source,
+              "selected specialist forwarded to host": 'payload.put("agent_id", selectedAgent)' in Path("JARVIS_ANDROID/app/src/main/java/com/stagepulse/jarvis/BridgeClient.java").read_text(encoding="utf-8"),
+              "specialist tool runtime exists": Path("JARVIS_HOST/core/specialist_agents.py").is_file(),
+              "profile context kept out of command text": 'profileContext + "\\nKullanıcının gerçek komutu: " + cmd' not in source,
+              "partial transcription": "public void onPartialResults(Bundle b)" in source,
+              "alternate transcript ranking": "chooseBestTranscript(candidates)" in source,
+              "Hey JARVIS speech correction": "heijan biz" in source and "pakeylri" in source,
+              "profile persistence": 'getSharedPreferences("jarvis_profile"' in source,
+              "public Downloads document creation": "MediaStore.Downloads.EXTERNAL_CONTENT_URI" in source,
+              "training package document": "buildTrainingPackage()" in source,
+              "user selected document picker": "Intent.ACTION_OPEN_DOCUMENT" in source,
+              "flashlight and brightness actions": "setFlashlight(boolean enabled)" in source and "applyBrightness(int delta)" in source,
+              "screen read and text interaction": "readVisibleWindowText()" in service and "clickVisibleText(String target)" in service and "setFocusedText(String value)" in service,
+              "opt-in accessibility service registered": ".JarvisAccessibilityService" in manifest,
+              "floating microphone over other apps": "showFloatingMicrophone()" in service and "TYPE_ACCESSIBILITY_OVERLAY" in service,
+              "user-triggered foreground voice session": "startForeground(VOICE_NOTIFICATION_ID" in service and 'android:foregroundServiceType="microphone"' in manifest,
+              "cross-app voice command router": "handleOverlayCommand(String raw)" in service and "handleOverlayDeviceCommand(String command)" in service,
+              "return commands to the Android UI": "handleIncomingIntent(getIntent())" in source and 'getStringExtra("jarvis_command")' in source,
+              "accessibility screen-reading permission disclosed": 'android:canRetrieveWindowContent="true"' in service_config,
+              "command submit handler": 'send.setOnClickListener(v -> { continuousConversation = false; sendCommand(command.getText().toString()); })' in source,
+          }
+          for label, passed in checks.items():
+              print(f"{label}: {'PASS' if passed else 'FAIL'}")
+          assert all(checks.values()), "Responsive voice command UI validation failed"
+          PY
+
       - name: Set up Java 17
         uses: actions/setup-java@v4
         with:
@@ -78,9 +125,8 @@ jobs:
         with:
           packages: ''
 
-      - name: Install Android native build tools
-        run: |
-          sdkmanager "platforms;android-35" "build-tools;35.0.0" "ndk;27.2.12479018" "cmake;3.22.1"
+      - name: Install Android SDK build tools
+        run: sdkmanager "platforms;android-35" "build-tools;35.0.0"
 
       - name: Set up Gradle 8.9
         uses: gradle/actions/setup-gradle@v4
@@ -93,6 +139,6 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: JARVIS-Android-PIPER-debug
+          name: JARVIS-Android-2.4.1-specialist-agents
           path: JARVIS_ANDROID/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error

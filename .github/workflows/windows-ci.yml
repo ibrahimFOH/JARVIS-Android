@@ -33,13 +33,18 @@ jobs:
       - name: Check updater and host Python syntax
         shell: pwsh
         run: |
-          python -m py_compile JARVIS_HOST/main.py JARVIS_HOST/core/ai_brain.py JARVIS_HOST/core/command_processor.py JARVIS_HOST/core/update_manager.py JARVIS_HOST/gui/main_window.py
+          python -m py_compile JARVIS_HOST/main.py JARVIS_HOST/android_bridge.py JARVIS_HOST/core/ai_brain.py JARVIS_HOST/core/specialist_agents.py JARVIS_HOST/core/command_processor.py JARVIS_HOST/core/memory_manager.py JARVIS_HOST/core/update_manager.py JARVIS_HOST/gui/main_window.py
+
+      - name: Test persistent memory behavior
+        shell: pwsh
+        run: |
+          python -m unittest discover -s tests -v
 
       - name: Build packaged Windows application
         shell: pwsh
         working-directory: JARVIS_HOST
         run: |
-          python -m PyInstaller --noconfirm --clean --name JARVIS --onedir --contents-directory . --windowed --add-data "config\config.example.json;config" --add-data "VERSION;." --collect-all customtkinter --collect-all pystray --collect-all pyttsx3 --collect-all speech_recognition --collect-all pvporcupine --hidden-import win32timezone main.py
+          python -m PyInstaller --noconfirm --clean --name JARVIS --onedir --contents-directory . --windowed --add-data "config\config.example.json;config" --add-data "VERSION;." --collect-all customtkinter --collect-all pystray --collect-all pyttsx3 --collect-all speech_recognition --collect-all pvporcupine --hidden-import win32timezone --hidden-import android_bridge main.py
           if (!(Test-Path "dist\JARVIS\JARVIS.exe")) { throw "PyInstaller did not create JARVIS.exe" }
           if (!(Test-Path "dist\JARVIS\VERSION")) { throw "VERSION is missing from the packaged application" }
           if (!(Test-Path "dist\JARVIS\config\config.example.json")) { throw "Default configuration is missing from the packaged application" }
