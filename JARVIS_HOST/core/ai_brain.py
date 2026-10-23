@@ -1,5 +1,8 @@
 import re
 import html
+import json
+import os
+from pathlib import Path
 import requests
 from urllib.parse import quote
 from core.memory_manager import MemoryManager
@@ -62,6 +65,91 @@ class AIBrain:
             except Exception: pass
         return ""
 
+    def _provider_settings(self):
+        cfg = {}
+        for candidate in (Path.cwd() / "config" / "config.json",
+                          Path(__file__).resolve().parents[1] / "config" / "config.json"):
+            try:
+                if candidate.is_file():
+                    cfg = json.loads(candidate.read_text(encoding="utf-8"))
+                    break
+            except Exception:
+                continue
+        ai = cfg.get("ai", {}) if isinstance(cfg, dict) else {}
+        providers = ai.get("providers", {}) if isinstance(ai, dict) else {}
+        return ai, providers
+
+    def _request_provider(self, payload, agent_id=""):
+        ai, providers = self._provider_settings()
+        selected = str(ai.get("provider", "auto")).strip().lower()
+        strategy = str(ai.get("strategy", "auto")).strip().lower()
+        if selected == "auto":
+            selected = "gemini" if self._provider_key(providers, "gemini") else "ollama"
+        candidates = [selected]
+        if strategy == "auto" and selected != "ollama":
+            candidates.append("ollama")
+        last_error = ""
+        for provider in candidates:
+            try:
+                if provider == "ollama":
+                    model = str(ai.get("ollama_model", self.model))
+                    host = str(ai.get("ollama_url", self.host)).rstrip("/")
+                    local_payload = dict(payload)
+                    local_payload["model"] = model
+                    response = requests.post(host + "/api/chat", json=local_payload,
+                                             timeout=max(self.timeout, 60) if agent_id else self.timeout)
+                else:
+                    defaults = {
+                        "openai": ("https://api.openai.com/v1/chat/completions", "gpt-4o-mini"),
+                        "gemini": ("https://generativelanguage.googleapis.com/v1beta/openai/chat/completions", "gemini-2.5-flash"),
+                        "grok": ("https://api.x.ai/v1/chat/completions", "grok-3-mini"),
+                    }
+                    custom = providers.get(provider, {}) if isinstance(providers, dict) else {}
+                    env_key = {"openai": "OPENAI_API_KEY", "gemini": "GEMINI_API_KEY",
+                               "grok": "XAI_API_KEY", "custom": "JARVIS_CUSTOM_API_KEY"}.get(provider, "")
+                    api_key = str(custom.get("api_key", "") or os.environ.get(env_key, "")).strip()
+                    if not api_key:
+                        raise RuntimeError(provider + " API anahtarı ayarlı değil")
+                    default_url, default_model = defaults.get(provider, ("", ""))
+                    url = str(custom.get("base_url", "") or ai.get("custom_base_url", "") or default_url).strip()
+                    model = str(custom.get("model", "") or ai.get(provider + "_model", "") or default_model).strip()
+                    if not url or not model:
+                        raise RuntimeError("API adresi veya model adı eksik: " + provider)
+                    request_payload = {
+                        "model": model,
+                        "messages": payload.get("messages", []),
+                        "temperature": payload.get("options", {}).get("temperature", 0.2),
+                        "max_tokens": payload.get("options", {}).get("num_predict", 512),
+                        "stream": False,
+                    }
+                    response = requests.post(url, json=request_payload,
+                        headers={"Authorization": "Bearer " + api_key,
+                                 "Content-Type": "application/json"},
+                        timeout=max(int(ai.get("timeout_seconds", self.timeout)), 60) if agent_id else int(ai.get("timeout_seconds", self.timeout)))
+                response.raise_for_status()
+                data = response.json()
+                if provider == "ollama":
+                    answer = ((data.get("message") or {}).get("content") or "").strip()
+                else:
+                    choices = data.get("choices") or []
+                    answer = (((choices[0].get("message") or {}).get("content")) if choices else "") or ""
+                    if isinstance(answer, list):
+                        answer = "\\n".join(str(part.get("text", "")) for part in answer if isinstance(part, dict))
+                    answer = str(answer).strip()
+                if answer:
+                    return answer
+                raise RuntimeError(provider + " boş yanıt döndürdü")
+            except Exception as exc:
+                last_error = provider + ": " + str(exc)
+        return "Yapay zekâ sağlayıcısına bağlanılamadı. Ayarları/API anahtarını kontrol et. " + last_error
+
+    def _provider_key(self, providers, name):
+        item = providers.get(name, {}) if isinstance(providers, dict) else {}
+        env_key = {"openai": "OPENAI_API_KEY", "gemini": "GEMINI_API_KEY",
+                   "grok": "XAI_API_KEY"}.get(name, "")
+        return bool(str(item.get("api_key", "") if isinstance(item, dict) else "").strip()
+                    or (env_key and os.environ.get(env_key, "").strip()))
+
     def _ollama(self,prompt,context="",profile_context="",agent_id=""):
         system_prompt = """Sen JARVIS'sin. Her zaman Türkçe konuş; kısa, doğrudan ve işe yarar ol.
 KULLANICI PROFİLİ (kalıcı çalışma bağlamı):
@@ -98,13 +186,7 @@ KULLANICI PROFİLİ (kalıcı çalışma bağlamı):
         if context:
             user_prompt += "\n\nWEB VERİSİ:\n" + context
         payload={"model":self.model,"stream":False,"keep_alive":"30m","think":False,"options":{"temperature":0.1,"num_predict":650 if expert_system else 180,"num_ctx":4096},"messages":[{"role":"system","content":system_prompt},{"role":"user","content":user_prompt}]}
-        try:
-            request_timeout = max(self.timeout, 60) if expert_system else self.timeout
-            r=requests.post(self.host+"/api/chat",json=payload,timeout=request_timeout)
-            r.raise_for_status()
-            return ((r.json().get("message") or {}).get("content") or "").strip()
-        except Exception as e:
-            return "Ollama bağlantısında sorun oluştu: "+str(e)
+        return self._request_provider(payload, agent_id)
 
     def ask(self,prompt,profile_context="",agent_id=""):
         memory_response = self.memory.handle_command(prompt)
