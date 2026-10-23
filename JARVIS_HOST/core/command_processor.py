@@ -73,7 +73,7 @@ class CommandProcessor:
         
         logger.info("Command processor initialized")
     
-    def process(self, command: str, profile_context: str = "") -> Dict[str, Any]:
+    def process(self, command: str, profile_context: str = "", agent_id: str = "") -> Dict[str, Any]:
         logger.command(command)
 
         # Explicit memory commands bypass intent classification so they remain reliable.
@@ -121,6 +121,30 @@ class CommandProcessor:
                     "response": f"{label} açılamadı: {exc}",
                     "intent": "open_website",
                     "url": url,
+                }
+
+        # An explicitly selected Stagepulse expert owns technical requests until the user switches back.
+        # Website and memory commands are handled above, so selecting an expert cannot hijack them.
+        if agent_id:
+            try:
+                from core.specialist_agents import get_agent
+                spec = get_agent(agent_id)
+                if spec is not None:
+                    ai_response = self.ai_brain.ask(command, profile_context=profile_context, agent_id=spec.id)
+                    return {
+                        "success": bool(ai_response and not ai_response.startswith("Ollama bağlantısında sorun")),
+                        "response": ai_response,
+                        "intent": "specialist_agent",
+                        "agent_id": spec.id,
+                        "agent_name": spec.name,
+                    }
+            except Exception as exc:
+                logger.error(f"Specialist agent failed ({agent_id}): {exc}")
+                return {
+                    "success": False,
+                    "response": "Uzman ajan çalıştırılamadı. Windows JARVIS günlüklerinde teknik ayrıntı bulunabilir.",
+                    "intent": "specialist_agent",
+                    "agent_id": agent_id,
                 }
 
         intent_result = self.intent_recognizer.recognize(command)
