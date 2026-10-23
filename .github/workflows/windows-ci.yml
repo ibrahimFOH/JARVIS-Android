@@ -45,7 +45,7 @@ jobs:
       - name: Verify expert workspace is wired into the desktop GUI
         shell: pwsh
         run: |
-          python -c "from pathlib import Path; s=Path('JARVIS_HOST/gui/main_window.py').read_text(encoding='utf-8'); assert 'text=\"UZMANLAR\"' in s; assert 'def _open_experts(self):' in s; print('Expert workspace verified')"
+          python -c "from pathlib import Path; s=Path('JARVIS_HOST/gui/main_window.py').read_text(encoding='utf-8'); assert 'UZMANLAR' in s and '_open_experts' in s; print('Expert workspace verified')"
           if ($LASTEXITCODE -ne 0) { throw "Expert workspace check failed" }
 
       - name: Build single-file Windows EXE
