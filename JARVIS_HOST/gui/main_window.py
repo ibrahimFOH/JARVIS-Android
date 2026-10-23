@@ -779,9 +779,9 @@ class JarvisGUI:
                 return
             role = role_var.get()
             prompt = (
-                "UZMANLIK: " + role + "\\n" + roles[role] +
-                "\\n\\nKullanıcı isteği: " + query +
-                "\\n\\nYanıtı Türkçe ver. Gerektiğinde adım adım yönerge, kontrol listesi, "
+                "UZMANLIK: " + role + "\n" + roles[role] +
+                "\n\nKullanıcı isteği: " + query +
+                "\n\nYanıtı Türkçe ver. Gerektiğinde adım adım yönerge, kontrol listesi, "
                 "riskler ve doğrulanması gereken varsayımları ekle."
             )
             self._append_to_chat("YOU / " + role, query, "gold")
