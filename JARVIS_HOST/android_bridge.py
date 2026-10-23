@@ -98,8 +98,8 @@ class Handler(BaseHTTPRequestHandler):
                     return self._send(400, {"success": False, "error": "unknown_agent_id"})
             # Treat a phone profile as factual context only and never pass obvious secrets to the model.
             profile_context = re.sub(
-                r"(?i)\\b(password|parola|şifre|sifre|access[_ -]?token|api[_ -]?key|secret)\\s*[:=]\\s*[^\\s,;]+",
-                r"\\1=[REDACTED]", profile_context
+                r"(?i)\b(password|parola|şifre|sifre|access[_ -]?token|api[_ -]?key|secret)\s*[:=]\s*[^\s,;]+",
+                r"\1=[REDACTED]", profile_context
             )
 
             from core import get_jarvis
