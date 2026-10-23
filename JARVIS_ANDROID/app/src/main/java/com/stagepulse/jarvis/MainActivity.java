@@ -1163,6 +1163,7 @@ public class MainActivity extends Activity {
                 .setItems(names,(d,which)->{
                     if(which==0){
                         activeAgent=null;
+                        getSharedPreferences("jarvis_agents", MODE_PRIVATE).edit().remove("active_agent_id").apply();
                         append("JARVIS MODU","Uzman seçimi kapatıldı. Genel JARVIS yönlendirmesi etkin.");
                         status.setText("● JARVIS READY");
                         status.setTextColor(gold());
@@ -1177,6 +1178,7 @@ public class MainActivity extends Activity {
 
     private void activateAgent(AgencyAgent agent,String task){
         activeAgent=agent;
+        getSharedPreferences("jarvis_agents", MODE_PRIVATE).edit().putString("active_agent_id", agent.id).apply();
         append("UZMAN AKTİF",agent.name+"\n\nGÖREV: "+agent.mission+"\n\nYETENEKLER: "+agent.capabilities
                 +"\n\nUzman seçildi. Sonraki teknik görevin bu uzmana yönlendirilecek.");
         status.setText("● AGENT: "+agent.name);
