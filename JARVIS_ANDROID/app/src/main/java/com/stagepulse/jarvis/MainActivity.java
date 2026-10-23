@@ -71,8 +71,15 @@ public class MainActivity extends Activity {
             if (candidate.isFile()) pendingUpdateFile = candidate;
         }
         buildUi();
+        String savedAgentId = getSharedPreferences("jarvis_agents", MODE_PRIVATE).getString("active_agent_id", "");
+        activeAgent = AgencyCatalog.find(savedAgentId);
         initAndroidTts();
         initSpeech();
+        if (activeAgent != null) {
+            status.setText("● AGENT: " + activeAgent.name);
+            status.setTextColor(gold());
+            append("JARVIS MODU", "Son seçilen uzman geri yüklendi: " + activeAgent.name);
+        }
         append("JARVIS","PATRON, bağımsız Android çekirdeği hazır.");
         checkForUpdates(false);
         if (!profilePrefs.getBoolean("setup_complete", false)) {
