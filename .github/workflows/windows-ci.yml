@@ -59,8 +59,8 @@ jobs:
         shell: pwsh
         working-directory: JARVIS_HOST
         run: |
-          python -m PyInstaller --noconfirm --clean --onefile --windowed --name StagepulseJARVIS --add-data "config\\config.example.json;config" --add-data "VERSION;." --collect-all customtkinter --collect-all pystray --collect-all pyttsx3 --collect-all speech_recognition --collect-all pvporcupine --collect-all pyaudio --collect-all PIL --hidden-import win32timezone --hidden-import pythoncom --hidden-import pywintypes main.py
-          if ($LASTEXITCODE -ne 0) { throw "PyInstaller failed" }
+          python build_jarvis_exe.py
+          if ($LASTEXITCODE -ne 0) { throw "PyInstaller build script failed" }
           $exe = "dist/StagepulseJARVIS.exe"
           if (!(Test-Path $exe)) { throw "Single-file EXE was not created" }
           $size = (Get-Item $exe).Length
