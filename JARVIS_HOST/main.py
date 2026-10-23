@@ -12,10 +12,30 @@ from pathlib import Path
 project_root = Path(__file__).parent
 sys.path.insert(0, str(project_root))
 
-# PyInstaller Windows packages must resolve config/log files relative to the
-# installed application directory, not Explorer's inherited working directory.
+# Keep the frozen EXE on the same config/log root as the source BAT whenever
+# the EXE is placed beside the project or in its dist folder. A standalone EXE
+# uses a writable per-user AppData directory instead of creating a second config
+# inside dist or depending on Explorer's inherited working directory.
 if getattr(sys, "frozen", False):
-    os.chdir(Path(sys.executable).resolve().parent)
+    executable_dir = Path(sys.executable).resolve().parent
+    project_roots = (executable_dir, executable_dir.parent)
+    runtime_root = next(
+        (
+            root for root in project_roots
+            if (root / "config" / "config.json").is_file()
+            and (root / "core").is_dir()
+            and (root / "gui").is_dir()
+        ),
+        None,
+    )
+    if runtime_root is None:
+        app_data = Path(os.environ.get("APPDATA") or (Path.home() / "AppData" / "Roaming"))
+        runtime_root = app_data / "StagepulseJARVIS"
+        try:
+            runtime_root.mkdir(parents=True, exist_ok=True)
+        except OSError:
+            runtime_root = executable_dir
+    os.chdir(runtime_root)
 
 from utils import get_logger, log_startup, log_shutdown, get_config
 from core import get_jarvis
