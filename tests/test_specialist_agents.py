@@ -49,6 +49,21 @@ class SpecialistAgentTests(unittest.TestCase):
         self.assertIn("29.15 ms", result)
         self.assertIn("343 m/s", result)
 
+    def test_dmx_fixture_range_is_validated(self):
+        _, result = prepare_expert_task("lighting_tech", "address=501 channels=20 universe=1")
+        self.assertIn("DMX 512 sınırını aşar", result)
+
+    def test_dante_subnet_tool_detects_mismatched_network(self):
+        _, result = prepare_expert_task(
+            "dante_network_engineer",
+            "device_ip=192.168.1.10 subnet_mask=255.255.255.0 peer_ip=192.168.2.20",
+        )
+        self.assertIn("aynı alt ağda DEĞİL", result)
+
+    def test_foh_headroom_tool_computes_required_trim(self):
+        _, result = prepare_expert_task("foh_engineer", "peak_dbfs=-2 target_peak_dbfs=-6")
+        self.assertIn("4.00 dB kazanç azaltımı", result)
+
     def test_invalid_spl_distance_is_rejected(self):
         _, result = prepare_expert_task(
             "spl_calculator", "ref_db=100 ref_m=0 target_m=10"
