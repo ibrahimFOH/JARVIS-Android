@@ -993,7 +993,8 @@ public class MainActivity extends Activity {
                 try {
                     Uri uri = Uri.parse(uriValue);
                     Intent view = new Intent(Intent.ACTION_VIEW);
-                    view.setDataAndType(uri, "text/plain");
+                    String mime = getContentResolver().getType(uri);
+                    view.setDataAndType(uri, mime == null ? "*/*" : mime);
                     view.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
                     runOnUiThread(() -> {
                         try { startActivity(view); }
@@ -1610,7 +1611,8 @@ public class MainActivity extends Activity {
         if (openDirectWebsite(raw) != null) return true;
         if (x.startsWith("hatirla") || x.startsWith("jarvis, hatirla") || x.startsWith("unut")
                 || x.equals("hafizami goster") || x.equals("hafizamda ne var")
-                || x.equals("ne hatirliyorsun")) return true;
+                || x.equals("ne hatirliyorsun")
+                || ((x.contains("chatgpt") || x.contains("chat gpt")) && (x.contains("ac") || x.contains("gir") || x.contains("baslat")))) return true;
         if (x.equals("jarvis") || x.equals("hey jarvis")
                 || x.contains("profilimi ayarla") || x.contains("profil ayarlari")
                 || x.contains("beni taniyor musun") || x.equals("ben kimim")
@@ -2028,6 +2030,11 @@ public class MainActivity extends Activity {
         if (memoryResponse != null) return memoryResponse;
         String websiteResponse = openDirectWebsite(raw);
         if (websiteResponse != null) return websiteResponse;
+        String normalizedCommand = normalizeIntent(raw);
+        if ((normalizedCommand.contains("chatgpt") || normalizedCommand.contains("chat gpt"))
+                && (normalizedCommand.contains("ac") || normalizedCommand.contains("gir") || normalizedCommand.contains("baslat"))) {
+            return launchAndroidAppOrWeb("com.openai.chatgpt", "https://chatgpt.com/", "ChatGPT");
+        }
         String c=raw.toLowerCase(new Locale("tr","TR")).trim();
         String normalized=c.replace("ı","i").replace("ş","s").replace("ğ","g").replace("ü","u").replace("ö","o").replace("ç","c");
         boolean launchVerb = c.contains("aç") || normalized.contains(" ac") || normalized.startsWith("ac")
