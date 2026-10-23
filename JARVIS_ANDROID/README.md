@@ -91,3 +91,36 @@ Android Studio veya [GitHub Actions](https://github.com/ibrahimFOH/JARVIS-Androi
 - HOST bağlantısı yoksa Android yerel fonksiyonları, dosya oluşturma ve cihaz eylemleri çalışır; tam Windows pencere/süreç/dosya otomasyonu, Windows AI modeli ve ağır masaüstü iş akışları PC'nin çalışmasını gerektirir.
 - Köprüyü internete açma ve token'ı repoya yükleme. Telefon ile bilgisayar aynı güvenilir yerel ağda olmalıdır.
 - CI kaynak kontrollerini ve APK derlemesini doğrular. Fiziksel cihazda mikrofon, çevrimiçi Türkçe konuşma, sistem TTS, dosya sağlayıcısı ve Erişilebilirlik izinleri ayrıca test edilmelidir.
+
+
+## Stagepulse uzman ajan motoru
+
+Uzmanlar menüsü yalnızca görsel bir seçim listesi olarak kullanılmamalıdır. Uzman seçildiğinde Android, uzman kimliğini (agent_id) doğrulanmış Windows HOST köprüsüne gönderir; Windows tarafında core/specialist_agents.py ilgili görev profili ve varsa deterministik hesaplama aracını çalıştırır, ardından sonuç yapılandırılmış Ollama modeline gönderilir. Normal Windows/telefon komutları tanınan işlem niyetlerine göre çalışmaya devam eder. Menüdeki JARVIS / GENEL MOD seçeneği aktif uzmanı kapatır.
+
+### Uzmanlık alanları
+- FOH Engineer: gain structure, kanal/patch düzeni, EQ-dinamikler, bus/matrix ve soundcheck.
+- Monitor Engineer: wedge/IEM, mix bus, sanatçı ihtiyaçları ve feedback riskleri.
+- RF Engineer: frekans koordinasyonu için gerekli girdiler, anten/scan/yedek kanal planı.
+- System Tech: sinyal zinciri, aktif PA/sub/monitor, polarite, kablo ve devreye alma kontrolleri.
+- Rider Analyst: şartları, ekipman/kanal/personel gereksinimlerini ve çelişkileri yapılandırılmış rapora dönüştürme.
+- Stage Plot Engineer: ölçülü sahne yerleşimi, mikrofon/DI/monitör koordinatları ve patch legend.
+- SPL Calculator: mesafeye göre idealize seviye tahmini, kaynakların enerji toplamı ve yaklaşık gecikme.
+- Audio System Designer: mekân, seyirci, kapsama, PA/sub, kontrol ve risk gereksinimlerinin birlikte değerlendirilmesi.
+- Live Sound Troubleshooter: tek değişkenli testlerle arıza teşhisi ve güvenli kontrol sırası.
+- Dante Network Engineer: topoloji, IP/alt ağ, clock, subscription ve switch/QoS teşhis akışı.
+- Lighting Tech: DMX adres/universe patch'i ve fixture mode doğrulama kontrolü.
+- Event Production Manager: ekip, teknik takvim, load-in/show/load-out, risk ve bütçe kalemleri.
+
+### Çalışan deterministik araçlar
+- SPL: ref_db=100 ref_m=1 target_m=10 power_ratio=1 sources=1 girdisi idealize serbest alan tahminini hesaplar. power_ratio, referans gücüne oran; sources, basit modelde eşdeğer kaynak sayısıdır.
+- Gecikme: delay_distance_m=10 yaklaşık ses gecikmesini 343 m/s varsayımıyla hesaplar.
+- FOH headroom: peak_dbfs=-2 target_peak_dbfs=-6 değerlerinden hedefe yaklaşmak için gereken yaklaşık kazanç azaltımını verir.
+- Sistem tasarımı geometrisi: throw_m=20 horizontal_coverage_deg=90 ideal açısal genişliği hesaplar; akustik kapsama garantisi değildir.
+- DMX: address=501 channels=20 universe=1 geçersiz 512 kanal sınırını yakalar.
+- Dante IP: device_ip=192.168.1.10 subnet_mask=255.255.255.0 peer_ip=192.168.2.20 aynı alt ağ kontrolünü çalıştırır.
+- Prodüksiyon süresi: duration_min=120 buffer_pct=15 tampon eklenmiş planlama süresini hesaplar.
+
+### Çalışma sınırları ve güvenilirlik
+Bu ajanlar ayrı ayrı eğitilmiş 12 bağımsız model değildir; yapılandırılmış tek JARVIS dil modeli, alan başına uzman talimatları, yönlendirme ve kontrollü araçlarla kullanılır. Ayrı modeller veya bir koordinatör/eleştirmen modeli eklemek için ayrı kaynak ve donanım değerlendirmesi gerekir. Küçük yerel model karmaşık mühendislik görevlerinde sınırlı kalabilir.
+
+RF frekansı belirlemek için yasal bölge ve gerçek scan verisi; Dante ağı için cihaz/Controller çıktısı; SPL doğrulaması için kalibreli ölçüm; line-array kapsaması için üretici veri dosyaları ve modelleme/ölçüm; rider analizi için gerçek belge metni gerekir. Bu bilgiler yoksa ajan eksikleri belirtmeli, tahmini ölçüm diye sunmamalıdır. Araç sonuçları tests/test_specialist_agents.py testleriyle doğrulanır. HOST veya Ollama erişilemiyorsa Android uzmanı bağımsız LLM varmış gibi davranmaz; bağlantı gereksinimini söyler.
