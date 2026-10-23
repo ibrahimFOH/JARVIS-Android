@@ -103,10 +103,16 @@ class AIBrain:
                         "openai": ("https://api.openai.com/v1/chat/completions", "gpt-4o-mini"),
                         "gemini": ("https://generativelanguage.googleapis.com/v1beta/openai/chat/completions", "gemini-2.5-flash"),
                         "grok": ("https://api.x.ai/v1/chat/completions", "grok-3-mini"),
+                        "anthropic": ("https://api.anthropic.com/v1/messages", "claude-3-5-haiku-latest"),
+                        "deepseek": ("https://api.deepseek.com/chat/completions", "deepseek-chat"),
+                        "perplexity": ("https://api.perplexity.ai/chat/completions", "sonar"),
+                        "openrouter": ("https://openrouter.ai/api/v1/chat/completions", "openai/gpt-4o-mini"),
                     }
                     custom = providers.get(provider, {}) if isinstance(providers, dict) else {}
                     env_key = {"openai": "OPENAI_API_KEY", "gemini": "GEMINI_API_KEY",
-                               "grok": "XAI_API_KEY", "custom": "JARVIS_CUSTOM_API_KEY"}.get(provider, "")
+                               "grok": "XAI_API_KEY", "anthropic": "ANTHROPIC_API_KEY",
+                               "deepseek": "DEEPSEEK_API_KEY", "perplexity": "PERPLEXITY_API_KEY",
+                               "openrouter": "OPENROUTER_API_KEY", "custom": "JARVIS_CUSTOM_API_KEY"}.get(provider, "")
                     api_key = str(custom.get("api_key", "") or os.environ.get(env_key, "")).strip()
                     if not api_key:
                         raise RuntimeError(provider + " API anahtarı ayarlı değil")
@@ -115,21 +121,34 @@ class AIBrain:
                     model = str(custom.get("model", "") or ai.get(provider + "_model", "") or default_model).strip()
                     if not url or not model:
                         raise RuntimeError("API adresi veya model adı eksik: " + provider)
+                    messages = payload.get("messages", [])
                     request_payload = {
-                        "model": model,
-                        "messages": payload.get("messages", []),
+                        "model": model, "messages": messages,
                         "temperature": payload.get("options", {}).get("temperature", 0.2),
                         "max_tokens": payload.get("options", {}).get("num_predict", 512),
                         "stream": False,
                     }
-                    response = requests.post(url, json=request_payload,
-                        headers={"Authorization": "Bearer " + api_key,
-                                 "Content-Type": "application/json"},
+                    headers = {"Authorization": "Bearer " + api_key, "Content-Type": "application/json"}
+                    if provider == "anthropic":
+                        system_text = "\\n\\n".join(str(m.get("content", "")) for m in messages if m.get("role") == "system")
+                        request_payload = {
+                            "model": model, "system": system_text,
+                            "messages": [{"role": m.get("role", "user"), "content": m.get("content", "")}
+                                         for m in messages if m.get("role") in ("user", "assistant")],
+                            "max_tokens": payload.get("options", {}).get("num_predict", 512),
+                            "temperature": payload.get("options", {}).get("temperature", 0.2),
+                        }
+                        headers = {"x-api-key": api_key, "anthropic-version": "2023-06-01",
+                                   "Content-Type": "application/json"}
+                    response = requests.post(url, json=request_payload, headers=headers,
                         timeout=max(int(ai.get("timeout_seconds", self.timeout)), 60) if agent_id else int(ai.get("timeout_seconds", self.timeout)))
                 response.raise_for_status()
                 data = response.json()
                 if provider == "ollama":
                     answer = ((data.get("message") or {}).get("content") or "").strip()
+                elif provider == "anthropic":
+                    answer = "\\n".join(str(part.get("text", "")) for part in (data.get("content") or [])
+                                          if isinstance(part, dict) and part.get("type") == "text").strip()
                 else:
                     choices = data.get("choices") or []
                     answer = (((choices[0].get("message") or {}).get("content")) if choices else "") or ""
@@ -146,7 +165,9 @@ class AIBrain:
     def _provider_key(self, providers, name):
         item = providers.get(name, {}) if isinstance(providers, dict) else {}
         env_key = {"openai": "OPENAI_API_KEY", "gemini": "GEMINI_API_KEY",
-                   "grok": "XAI_API_KEY"}.get(name, "")
+                   "grok": "XAI_API_KEY", "anthropic": "ANTHROPIC_API_KEY",
+                   "deepseek": "DEEPSEEK_API_KEY", "perplexity": "PERPLEXITY_API_KEY",
+                   "openrouter": "OPENROUTER_API_KEY"}.get(name, "")
         return bool(str(item.get("api_key", "") if isinstance(item, dict) else "").strip()
                     or (env_key and os.environ.get(env_key, "").strip()))
 
