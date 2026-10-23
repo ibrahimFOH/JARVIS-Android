@@ -19,3 +19,24 @@ Android komutları bağlandığında Windows hostuna gönderilir; böylece komut
 
 Android gereksinimi: Android Studio.
 Host gereksinimi: Mevcut Python/venv + Ollama `qwen3:0.6b`.
+
+
+## Windows tek dosya EXE
+
+Windows kaynak kodu JARVIS_HOST/, Android uygulaması JARVIS_ANDROID/ altında tutulur. İki yapı aynı mevcut depoda kalır; ikinci bir depo oluşturulmaz.
+
+Windows arayüzünde:
+- UZMANLAR: APK'deki uzman kataloğuna karşılık gelen FOH, Monitor, RF, System Tech, Rider, Stage Plot, SPL, Audio System Design, Live Sound Troubleshooting, Dante, Lighting ve Event Production rollerini içerir. Ek olarak yazılım, Windows/Linux, stüdyo, SEO, araştırma ve dokümantasyon profilleri bulunur.
+- AI PROVIDER: Ollama, otomatik seçim, Gemini, Groq, OpenAI, xAI/Grok, Anthropic, DeepSeek, Perplexity, OpenRouter ve özel OpenAI uyumlu uç nokta seçilebilir.
+- Varsayılan sağlayıcı Ollama'dır (qwen3:0.6b). Bulut sağlayıcıları için ilgili API anahtarını AI PROVIDER ekranından girin. Mevcut config.json içindeki eski sağlayıcı/model ayarları da yeni çekirdeğe aktarılır.
+- API ayarları %APPDATA%\StagepulseJARVIS\ai_settings.json dosyasında tutulur. Windows DPAPI kullanılabildiğinde anahtarlar işletim sistemi kullanıcı hesabıyla korunur; bu dosyayı ya da köprü token'ını depoya eklemeyin.
+
+### Tek EXE oluşturma
+
+1. Windows 10/11 x64 üzerinde Python 3.11 x64 kurulu olmalı.
+2. JARVIS_HOST/BUILD_JARVIS_EXE.bat dosyasını çalıştırın.
+3. Çıktı: JARVIS_HOST/dist/StagepulseJARVIS.exe.
+
+GitHub Actions üzerindeki JARVIS Windows Single-EXE Build akışı da tek dosyalı Windows x64 EXE üretir ve StagepulseJARVIS-Windows-x64-EXE adlı artifact olarak yayınlar. Akış; sözdizimi kontrolünü, uzman paneli kontrolünü, AI sağlayıcı regresyon testlerini ve PyInstaller derlemesini çalıştırır.
+
+Tek EXE uygulamanın dosya biçimini birleştirir; Ollama modeli EXE içine gömülü değildir. Yerel AI için Ollama servisi ve seçilen model bilgisayarda kurulu olmalıdır. Alternatif olarak AI PROVIDER ekranından API sağlayıcısı yapılandırılabilir.
