@@ -5,6 +5,7 @@ Handles loading, saving, and accessing configuration settings
 
 import json
 import os
+import sys
 from pathlib import Path
 from typing import Any, Dict, Optional
 from utils.logger import get_logger
@@ -49,6 +50,13 @@ class ConfigManager:
         
         # Copy from example if exists
         example_path = self.config_path.parent / "config.example.json"
+        if not example_path.exists() and getattr(sys, "frozen", False):
+            # In a one-file PyInstaller build the bundled example is extracted
+            # into _MEIPASS, while the writable config belongs beside the EXE.
+            bundle_root = Path(getattr(sys, "_MEIPASS", Path(sys.executable).parent))
+            bundled_example = bundle_root / "config" / "config.example.json"
+            if bundled_example.is_file():
+                example_path = bundled_example
         if example_path.exists():
             try:
                 with open(example_path, 'r', encoding='utf-8') as f:
