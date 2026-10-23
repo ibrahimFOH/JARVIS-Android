@@ -1429,7 +1429,7 @@ public class MainActivity extends Activity {
                     statusPost("● WINDOWS JARVIS");
                     try {
                         String profileContext = buildProfileContextForHost();
-                        BridgeClient.Result remote = BridgeClient.command(hostUrl, hostToken, cmd, profileContext);
+                        BridgeClient.Result remote = BridgeClient.command(hostUrl, hostToken, cmd, profileContext, activeAgent == null ? "" : activeAgent.id);
                         a = remote.response;
                         if (!remote.success) {
                             a = (a == null || a.trim().isEmpty())
