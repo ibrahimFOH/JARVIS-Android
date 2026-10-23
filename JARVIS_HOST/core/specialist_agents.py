@@ -165,11 +165,10 @@ def route_agent(task: str) -> Optional[str]:
 
 
 def _number(task: str, key: str):
-    match = re.search(r"(?i)(?:^|\\b)" + re.escape(key) + r"\\s*=\\s*(-?\\d+(?:[.,]\\d+)?)", task)
+    match = re.search(r"(?i)(?:^|\b)" + re.escape(key) + r"\s*=\s*(-?\d+(?:[.,]\d+)?)", task)
     if not match:
         return None
     return float(match.group(1).replace(",", "."))
-
 
 def _engineering_tool_output(agent_id: str, task: str) -> str:
     lines = []
