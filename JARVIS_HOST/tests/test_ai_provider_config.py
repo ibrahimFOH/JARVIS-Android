@@ -103,3 +103,26 @@ def test_turkish_profile_quick_response_is_preserved(tmp_path, monkeypatch):
     answer = brain.ask("Ben kimim?")
     assert "İbrahim Kavasoğlu" in answer
     assert "Stagepulse" in answer
+
+
+def test_onefile_first_launch_finds_bundled_turkish_default_config(tmp_path, monkeypatch):
+    import json
+    import utils.config_manager as config_module
+
+    bundle = tmp_path / "_MEIPASS"
+    bundled_config = bundle / "config" / "config.example.json"
+    bundled_config.parent.mkdir(parents=True)
+    bundled_config.write_text(
+        json.dumps({
+            "voice": {"enabled": True, "recognition_language": "tr-TR"},
+            "personality": {"language": "tr-TR"},
+        }),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(config_module.sys, "frozen", True, raising=False)
+    monkeypatch.setattr(config_module.sys, "_MEIPASS", str(bundle), raising=False)
+    writable_path = tmp_path / "release" / "config" / "config.json"
+    config = config_module.ConfigManager(str(writable_path))
+    assert writable_path.is_file()
+    assert config.get("voice.recognition_language") == "tr-TR"
+    assert config.get("personality.language") == "tr-TR"
