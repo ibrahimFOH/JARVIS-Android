@@ -18,7 +18,7 @@ jobs:
         shell: bash
         run: |
           python -m pip install --quiet requests
-          python -m py_compile JARVIS_HOST/main.py JARVIS_HOST/android_bridge.py JARVIS_HOST/core/ai_brain.py JARVIS_HOST/core/command_processor.py JARVIS_HOST/core/update_manager.py JARVIS_HOST/gui/main_window.py
+          python -m py_compile JARVIS_HOST/main.py JARVIS_HOST/android_bridge.py JARVIS_HOST/core/ai_brain.py JARVIS_HOST/core/specialist_agents.py JARVIS_HOST/core/command_processor.py JARVIS_HOST/core/update_manager.py JARVIS_HOST/gui/main_window.py
           python - <<'PY'
           import ast
           import re
@@ -84,7 +84,7 @@ jobs:
               "density-aware dimensions": "private int dp(float value)" in source,
               "voice toggle state": 'listening ? "DURDUR" : "KONUŞ"' in source,
               "continuous voice conversation": "setOnUtteranceProgressListener" in source and "resumeVoiceConversation()" in source,
-              "separate phone profile context": 'BridgeClient.command(hostUrl, hostToken, cmd, profileContext)' in source,
+              "separate phone profile context": 'BridgeClient.command(hostUrl, hostToken, cmd, profileContext, activeAgent == null ? "" : activeAgent.id)' in source,\n              "selected specialist forwarded to host": 'payload.put("agent_id", selectedAgent)' in Path("JARVIS_ANDROID/app/src/main/java/com/stagepulse/jarvis/BridgeClient.java").read_text(encoding="utf-8"),\n              "specialist tool runtime exists": Path("JARVIS_HOST/core/specialist_agents.py").is_file(),
               "profile context kept out of command text": 'profileContext + "\\nKullanıcının gerçek komutu: " + cmd' not in source,
               "partial transcription": "public void onPartialResults(Bundle b)" in source,
               "alternate transcript ranking": "chooseBestTranscript(candidates)" in source,
