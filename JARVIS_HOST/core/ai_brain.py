@@ -168,7 +168,7 @@ class AIBrain:
         model = self.api_models.get(provider, default_model)
         if not key:
             raise RuntimeError(provider.upper() + " API anahtarı boş. AI PROVIDER ayarlarından ekleyin.")
-        user_text = prompt + (("\\n\\nWEB VERİSİ:\\n" + context) if context else "")
+        user_text = prompt + (("\n\nWEB VERİSİ:\n" + context) if context else "")
         if provider == "anthropic":
             response = self.session.post(
                 base_url + "/messages",
@@ -213,7 +213,7 @@ class AIBrain:
     def _gemini_api(self, prompt, context=""):
         if not self.gemini_key:
             raise RuntimeError("Gemini API anahtarı boş. AI PROVIDER ayarlarından ekleyin.")
-        user_text = prompt + (("\\n\\nWEB VERİSİ:\\n" + context) if context else "")
+        user_text = prompt + (("\n\nWEB VERİSİ:\n" + context) if context else "")
         url = "https://generativelanguage.googleapis.com/v1beta/models/" + self.gemini_model + ":generateContent"
         response = self.session.post(
             url, params={"key": self.gemini_key},
@@ -241,7 +241,12 @@ class AIBrain:
         try:
             if target == "auto":
                 answer = self.ask("Sadece 'Bağlantı başarılı' yaz.")
-                ok = bool(answer and not answer.startswith("Yapay zekâ yanıtı alınamadı."))
+                failed_prefixes = (
+                    "Yapay zekâ yanıtı alınamadı.",
+                    "Ollama bağlantısında sorun",
+                    "Ollama yanıt üretilemedi",
+                )
+                ok = bool(answer and not answer.startswith(failed_prefixes))
                 return {"success": ok, "message": answer[:1200]}
             if target == "ollama":
                 response = self.session.get(self.host + "/api/tags", timeout=8)
@@ -392,7 +397,7 @@ KULLANICI PROFİLİ (kalıcı çalışma bağlamı):
         return "Yapay zekâ yanıtı alınamadı. " + " | ".join(errors)
 
     def _compatible_groq(self, prompt, context=""):
-        user_text = prompt + (("\\n\\nWEB VERİSİ:\\n" + context) if context else "")
+        user_text = prompt + (("\n\nWEB VERİSİ:\n" + context) if context else "")
         response = self.session.post(
             "https://api.groq.com/openai/v1/chat/completions",
             headers={"Authorization": "Bearer " + self.groq_key, "Content-Type": "application/json"},
