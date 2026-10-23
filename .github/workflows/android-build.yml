@@ -69,6 +69,10 @@ jobs:
           print("JARVIS Windows updater URL/version checks: PASS")
           PY
 
+      - name: Test Stagepulse specialist routing and engineering tools
+        shell: bash
+        run: python -m unittest discover -s tests -v
+
       - name: Validate responsive voice command controls
         shell: bash
         run: |
