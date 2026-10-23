@@ -180,12 +180,12 @@ def _engineering_tool_output(agent_id: str, task: str) -> str:
         power_ratio = _number(task, "power_ratio")
         sources = _number(task, "sources")
         # Accept natural spoken forms such as "100 dB at 1 metre, how much at 10 metres?"
-        level_match = re.search(r"(?i)(-?\\d+(?:[.,]\\d+)?)\\s*dB(?:\\s*SPL)?\\b", task)
+        level_match = re.search(r"(?i)(-?\d+(?:[.,]\d+)?)\s*dB(?:\s*SPL)?\b", task)
         if ref_db is None and level_match:
             ref_db = float(level_match.group(1).replace(",", "."))
         distance_values = [
             float(value.replace(",", "."))
-            for value in re.findall(r"(?i)(\\d+(?:[.,]\\d+)?)\\s*(?:m\\b|metre(?:de|den|ye|lik)?\\b)", task)
+            for value in re.findall(r"(?i)(\d+(?:[.,]\d+)?)\s*(?:m\b|metre(?:de|den|ye|lik)?\b)", task)
         ]
         if len(distance_values) >= 2:
             if ref_m is None:
@@ -211,9 +211,9 @@ def _engineering_tool_output(agent_id: str, task: str) -> str:
                     )
         distance = _number(task, "delay_distance_m")
         if distance is None:
-            delay_match = re.search(r"(?i)(?:delay|gecikme|mesafe)\\D{0,24}(\\d+(?:[.,]\\d+)?)\\s*(?:m\\b|metre)", task)
+            delay_match = re.search(r"(?i)(?:delay|gecikme|mesafe)\D{0,24}(\d+(?:[.,]\d+)?)\s*(?:m\b|metre)", task)
             if not delay_match:
-                delay_match = re.search(r"(?i)(\\d+(?:[.,]\\d+)?)\\s*(?:m\\b|metre)\\D{0,12}(?:delay|gecikme)", task)
+                delay_match = re.search(r"(?i)(\d+(?:[.,]\d+)?)\s*(?:m\b|metre)\D{0,12}(?:delay|gecikme)", task)
             if delay_match:
                 distance = float(delay_match.group(1).replace(",", "."))
         if distance is not None:
