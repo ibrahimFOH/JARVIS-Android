@@ -33,7 +33,7 @@ jobs:
       - name: Check updater and host Python syntax
         shell: pwsh
         run: |
-          python -m py_compile JARVIS_HOST/main.py JARVIS_HOST/android_bridge.py JARVIS_HOST/core/ai_brain.py JARVIS_HOST/core/command_processor.py JARVIS_HOST/core/memory_manager.py JARVIS_HOST/core/update_manager.py JARVIS_HOST/gui/main_window.py
+          python -m py_compile JARVIS_HOST/main.py JARVIS_HOST/android_bridge.py JARVIS_HOST/core/ai_brain.py JARVIS_HOST/core/specialist_agents.py JARVIS_HOST/core/command_processor.py JARVIS_HOST/core/memory_manager.py JARVIS_HOST/core/update_manager.py JARVIS_HOST/gui/main_window.py
 
       - name: Test persistent memory behavior
         shell: pwsh
