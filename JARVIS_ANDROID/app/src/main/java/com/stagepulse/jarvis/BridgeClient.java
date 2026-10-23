@@ -23,6 +23,10 @@ public final class BridgeClient {
     }
 
     public static Result command(String baseUrl, String token, String command, String profileContext) throws Exception {
+        return command(baseUrl, token, command, profileContext, "");
+    }
+
+    public static Result command(String baseUrl, String token, String command, String profileContext, String agentId) throws Exception {
         String base = baseUrl.trim().replaceAll("/+$", "");
         URL url = new URL(base + "/api/command");
         HttpURLConnection c = (HttpURLConnection) url.openConnection();
@@ -37,6 +41,8 @@ public final class BridgeClient {
         payload.put("command", command);
         String context = profileContext == null ? "" : profileContext.trim();
         if (!context.isEmpty()) payload.put("profile_context", context.length() > 1200 ? context.substring(0, 1200) : context);
+        String selectedAgent = agentId == null ? "" : agentId.trim();
+        if (!selectedAgent.isEmpty()) payload.put("agent_id", selectedAgent);
         byte[] bytes = payload.toString().getBytes(StandardCharsets.UTF_8);
         c.setFixedLengthStreamingMode(bytes.length);
         try (OutputStream out = c.getOutputStream()) { out.write(bytes); }
