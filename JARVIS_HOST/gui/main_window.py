@@ -571,7 +571,7 @@ class JarvisGUI:
 
         ctk.CTkLabel(dialog, text="Aktif sağlayıcı", text_color=WHITE).pack(anchor="w", padx=20, pady=(3, 2))
         menu = ctk.CTkOptionMenu(dialog, variable=provider_var,
-            values=["auto", "ollama", "gemini", "openai", "grok", "custom"],
+            values=["auto", "ollama", "gemini", "openai", "grok", "anthropic", "deepseek", "perplexity", "openrouter", "custom"],
             fg_color=GOLD2, button_color=GOLD2, button_hover_color=GOLD, text_color="#050505")
         menu.pack(fill="x", padx=20)
 
@@ -585,6 +585,10 @@ class JarvisGUI:
                 "gemini": ("https://generativelanguage.googleapis.com/v1beta/openai/chat/completions", str(ai.get("gemini_model", "gemini-2.5-flash")), ""),
                 "openai": ("https://api.openai.com/v1/chat/completions", str(ai.get("openai_model", "gpt-4o-mini")), ""),
                 "grok": ("https://api.x.ai/v1/chat/completions", str(ai.get("grok_model", "grok-3-mini")), ""),
+                "anthropic": ("https://api.anthropic.com/v1/messages", "claude-3-5-haiku-latest", ""),
+                "deepseek": ("https://api.deepseek.com/chat/completions", "deepseek-chat", ""),
+                "perplexity": ("https://api.perplexity.ai/chat/completions", "sonar", ""),
+                "openrouter": ("https://openrouter.ai/api/v1/chat/completions", "openai/gpt-4o-mini", ""),
                 "custom": ("", "", ""),
             }
             if name in ("gemini", "openai", "grok", "custom"):
