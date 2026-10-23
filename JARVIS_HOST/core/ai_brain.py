@@ -130,7 +130,7 @@ class AIBrain:
                     }
                     headers = {"Authorization": "Bearer " + api_key, "Content-Type": "application/json"}
                     if provider == "anthropic":
-                        system_text = "\\n\\n".join(str(m.get("content", "")) for m in messages if m.get("role") == "system")
+                        system_text = "\n\n".join(str(m.get("content", "")) for m in messages if m.get("role") == "system")
                         request_payload = {
                             "model": model, "system": system_text,
                             "messages": [{"role": m.get("role", "user"), "content": m.get("content", "")}
@@ -147,13 +147,13 @@ class AIBrain:
                 if provider == "ollama":
                     answer = ((data.get("message") or {}).get("content") or "").strip()
                 elif provider == "anthropic":
-                    answer = "\\n".join(str(part.get("text", "")) for part in (data.get("content") or [])
+                    answer = "\n".join(str(part.get("text", "")) for part in (data.get("content") or [])
                                           if isinstance(part, dict) and part.get("type") == "text").strip()
                 else:
                     choices = data.get("choices") or []
                     answer = (((choices[0].get("message") or {}).get("content")) if choices else "") or ""
                     if isinstance(answer, list):
-                        answer = "\\n".join(str(part.get("text", "")) for part in answer if isinstance(part, dict))
+                        answer = "\n".join(str(part.get("text", "")) for part in answer if isinstance(part, dict))
                     answer = str(answer).strip()
                 if answer:
                     return answer
