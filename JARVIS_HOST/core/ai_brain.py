@@ -99,7 +99,8 @@ KULLANICI PROFİLİ (kalıcı çalışma bağlamı):
             user_prompt += "\n\nWEB VERİSİ:\n" + context
         payload={"model":self.model,"stream":False,"keep_alive":"30m","think":False,"options":{"temperature":0.1,"num_predict":650 if expert_system else 180,"num_ctx":4096},"messages":[{"role":"system","content":system_prompt},{"role":"user","content":user_prompt}]}
         try:
-            r=requests.post(self.host+"/api/chat",json=payload,timeout=self.timeout)
+            request_timeout = max(self.timeout, 60) if expert_system else self.timeout
+            r=requests.post(self.host+"/api/chat",json=payload,timeout=request_timeout)
             r.raise_for_status()
             return ((r.json().get("message") or {}).get("content") or "").strip()
         except Exception as e:
