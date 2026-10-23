@@ -88,6 +88,14 @@ class Handler(BaseHTTPRequestHandler):
             profile_context = profile_context.strip()
             if len(profile_context) > 1200:
                 return self._send(413, {"success": False, "error": "profile_context_too_long"})
+            agent_id = data.get("agent_id", "")
+            if not isinstance(agent_id, str):
+                return self._send(400, {"success": False, "error": "invalid_agent_id"})
+            agent_id = agent_id.strip().lower()[:80]
+            if agent_id:
+                from core.specialist_agents import get_agent
+                if get_agent(agent_id) is None:
+                    return self._send(400, {"success": False, "error": "unknown_agent_id"})
             # Treat a phone profile as factual context only and never pass obvious secrets to the model.
             profile_context = re.sub(
                 r"(?i)\\b(password|parola|şifre|sifre|access[_ -]?token|api[_ -]?key|secret)\\s*[:=]\\s*[^\\s,;]+",
@@ -100,7 +108,7 @@ class Handler(BaseHTTPRequestHandler):
                 jarvis.start()
 
             # Use the same command processor and AI configuration as the Windows app.
-            result = jarvis.command_processor.process(command, profile_context=profile_context)
+            result = jarvis.command_processor.process(command, profile_context=profile_context, agent_id=agent_id)
             if not isinstance(result, dict):
                 result = {"success": False, "response": "JARVIS geçerli bir yanıt döndürmedi."}
             response = {
