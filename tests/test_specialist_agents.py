@@ -44,6 +44,13 @@ class SpecialistAgentTests(unittest.TestCase):
         self.assertIn("serbest alan tahmini", result.lower())
         self.assertIn("Yansıma", result)
 
+    def test_spl_tool_understands_spoken_turkish_distances(self):
+        _, result = prepare_expert_task(
+            "spl_calculator",
+            "100 dB 1 metrede, 10 metrede yaklaşık kaç dB olur?",
+        )
+        self.assertIn("80.00 dB", result)
+
     def test_delay_tool_computes_ms_and_assumption(self):
         _, result = prepare_expert_task("system_tech", "delay_distance_m=10")
         self.assertIn("29.15 ms", result)
