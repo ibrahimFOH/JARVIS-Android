@@ -1,0 +1,97 @@
+name: Build Stagepulse JARVIS 2.4.3 from uploaded source
+on:
+  push:
+    branches:
+      - temp/stagepulsejarvis-build-20261024
+    paths:
+      - 'build_payload/**'
+      - '.github/workflows/temp-build-source-exe.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build:
+    name: Test and build the correct single-file EXE
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout temporary build branch
+        uses: actions/checkout@v4
+      - name: Set up Python 3.11 x64
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          architecture: 'x64'
+      - name: Restore the cleaned source package
+        shell: pwsh
+        run: |
+          python -c "import base64; from pathlib import Path; p=Path('build_payload/StagepulseJARVIS-clean-source.tar.xz.b64'); Path('build_payload/source.tar.xz').write_bytes(base64.b64decode(p.read_text(encoding='ascii')))"
+          python -c "import tarfile; tarfile.open('build_payload/source.tar.xz', 'r:xz').extractall('build_src')"
+          if (!(Test-Path 'build_src/main.py')) { throw 'Uploaded source root is invalid' }
+          if (Test-Path 'build_src/config/config.json') { throw 'Private runtime config unexpectedly present' }
+          if (Get-ChildItem 'build_src' -Recurse -Filter '*.log' | Select-Object -First 1) { throw 'Runtime logs unexpectedly present' }
+      - name: Install build dependencies
+        shell: pwsh
+        run: |
+          python -m pip install --upgrade pip
+          if ($LASTEXITCODE -ne 0) { throw 'pip upgrade failed' }
+          python -m pip install -r build_src/requirements.txt pyinstaller
+          if ($LASTEXITCODE -ne 0) { throw 'Dependencies install failed' }
+      - name: Compile source and run tests
+        shell: pwsh
+        working-directory: build_src
+        run: |
+          python -m compileall -q main.py version.py core gui modules personality utils voice android_bridge.py tests
+          if ($LASTEXITCODE -ne 0) { throw 'Python compile check failed' }
+          python -m pytest -q
+          if ($LASTEXITCODE -ne 0) { throw 'Unit tests failed' }
+      - name: Runtime import smoke test
+        shell: pwsh
+        working-directory: build_src
+        run: |
+          python -c "import customtkinter, edge_tts, sherpa_onnx, speech_recognition, pyttsx3, pvporcupine, pyaudio, pycaw, comtypes, pyautogui, pygetwindow, PIL, pystray, pypdf; from gui.main_window import JarvisGUI; from core.jarvis import Jarvis; import android_bridge; print('Import smoke test passed')"
+          if ($LASTEXITCODE -ne 0) { throw 'Runtime import smoke test failed' }
+      - name: Build one-file Windows EXE
+        shell: pwsh
+        working-directory: build_src
+        run: |
+          python -m PyInstaller --clean --noconfirm --onefile --windowed --name StagepulseJARVIS `
+            --collect-all customtkinter `
+            --collect-all edge_tts `
+            --collect-all sherpa_onnx `
+            --collect-all speech_recognition `
+            --collect-all pyttsx3 `
+            --collect-all pvporcupine `
+            --collect-all PIL `
+            --collect-all pystray `
+            --collect-all pypdf `
+            --collect-all pyaudio `
+            --collect-all pycaw `
+            --collect-all comtypes `
+            --collect-all pyautogui `
+            --collect-all pygetwindow `
+            --collect-all pyscreeze `
+            --collect-all mouseinfo `
+            --collect-all pymsgbox `
+            --collect-all pyrect `
+            --hidden-import version `
+            --hidden-import win32crypt `
+            --hidden-import win32timezone `
+            --hidden-import pythoncom `
+            --hidden-import pywintypes `
+            --add-data 'config/config.example.json;config' `
+            main.py
+          if ($LASTEXITCODE -ne 0) { throw 'PyInstaller failed' }
+          $exe = 'dist/StagepulseJARVIS.exe'
+          if (!(Test-Path $exe)) { throw 'EXE output missing' }
+          $bytes = (Get-Item $exe).Length
+          if ($bytes -lt 1000000) { throw "EXE too small: $bytes bytes" }
+          Get-FileHash $exe -Algorithm SHA256 | Format-List
+          Write-Host "EXE verified: $bytes bytes"
+      - name: Upload the actual EXE
+        uses: actions/upload-artifact@v4
+        with:
+          name: StagepulseJARVIS-2.4.3-Windows-x64-EXE
+          path: build_src/dist/StagepulseJARVIS.exe
+          if-no-files-found: error
+          retention-days: 14
