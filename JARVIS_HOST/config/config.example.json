@@ -131,6 +131,10 @@
       "openai": {"api_key": "", "base_url": "https://api.openai.com/v1/chat/completions", "model": "gpt-4o-mini"},
       "gemini": {"api_key": "", "base_url": "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions", "model": "gemini-2.5-flash"},
       "grok": {"api_key": "", "base_url": "https://api.x.ai/v1/chat/completions", "model": "grok-3-mini"},
+      "anthropic": {"api_key": "", "base_url": "https://api.anthropic.com/v1/messages", "model": "claude-3-5-haiku-latest"},
+      "deepseek": {"api_key": "", "base_url": "https://api.deepseek.com/chat/completions", "model": "deepseek-chat"},
+      "perplexity": {"api_key": "", "base_url": "https://api.perplexity.ai/chat/completions", "model": "sonar"},
+      "openrouter": {"api_key": "", "base_url": "https://openrouter.ai/api/v1/chat/completions", "model": "openai/gpt-4o-mini"},
       "custom": {"api_key": "", "base_url": "", "model": ""}
     },
     "web_enabled": true
