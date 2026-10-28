@@ -1,7 +1,7 @@
 {
   "general": {
     "app_name": "JARVIS // STAGEPULSE",
-    "version": "2.1.0-android-bridge",
+    "version": "2.2.3",
     "debug_mode": false,
     "log_level": "INFO"
   },
