@@ -4,9 +4,17 @@ Processes commands and routes them to appropriate modules
 """
 
 from typing import Dict, Any, Optional
+import ipaddress
+import mimetypes
+import os
 import re
+import socket
+import tempfile
+import time
 import unicodedata
 import webbrowser
+from pathlib import Path
+from urllib.parse import urlparse, urljoin, unquote
 from utils.logger import get_logger
 from core.intent_recognizer import IntentRecognizer
 from core.validator import Validator
@@ -32,6 +40,126 @@ def _normalize_direct_command(value: str) -> str:
     value = "".join(ch for ch in value if not unicodedata.combining(ch))
     value = re.sub(r"[^a-z0-9.\s]", " ", value)
     return re.sub(r"\s+", " ", value).strip()
+
+
+def _parse_image_download_command(command: str):
+    """Return (matched, url) for explicit image-download commands."""
+    original = str(command or "").strip()
+    normalized = unicodedata.normalize("NFKD", original.casefold())
+    normalized = "".join(ch for ch in normalized if not unicodedata.combining(ch))
+    normalized = normalized.replace("ı", "i")
+    keywords = ("resim", "gorsel", "foto", "fotograf", "image")
+    action = any(k in normalized for k in keywords) and any(
+        k in normalized for k in ("indir", "download", "kaydet")
+    )
+    if not action:
+        return False, ""
+    urls = re.findall(r"https?://[^\s<>\"']+", original, flags=re.IGNORECASE)
+    if not urls:
+        return True, ""
+    return True, urls[0].rstrip(".,;)")
+
+
+def _validate_public_http_url(url: str):
+    """Reject local/private destinations and non-HTTP schemes before downloading."""
+    parsed = urlparse(str(url or "").strip())
+    if parsed.scheme.lower() not in ("http", "https") or not parsed.hostname:
+        raise ValueError("Görsel bağlantısı geçerli bir HTTP/HTTPS adresi değil.")
+    if parsed.username or parsed.password:
+        raise ValueError("Kullanıcı adı/parola içeren bağlantılar kabul edilmiyor.")
+    hostname = parsed.hostname
+    try:
+        addresses = [ipaddress.ip_address(hostname)]
+    except ValueError:
+        try:
+            addresses = [
+                ipaddress.ip_address(item[4][0].split("%", 1)[0])
+                for item in socket.getaddrinfo(hostname, None, type=socket.SOCK_STREAM)
+            ]
+        except (OSError, ValueError, IndexError) as exc:
+            raise ValueError("Bağlantı adresinin DNS kaydı doğrulanamadı.") from exc
+    if not addresses or any(not address.is_global for address in addresses):
+        raise ValueError("Yerel, özel veya herkese açık olmayan ağ adreslerine dosya indirilemez.")
+    return parsed
+
+
+def _download_image(url: str, max_bytes: int = 20 * 1024 * 1024) -> Path:
+    """Download only image/* content to a safe, bounded Downloads subfolder."""
+    import requests
+
+    current_url = str(url or "").strip()
+    response = None
+    for _attempt in range(4):
+        _validate_public_http_url(current_url)
+        response = requests.get(
+            current_url,
+            stream=True,
+            allow_redirects=False,
+            timeout=(6, 25),
+            headers={"User-Agent": "StagepulseJARVIS/1.0 image-downloader"},
+        )
+        if response.status_code in (301, 302, 303, 307, 308):
+            location = response.headers.get("Location")
+            response.close()
+            response = None
+            if not location:
+                raise ValueError("Görsel sunucusu geçerli bir yönlendirme adresi vermedi.")
+            current_url = urljoin(current_url, location)
+            continue
+        break
+    if response is None:
+        raise ValueError("Görsel sunucusu çok fazla yönlendirme yaptı.")
+    try:
+        response.raise_for_status()
+        content_type = str(response.headers.get("Content-Type", "")).split(";", 1)[0].strip().lower()
+        extensions = {
+            "image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp",
+            "image/gif": ".gif", "image/bmp": ".bmp", "image/tiff": ".tiff",
+            "image/avif": ".avif", "image/x-icon": ".ico",
+        }
+        if content_type not in extensions:
+            raise ValueError("Bağlantı bir desteklenen görsel dosyası döndürmedi (SVG/HTML kabul edilmez).")
+        length = response.headers.get("Content-Length")
+        if length:
+            try:
+                if int(length) > max_bytes:
+                    raise ValueError("Görsel 20 MB sınırını aşıyor.")
+            except ValueError as exc:
+                if "sınırını" in str(exc):
+                    raise
+        folder = Path.home() / "Downloads" / "StagepulseJARVIS"
+        folder.mkdir(parents=True, exist_ok=True)
+        url_name = Path(unquote(urlparse(current_url).path)).name
+        stem = Path(url_name).stem
+        stem = re.sub(r"[^A-Za-z0-9._ -]+", "_", stem).strip(" ._")[:80] or "stagepulse-image"
+        extension = extensions[content_type]
+        destination = folder / (stem + extension)
+        suffix = 2
+        while destination.exists():
+            destination = folder / (stem + "-" + str(suffix) + extension)
+            suffix += 1
+        fd, temp_name = tempfile.mkstemp(prefix=".stagepulse-image-", suffix=".part", dir=str(folder))
+        os.close(fd)
+        temp_path = Path(temp_name)
+        total = 0
+        try:
+            with temp_path.open("wb") as output:
+                for chunk in response.iter_content(chunk_size=64 * 1024):
+                    if not chunk:
+                        continue
+                    total += len(chunk)
+                    if total > max_bytes:
+                        raise ValueError("Görsel indirme sırasında 20 MB sınırını aştı.")
+                    output.write(chunk)
+            if total == 0:
+                raise ValueError("İndirilen görsel boş.")
+            temp_path.replace(destination)
+            return destination
+        except Exception:
+            temp_path.unlink(missing_ok=True)
+            raise
+    finally:
+        response.close()
 
 
 def _resolve_direct_website(command: str):
@@ -95,6 +223,30 @@ class CommandProcessor:
 
     def process(self, command: str) -> Dict[str, Any]:
         logger.command(command)
+
+        image_request, image_url = _parse_image_download_command(command)
+        if image_request:
+            if not image_url:
+                return {
+                    "success": False,
+                    "response": "İndireceğim görselin doğrudan HTTP/HTTPS bağlantısını komuta ekle. Örnek: \"resmi indir https://site.example/resim.jpg\".",
+                    "intent": "download_image",
+                }
+            try:
+                saved = _download_image(image_url)
+                return {
+                    "success": True,
+                    "response": "Görsel indirildi: " + str(saved),
+                    "intent": "download_image",
+                    "filepath": str(saved),
+                }
+            except Exception as exc:
+                logger.warning("Görsel indirme başarısız: " + str(exc))
+                return {
+                    "success": False,
+                    "response": "Görsel indirilemedi: " + str(exc),
+                    "intent": "download_image",
+                }
 
         # Memory actions are explicit opt-in commands and bypass intent matching.
         try:
