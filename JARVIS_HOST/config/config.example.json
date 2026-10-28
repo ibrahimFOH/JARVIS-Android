@@ -12,7 +12,8 @@
     "recognition_engine": "google",
     "recognition_timeout": 5,
     "phrase_time_limit": 10,
-    "tts_engine": "pyttsx3",
+    "tts_engine": "auto",
+    "tts_edge_voice": "tr-TR-EmelNeural",
     "tts_voice": "auto-turkish",
     "tts_rate": 165,
     "tts_volume": 0.9,
@@ -81,6 +82,7 @@
     "window_width": 800,
     "window_height": 600,
     "always_on_top": false,
+    "fullscreen_start": true,
     "minimize_to_tray": true,
     "start_minimized": false,
     "show_in_taskbar": true
