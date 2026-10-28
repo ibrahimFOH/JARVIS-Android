@@ -98,11 +98,11 @@ def test_groq_missing_key_reports_failure_without_network(tmp_path, monkeypatch)
     assert "anahtarı boş" in result["message"].lower()
 
 
-def test_turkish_profile_quick_response_is_preserved(tmp_path, monkeypatch):
+def test_personal_profile_is_not_hardcoded_in_source(tmp_path, monkeypatch):
     brain = fresh_brain(tmp_path, monkeypatch)
     answer = brain.ask("Ben kimim?")
-    assert "İbrahim Kavasoğlu" in answer
-    assert "Stagepulse" in answer
+    assert "kişisel profil bilgileri kaynak koda sabitlenmiyor" in answer.lower()
+    assert "İbrahim Kavasoğlu" not in answer
 
 
 def test_onefile_first_launch_finds_bundled_turkish_default_config(tmp_path, monkeypatch):
@@ -162,9 +162,9 @@ def test_legacy_api_provider_settings_are_preserved(tmp_path, monkeypatch):
     assert brain.api_base_urls["openai"] == "https://example.invalid/v1"
 
 
-def test_ollama_failure_uses_configured_groq_fallback(tmp_path, monkeypatch):
+def test_auto_provider_uses_configured_groq_fallback(tmp_path, monkeypatch):
     brain = fresh_brain(tmp_path, monkeypatch)
-    brain.provider = "ollama"
+    brain.provider = "auto"
     brain.groq_key = "test-key"
     monkeypatch.setattr(
         brain, "_ollama",
