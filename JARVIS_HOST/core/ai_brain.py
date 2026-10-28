@@ -49,9 +49,6 @@ class AIBrain:
         )
         if self.gemini_model == "gemini-2.5-flash":
             self.gemini_model = "gemini-3.8-flash"
-        self.gemini_image_model = saved.get("gemini_image_model", "gemini-3.1-flash-image")
-        if self.gemini_image_model == "gemini-2.5-flash-image":
-            self.gemini_image_model = "gemini-3.1-flash-image"
         self.groq_key = os.environ.get(
             "GROQ_API_KEY", self._unprotect_key(saved.get("groq_api_key", legacy_value("groq", "api_key", "")))
         ).strip()
@@ -149,7 +146,7 @@ class AIBrain:
         return str(value.get("plain", ""))
 
     def configure(self, provider=None, gemini_key=None, gemini_model=None,
-                  gemini_image_model=None, ollama_host=None, ollama_model=None,
+                  ollama_host=None, ollama_model=None,
                   groq_key=None, groq_model=None, api_keys=None, api_models=None,
                   api_base_urls=None):
         if provider is not None:
@@ -162,8 +159,6 @@ class AIBrain:
             self.gemini_key = gemini_key.strip()
         if gemini_model and gemini_model.strip():
             self.gemini_model = gemini_model.strip()
-        if gemini_image_model and gemini_image_model.strip():
-            self.gemini_image_model = gemini_image_model.strip()
         if groq_key is not None:
             self.groq_key = groq_key.strip()
         if groq_model and groq_model.strip():
@@ -191,7 +186,6 @@ class AIBrain:
             "provider": self.provider,
             "gemini_api_key": self._protect_key(self.gemini_key),
             "gemini_model": self.gemini_model,
-            "gemini_image_model": self.gemini_image_model,
             "groq_api_key": self._protect_key(self.groq_key),
             "groq_model": self.groq_model,
             "ollama_host": self.host,
