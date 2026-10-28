@@ -31,7 +31,7 @@ Windows arayüzünde:
 - UZMANLAR: APK'deki uzman kataloğuna karşılık gelen FOH, Monitor, RF, System Tech, Rider, Stage Plot, SPL, Audio System Design, Live Sound Troubleshooting, Dante, Lighting ve Event Production rollerini içerir. Ek olarak yazılım, Windows/Linux, stüdyo, SEO, araştırma ve dokümantasyon profilleri bulunur.
 - AI PROVIDER: Ollama, otomatik seçim, Gemini, Groq, OpenAI, xAI/Grok, Anthropic, DeepSeek, Perplexity, OpenRouter ve özel OpenAI uyumlu uç nokta seçilebilir.
 - Varsayılan sağlayıcı Ollama'dır (qwen3:0.6b). Bulut sağlayıcıları için ilgili API anahtarını AI PROVIDER ekranından girin. Mevcut config.json içindeki eski sağlayıcı/model ayarları da yeni çekirdeğe aktarılır.
-- API ayarları %APPDATA%\StagepulseJARVIS\ai_settings.json dosyasında tutulur. Windows DPAPI kullanılabildiğinde anahtarlar işletim sistemi kullanıcı hesabıyla korunur; bu dosyayı ya da köprü token'ını depoya eklemeyin.
+- API ayarları %APPDATA%\StagepulseJARVIS\ai_settings.json dosyasında tutulur. API anahtarları Windows DPAPI ile şifrelenir; DPAPI başarısız olursa düz metin olarak kaydedilmez. Bu dosyayı ya da köprü token'ını depoya eklemeyin.
 
 ### Tek EXE oluşturma
 
