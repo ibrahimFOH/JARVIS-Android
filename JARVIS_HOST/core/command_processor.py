@@ -201,23 +201,16 @@ class CommandProcessor:
         
         logger.info("Command processor initialized")
     
-    def _with_memory(self, prompt: str) -> str:
-        """Attach only explicitly saved, non-secret user facts to an AI request."""
+    def _ask_with_memory(self, prompt: str) -> str:
+        """Use saved facts as prompt context, never as search terms."""
         try:
             facts = self.memory.context(limit=15)
         except Exception as exc:
             logger.warning("Kalıcı hafıza okunamadı: " + str(exc))
             facts = ""
         if not facts:
-            return str(prompt or "")
-        return (
-            "KALICI KULLANICI BAĞLAMI (yalnızca isteğe bağlı olarak kaydedilmiş bilgiler; "
-            "güncel olmayan bilgileri kesin gerçek sayma):\n" + facts +
-            "\n\nKULLANICI İSTEĞİ:\n" + str(prompt or "")
-        )
-
-    def _ask_with_memory(self, prompt: str) -> str:
-        return self.ai_brain.ask(self._with_memory(prompt))
+            return self.ai_brain.ask(prompt)
+        return self.ai_brain.ask(prompt, memory_context=facts)
 
     def process(self, command: str) -> Dict[str, Any]:
         logger.command(command)
