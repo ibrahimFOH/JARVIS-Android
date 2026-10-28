@@ -35,8 +35,8 @@ class AIBrain:
         self.api_defaults = {
             "openai": ("https://api.openai.com/v1", "gpt-4.1-mini"),
             "grok": ("https://api.x.ai/v1", "grok-4.1"),
-            "anthropic": ("https://api.anthropic.com/v1", "claude-sonnet-4-5"),
-            "deepseek": ("https://api.deepseek.com", "deepseek-chat"),
+            "anthropic": ("https://api.anthropic.com/v1", "claude-sonnet-4-6"),
+            "deepseek": ("https://api.deepseek.com", "deepseek-flash"),
             "perplexity": ("https://api.perplexity.ai", "sonar"),
             "openrouter": ("https://openrouter.ai/api/v1", "openai/gpt-4.1-mini"),
             "custom": ("https://api.openai.com/v1", "model-name"),
@@ -45,9 +45,13 @@ class AIBrain:
             "GEMINI_API_KEY", self._unprotect_key(saved.get("gemini_api_key", legacy_value("gemini", "api_key", "")))
         ).strip()
         self.gemini_model = os.environ.get(
-            "GEMINI_MODEL", saved.get("gemini_model", legacy_value("gemini", "model", "gemini-2.5-flash"))
+            "GEMINI_MODEL", saved.get("gemini_model", legacy_value("gemini", "model", "gemini-3.8-flash"))
         )
-        self.gemini_image_model = saved.get("gemini_image_model", "gemini-2.5-flash-image")
+        if self.gemini_model == "gemini-2.5-flash":
+            self.gemini_model = "gemini-3.8-flash"
+        self.gemini_image_model = saved.get("gemini_image_model", "gemini-3.1-flash-image")
+        if self.gemini_image_model == "gemini-2.5-flash-image":
+            self.gemini_image_model = "gemini-3.1-flash-image"
         self.groq_key = os.environ.get(
             "GROQ_API_KEY", self._unprotect_key(saved.get("groq_api_key", legacy_value("groq", "api_key", "")))
         ).strip()
@@ -75,6 +79,14 @@ class AIBrain:
                         old_url = old_url[:-len(suffix)]
                         break
                 self.api_base_urls[name] = old_url
+
+        # Migrate retired provider aliases in saved settings to current defaults.
+        for name, obsolete in {
+            "deepseek": {"deepseek-chat", "deepseek-reasoner"},
+            "anthropic": {"claude-sonnet-4-5"},
+        }.items():
+            if self.api_models.get(name) in obsolete:
+                self.api_models[name] = self.api_defaults[name][1]
 
         for name, env_key in {
             "openai": "OPENAI_API_KEY", "grok": "XAI_API_KEY",
