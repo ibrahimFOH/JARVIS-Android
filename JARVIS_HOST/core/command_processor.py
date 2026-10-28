@@ -46,7 +46,7 @@ def _parse_image_download_command(command: str):
     normalized = unicodedata.normalize("NFKD", original.casefold())
     normalized = "".join(ch for ch in normalized if not unicodedata.combining(ch))
     normalized = normalized.replace("ı", "i")
-    keywords = ("resim", "gorsel", "foto", "fotograf", "image")
+    keywords = ("resim", "resmi", "gorsel", "foto", "fotograf", "image")
     action = any(k in normalized for k in keywords) and any(
         k in normalized for k in ("indir", "download", "kaydet")
     )
