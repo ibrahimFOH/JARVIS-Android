@@ -8,6 +8,7 @@ import json
 import os
 import secrets
 import sys
+import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlparse
@@ -17,7 +18,12 @@ sys.path.insert(0, str(ROOT))
 
 HOST = os.environ.get("JARVIS_BRIDGE_HOST", "0.0.0.0")
 PORT = int(os.environ.get("JARVIS_BRIDGE_PORT", "8765"))
-TOKEN_FILE = ROOT / "config" / "bridge_token.txt"
+if os.name == "nt":
+    USER_DATA = Path(os.environ.get("APPDATA", str(Path.home() / "AppData" / "Roaming"))) / "StagepulseJARVIS"
+else:
+    USER_DATA = Path(os.environ.get("XDG_CONFIG_HOME", str(Path.home() / ".config"))) / "StagepulseJARVIS"
+TOKEN_FILE = USER_DATA / "bridge_token.txt"
+_SERVER = None
 
 
 def load_token():
@@ -104,10 +110,23 @@ class Handler(BaseHTTPRequestHandler):
                                     "response": "Windows JARVIS komutu işlerken hata oluştu."})
 
 
+def start_in_background():
+    """Start the authenticated Android LAN bridge once per desktop process."""
+    global _SERVER
+    if _SERVER is not None:
+        return _SERVER
+    _SERVER = ThreadingHTTPServer((HOST, PORT), Handler)
+    thread = threading.Thread(target=_SERVER.serve_forever, daemon=True, name="JARVIS-Android-Bridge")
+    thread.start()
+    return _SERVER
+
+
 if __name__ == "__main__":
     print(f"JARVIS bridge listening on http://{HOST}:{PORT}")
     print("LAN access requires Windows Firewall permission for this port.")
     try:
-        ThreadingHTTPServer((HOST, PORT), Handler).serve_forever()
+        start_in_background().serve_forever()
     except KeyboardInterrupt:
+        if _SERVER:
+            _SERVER.shutdown()
         print("\nJARVIS bridge stopped.")
