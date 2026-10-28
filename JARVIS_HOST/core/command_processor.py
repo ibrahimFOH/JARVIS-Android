@@ -5,12 +5,10 @@ Processes commands and routes them to appropriate modules
 
 from typing import Dict, Any, Optional
 import ipaddress
-import mimetypes
 import os
 import re
 import socket
 import tempfile
-import time
 import unicodedata
 import webbrowser
 from pathlib import Path
