@@ -800,7 +800,6 @@ class JarvisGUI:
         ollama_model = field("OLLAMA MODELİ", brain.model)
         gemini_key = field("GEMINI API ANAHTARI", brain.gemini_key, secret=True)
         gemini_model = field("GEMINI MODELİ", brain.gemini_model)
-        gemini_image_model = field("GEMINI GÖRSEL MODELİ", brain.gemini_image_model)
         groq_key = field("GROQ API ANAHTARI", brain.groq_key, secret=True)
         groq_model = field("GROQ MODELİ", brain.groq_model)
 
@@ -830,7 +829,7 @@ class JarvisGUI:
 
         ctk.CTkLabel(
             content,
-            text="Otomatik mod, anahtarı tanımlı sağlayıcıları sırayla deneyip yerel Ollama'ya dönebilir. Kendi adresiniz için OpenAI Chat Completions uyumlu bir /chat/completions uç noktası kullanın.",
+            text="AUTO modu önce yerel Ollama'yı dener; başarısız olursa tanımlı API sağlayıcılarına geçer. Belirli bir sağlayıcı seçildiğinde sessizce başka sağlayıcıya geçilmez. Özel adres için OpenAI Chat Completions uyumlu /chat/completions uç noktası gerekir.",
             text_color=MUTED, wraplength=550, justify="left",
             font=("Consolas", 9)
         ).pack(anchor="w", padx=20, pady=(14, 12))
@@ -840,7 +839,6 @@ class JarvisGUI:
                 provider=provider.get(),
                 gemini_key=gemini_key.get(),
                 gemini_model=gemini_model.get(),
-                gemini_image_model=gemini_image_model.get(),
                 ollama_host=ollama_host.get(),
                 ollama_model=ollama_model.get(),
                 groq_key=groq_key.get(),
