@@ -35,6 +35,8 @@ class JarvisGUI:
         self._voice_last_response = None
         self._pdf_path = None
         self._pdf_text = ""
+        from core.update_manager import WindowsUpdateManager
+        self.update_manager = WindowsUpdateManager()
 
         ctk.set_appearance_mode("dark")
         ctk.set_default_color_theme("dark-blue")
@@ -59,42 +61,79 @@ class JarvisGUI:
         # Check for a signed-off GitHub Release shortly after startup, off the UI thread.
         self.root.after(5000, self._check_for_updates)
 
-    def _check_for_updates(self):
+    def _check_for_updates(self, manual=False):
+        if manual:
+            self._activity("CHECKING FOR UPDATES")
+
         def worker():
             try:
-                from core.updater import check_latest_release
-                release = check_latest_release()
-                if not release:
-                    return
-                def offer():
-                    if not self._running:
-                        return
-                    answer = messagebox.askyesno(
-                        "JARVIS güncellemesi",
-                        "Yeni bir JARVIS sürümü bulundu: " + release["version"] +
-                        "\\n\\nŞimdi indirip uygulamayı güncellemek ister misin? JARVIS kapatılıp yeniden açılacak.",
-                        parent=self.root
-                    )
-                    if answer:
-                        self._activity("UPDATE DOWNLOAD STARTED")
-                        self._run_ai_task(
-                            "JARVIS güncellemesi indiriliyor",
-                            lambda: self._download_and_install_update(release),
-                            should_speak=False
-                        )
-                self.root.after(0, offer)
+                update = self.update_manager.check_for_update(force=manual)
+                if update is not None:
+                    self.root.after(0, lambda item=update: self._offer_update(item))
+                elif manual:
+                    self.root.after(0, lambda: messagebox.showinfo(
+                        "JARVIS Güncelleme", "Kurulu Windows JARVIS sürümü güncel."
+                    ))
             except Exception as exc:
-                logger.info("Update check skipped: %s", exc)
+                if manual:
+                    self.root.after(0, lambda error=exc: messagebox.showerror(
+                        "Güncelleme Kontrolü", "Güncelleme kontrol edilemedi.\n" + str(error)
+                    ))
+                else:
+                    self.root.after(0, lambda: self._activity("UPDATE CHECK FAILED"))
 
-        threading.Thread(target=worker, daemon=True, name="JARVIS-Update-Check").start()
+        threading.Thread(
+            target=worker, daemon=True, name="JARVIS-Update-Check"
+        ).start()
 
-    def _download_and_install_update(self, release):
-        from core.updater import download_and_prepare_update
-        result = download_and_prepare_update(release)
-        # Let the UI display the result, then close so the helper can replace the EXE files.
-        self.root.after(2500, self._on_closing)
-        return result
+    def _offer_update(self, update):
+        message = (
+            "Yeni Windows JARVIS sürümü bulundu: " + update.version_name + "\n\n"
+            + update.notes + "\n\n"
+            + "Paket HTTPS üzerinden indirilecek, SHA-256 ile doğrulanacak ve mevcut "
+            + "kurulum klasörüne uygulanacak. Kişisel config ve bridge token korunacak; "
+            + "eski sürüm geri dönüş için yedek klasörde tutulacak."
+        )
+        if not getattr(sys, "frozen", False):
+            open_release = messagebox.askyesno(
+                "JARVIS Güncellemesi",
+                "Yeni sürüm bulundu: " + update.version_name
+                + "\nJARVIS kaynak koduyla çalışıyor; bu modda kendini değiştiremez. "
+                + "GitHub Release sayfasını açayım mı?"
+            )
+            if open_release:
+                import webbrowser
+                webbrowser.open(
+                    "https://github.com/ibrahimFOH/JARVIS-Android/releases/tag/"
+                    + update.tag_name
+                )
+            return
 
+        if not messagebox.askyesno("JARVIS Güncellemesi", message):
+            self._activity("UPDATE DEFERRED")
+            return
+
+        self.status.configure(text="● DOWNLOADING UPDATE", text_color=GOLD)
+        self.phase.configure(text="UPDATING")
+        self._activity("UPDATE DOWNLOAD STARTED")
+
+        def worker():
+            try:
+                result = self.update_manager.download_and_launch_installer(update)
+                self.root.after(0, lambda: self._append_to_chat("SYSTEM", result, "green"))
+                self.root.after(1200, self._on_closing)
+            except Exception as exc:
+                self.root.after(0, lambda error=exc: messagebox.showerror(
+                    "Güncelleme Başarısız", "JARVIS güncellenemedi. Mevcut kurulum korundu.\n" + str(error)
+                ))
+                self.root.after(0, lambda: self.status.configure(
+                    text="● UPDATE FAILED", text_color=RED
+                ))
+                self.root.after(0, lambda: self._activity("UPDATE FAILED"))
+
+        threading.Thread(
+            target=worker, daemon=True, name="JARVIS-Update-Install"
+        ).start()
 
     def _start_android_bridge(self):
         try:
