@@ -46,7 +46,7 @@ class WindowsUpdateManager:
     @staticmethod
     def _version_tuple(value):
         match = re.search(r"(\d+)\.(\d+)\.(\d+)", str(value or ""))
-        parts = re.findall(r"\\d+", str(value or ""))
+        parts = re.findall(r"\d+", str(value or ""))
         return tuple(int(part) for part in parts) if parts else (0, 0, 0)
 
     @staticmethod
