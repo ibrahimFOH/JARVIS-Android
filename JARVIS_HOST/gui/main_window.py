@@ -952,11 +952,22 @@ class JarvisGUI:
                 messagebox.showwarning("Uzmanlar", "Önce bir görev veya soru yaz.", parent=win)
                 return
             role = role_var.get()
+            system_prompt = ""
+            tool_output = ""
+            try:
+                from core.specialist_agents import route_agent, prepare_expert_task
+                specialist_id = route_agent(role + "\n" + query)
+                if specialist_id:
+                    system_prompt, tool_output = prepare_expert_task(specialist_id, query)
+            except Exception as exc:
+                logger.warning("Uzman profil/araç sistemi kullanılamadı: " + str(exc))
             prompt = (
                 "UZMANLIK: " + role + "\n" + roles[role] +
+                ("\n\nUZMAN TEKNİK TALİMATLARI:\n" + system_prompt if system_prompt else "") +
+                ("\n\nDOĞRULANABİLİR HESAPLAMA ARAÇLARI:\n" + tool_output if tool_output else "") +
                 "\n\nKullanıcı isteği: " + query +
                 "\n\nYanıtı Türkçe ver. Gerektiğinde adım adım yönerge, kontrol listesi, "
-                "riskler ve doğrulanması gereken varsayımları ekle."
+                "riskler ve doğrulanması gereken varsayımları ek. Hesap sonuçlarının varsayımlarını açıkla."
             )
             self._append_to_chat("YOU / " + role, query, "gold")
             self._activity("EXPERT TASK: " + role)
