@@ -15,7 +15,7 @@ from urllib.parse import urlparse
 ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT))
 
-HOST = os.environ.get("JARVIS_BRIDGE_HOST", "0.0.0.0")
+HOST = os.environ.get("JARVIS_BRIDGE_HOST", "127.0.0.1")
 PORT = int(os.environ.get("JARVIS_BRIDGE_PORT", "8765"))
 TOKEN_FILE = ROOT / "config" / "bridge_token.txt"
 
@@ -86,8 +86,10 @@ class Handler(BaseHTTPRequestHandler):
             if not jarvis.is_running:
                 jarvis.start()
 
-            # Use the same command processor and AI configuration as the Windows app.
-            result = jarvis.command_processor.process(command)
+            # Serialize LAN commands with desktop and microphone commands. Without
+            # this lock, concurrent requests could mutate desktop state at once.
+            with jarvis._command_lock:
+                result = jarvis.command_processor.process(command)
             if not isinstance(result, dict):
                 result = {"success": False, "response": "JARVIS geçerli bir yanıt döndürmedi."}
             response = {
@@ -106,7 +108,11 @@ class Handler(BaseHTTPRequestHandler):
 
 if __name__ == "__main__":
     print(f"JARVIS bridge listening on http://{HOST}:{PORT}")
-    print("LAN access requires Windows Firewall permission for this port.")
+    if HOST in ("0.0.0.0", "::"):
+        print("WARNING: LAN mode uses HTTP. Use only on a trusted private Wi-Fi, never port-forward this port, and rotate the token if the device/network is untrusted.")
+        if os.environ.get("JARVIS_BRIDGE_ALLOW_LAN_HTTP", "") != "1":
+            raise SystemExit("LAN HTTP is disabled unless JARVIS_BRIDGE_ALLOW_LAN_HTTP=1 is explicitly set.")
+        print("LAN access requires Windows Firewall permission for this port.")
     try:
         ThreadingHTTPServer((HOST, PORT), Handler).serve_forever()
     except KeyboardInterrupt:
