@@ -1,13 +1,9 @@
-"""
-Main Jarvis Controller
-Central control system for Jarvis V2
-"""
-
-from threading import Thread, Event
+"""Main JARVIS controller with serialized commands and speech playback."""
+from __future__ import annotations
+import threading
 from typing import Optional, Callable
 from utils.logger import get_logger, log_startup
 from utils.config_manager import get_config
-from utils.helpers import get_time_greeting
 from core.command_processor import CommandProcessor
 from voice import SpeechRecognizer, TextToSpeech, WakeWordDetector, SimpleWakeWordDetector
 from personality.response_generator import ResponseGenerator
@@ -15,312 +11,222 @@ from personality.response_generator import ResponseGenerator
 logger = get_logger()
 config = get_config()
 
-
 class Jarvis:
-    """Main Jarvis AI Assistant Controller"""
-    
+    """JARVIS desktop assistant controller."""
     def __init__(self):
         log_startup()
-        logger.info("Initializing Jarvis V2...")
-        
-        # Core components
+        logger.info("JARVIS başlatılıyor...")
         self.command_processor = CommandProcessor()
         self.response_generator = ResponseGenerator()
-        
-        # Voice components
-        self.voice_enabled = config.get('voice.enabled', True)
+        self.voice_enabled = bool(config.get("voice.enabled", True))
+        self.speech_recognizer = None
+        self.text_to_speech = None
+        self.wake_word_detector = None
         if self.voice_enabled:
-            self.speech_recognizer = SpeechRecognizer()
-            self.text_to_speech = TextToSpeech()
-            
-            # Wake word detection
-            self.wake_word_enabled = config.get('voice.wake_word_enabled', False)
-            if self.wake_word_enabled:
+            try:
+                self.speech_recognizer = SpeechRecognizer()
+            except Exception as exc:
+                logger.error("Ses tanıma başlatılamadı; metin arayüzü açık kalacak: " + str(exc))
+            try:
+                self.text_to_speech = TextToSpeech()
+            except Exception as exc:
+                logger.error("Ses motoru başlatılamadı; metin arayüzü açık kalacak: " + str(exc))
+            if config.get("voice.wake_word_enabled", False):
                 try:
                     self.wake_word_detector = WakeWordDetector()
-                except:
-                    self.wake_word_detector = SimpleWakeWordDetector()
-            else:
-                self.wake_word_detector = None
-        else:
-            self.speech_recognizer = None
-            self.text_to_speech = None
-            self.wake_word_detector = None
-        
-        # State
+                except Exception as exc:
+                    logger.warning("Uyandırma algılayıcısı kullanılamadı: " + str(exc))
+                    try:
+                        self.wake_word_detector = SimpleWakeWordDetector()
+                    except Exception as fallback_exc:
+                        logger.warning("Uyandırma algılayıcısı kapalı: " + str(fallback_exc))
         self.is_running = False
         self.listening_continuously = False
-        self.stop_event = Event()
-        
-        # Callbacks
+        self.stop_event = threading.Event()
+        self._command_lock = threading.Lock()
         self.on_command_callback: Optional[Callable] = None
         self.on_response_callback: Optional[Callable] = None
-        
-        logger.info("Jarvis V2 initialized successfully")
-    
+        logger.info("JARVIS çekirdeği hazır.")
+
     def start(self):
-        """Start Jarvis"""
         if self.is_running:
-            logger.warning("Jarvis is already running")
             return
-        
         self.is_running = True
         self.stop_event.clear()
-        
-        # Greet user
-        greeting = self.response_generator.generate('greeting')
-        self.speak(greeting)
-        
-        logger.info("Jarvis V2 started")
-    
+        if config.get("personality.greeting_enabled", True):
+            self.speak(self.response_generator.generate("greeting"), wait=True)
+        logger.info("JARVIS çalışıyor.")
+
     def stop(self):
-        """Stop Jarvis"""
         if not self.is_running:
             return
-        
-        logger.info("Stopping Jarvis...")
-        
-        self.is_running = False
+        logger.info("JARVIS kapatılıyor...")
         self.stop_event.set()
-        
-        if self.listening_continuously:
-            self.stop_listening()
-        
+        self.listening_continuously = False
         if self.wake_word_detector:
-            self.wake_word_detector.stop()
-        
-        logger.info("Jarvis stopped")
-    
+            try:
+                self.wake_word_detector.stop()
+            except Exception:
+                pass
+        if self.text_to_speech:
+            try:
+                self.text_to_speech.stop()
+            except Exception:
+                pass
+        self.is_running = False
+        logger.info("JARVIS kapatıldı.")
 
+    def _notify_command(self, command):
+        if self.on_command_callback:
+            try:
+                self.on_command_callback(command)
+            except Exception as exc:
+                logger.warning("Komut arayüz bildirimi başarısız: " + str(exc))
+
+    def _notify_response(self, result):
+        if self.on_response_callback:
+            try:
+                self.on_response_callback(result)
+            except Exception as exc:
+                logger.warning("Yanıt arayüz bildirimi başarısız: " + str(exc))
 
     def process_command(self, command: str, speak_response: bool = True) -> dict:
-        """Process command in a worker thread so the GUI never waits for AI."""
+        """Run typed commands in a worker thread and wait for speech before releasing it."""
+        command = str(command or "").strip()
+        if not command:
+            return {"success": False, "response": "Boş komut gönderildi."}
         if not self.is_running:
-            return {"success": False, "response": "JARVIS çalışmıyor"}
-
-        if self.on_command_callback:
-            self.on_command_callback(command)
+            return {"success": False, "response": "JARVIS çalışmıyor."}
+        self._notify_command(command)
 
         def worker():
-            try:
-                result = self.command_processor.process(command)
+            with self._command_lock:
+                try:
+                    result = self.command_processor.process(command)
+                    if not isinstance(result, dict):
+                        result = {"success": False, "response": "Komut motoru geçerli yanıt döndürmedi."}
+                    if speak_response and not result.get("requires_confirmation"):
+                        response_text = str(result.get("response", "") or "")
+                        if response_text and not self.speak(response_text, wait=True):
+                            result["speech_warning"] = "Yanıt metni üretildi ancak seslendirme başarısız oldu."
+                    self._notify_response(result)
+                    logger.response(str(result.get("response", "")))
+                except Exception as exc:
+                    logger.error("Komut işleme hatası: " + str(exc))
+                    self._notify_response({"success": False,
+                        "response": "Patron, komut işlenirken hata oluştu: " + str(exc), "intent": "error"})
 
-                if result.get("requires_confirmation"):
-                    if self.on_response_callback:
-                        self.on_response_callback(result)
-                    return
-
-                if speak_response and self.text_to_speech:
-                    self.speak(result.get("response", ""), wait=True)
-
-                if self.on_response_callback:
-                    self.on_response_callback(result)
-
-                logger.response(result.get("response", ""))
-            except Exception as e:
-                logger.error(f"Command worker error: {e}")
-                result = {"success": False, "response": f"PATRON, işlem sırasında hata oluştu: {e}"}
-                if self.on_response_callback:
-                    self.on_response_callback(result)
-
-        Thread(target=worker, daemon=True, name="JARVIS-Command").start()
-        return {"success": True, "response": "İşleniyor...", "async": True}
+        threading.Thread(target=worker, daemon=True, name="JARVIS-Command").start()
+        return {"success": True, "response": "Komut işleniyor.", "async": True}
 
     def process_voice_command(self) -> dict:
-        """
-        Listen for and process a voice command
-        
-        Returns:
-            dict with processing result
-        """
-        if not self.voice_enabled or not self.speech_recognizer:
-            return {
-                'success': False,
-                'response': 'Voice commands are not enabled'
-            }
-        
-        logger.info("Listening for voice command...")
-        
-        # Listen
-        listen_result = self.speech_recognizer.listen()
-        
-        if not listen_result['success']:
-            error = listen_result.get('error', 'unknown')
-            if error == 'timeout':
-                logger.debug("No speech detected")
-                return listen_result
-            else:
-                logger.warning(f"Speech recognition error: {listen_result.get('message')}")
-                return listen_result
-        
-        # Process command
-        command = listen_result['text']
-        return self.process_command(command, speak_response=True)
-    
+        """Listen, execute, speak, and return only after the command has completed."""
+        if not self.voice_enabled or self.speech_recognizer is None:
+            return {"success": False, "error": "voice_disabled",
+                    "message": "Sesli komutlar etkin değil veya mikrofon başlatılamadı."}
+        listened = self.speech_recognizer.listen()
+        if not listened.get("success"):
+            return listened
+        command = str(listened.get("text", "")).strip()
+        if not command:
+            return {"success": False, "error": "no_recognition", "message": "Konuşma anlaşılamadı."}
+        self._notify_command(command)
+        with self._command_lock:
+            try:
+                result = self.command_processor.process(command)
+                if not isinstance(result, dict):
+                    result = {"success": False, "response": "Komut motoru geçerli yanıt döndürmedi."}
+                result["text"] = command
+                if not result.get("requires_confirmation"):
+                    response_text = str(result.get("response", "") or "")
+                    if response_text and not self.speak(response_text, wait=True):
+                        result["speech_warning"] = "Yanıt metni üretildi ancak seslendirilemedi."
+                self._notify_response(result)
+                logger.response(str(result.get("response", "")))
+                return result
+            except Exception as exc:
+                logger.error("Sesli komut işleme hatası: " + str(exc))
+                result = {"success": False, "error": "command_failed", "text": command,
+                          "response": "Patron, sesli komut işlenirken hata oluştu: " + str(exc)}
+                self._notify_response(result)
+                return result
+
     def start_listening(self):
-        """Start continuous voice listening"""
-        if not self.voice_enabled:
-            logger.warning("Voice is not enabled")
-            return
-        
+        """Start a continuous loop without recording over the previous response."""
+        if not self.voice_enabled or self.speech_recognizer is None:
+            logger.warning("Sürekli dinleme başlatılamadı; mikrofon kullanılamıyor.")
+            return False
         if self.listening_continuously:
-            logger.warning("Already listening continuously")
-            return
-        
+            return True
         self.listening_continuously = True
-        
+        self.stop_event.clear()
         def listening_loop():
-            logger.info("Started continuous listening")
-            
+            logger.info("Sürekli dinleme başladı.")
             while self.listening_continuously and not self.stop_event.is_set():
                 try:
-                    self.process_voice_command()
-                except Exception as e:
-                    logger.error(f"Error in listening loop: {e}")
-            
-            logger.info("Stopped continuous listening")
-        
-        listen_thread = Thread(target=listening_loop)
-        listen_thread.daemon = True
-        listen_thread.start()
-    
+                    result = self.process_voice_command()
+                    if not result.get("success") and result.get("error") not in ("timeout", "no_recognition"):
+                        logger.warning("Dinleme durumu: " + str(result.get("message", result.get("error", ""))))
+                        self.stop_event.wait(0.5)
+                except Exception as exc:
+                    logger.error("Sürekli dinleme hatası: " + str(exc))
+                    self.stop_event.wait(1.0)
+            logger.info("Sürekli dinleme durdu.")
+        threading.Thread(target=listening_loop, daemon=True, name="JARVIS-Continuous-Listen").start()
+        return True
+
     def stop_listening(self):
-        """Stop continuous voice listening"""
         self.listening_continuously = False
-        logger.info("Stopping continuous listening...")
-    
+        logger.info("Sürekli dinleme durduruluyor.")
+
     def start_wake_word_detection(self):
-        """Start wake word detection"""
         if not self.wake_word_detector:
-            logger.warning("Wake word detection not available")
-            return
-        
+            logger.warning("Uyandırma sözcüğü algılayıcısı kullanılabilir değil.")
+            return False
         def on_wake_word():
-            logger.info("Wake word detected - processing command")
-            self.speak("Evet, Patron?")
-            self.process_voice_command()
-        
+            if not self.stop_event.is_set():
+                self.speak("Evet, Patron?", wait=True)
+                self.process_voice_command()
         self.wake_word_detector.start(on_wake_word)
-    
-    def speak(self, text: str, wait: bool = True):
-        """Speak text using text-to-speech"""
-        if self.text_to_speech and self.text_to_speech.available:
-            self.text_to_speech.speak(text, wait)
-        else:
-            logger.debug(f"[JARVIS WOULD SAY]: {text}")
-    
+        return True
+
+    def speak(self, text: str, wait: bool = True) -> bool:
+        if not text or self.text_to_speech is None:
+            return False
+        try:
+            return bool(self.text_to_speech.speak(text, wait=wait))
+        except Exception as exc:
+            logger.error("Seslendirme çağrısı başarısız: " + str(exc))
+            return False
+
     def set_voice_rate(self, rate: int):
-        """Set speech rate"""
-        if self.text_to_speech:
-            self.text_to_speech.set_rate(rate)
-    
+        return self.text_to_speech.set_rate(rate) if self.text_to_speech else False
+
     def set_voice_volume(self, volume: float):
-        """Set speech volume"""
-        if self.text_to_speech:
-            self.text_to_speech.set_volume(volume)
-    
+        return self.text_to_speech.set_volume(volume) if self.text_to_speech else False
+
     def test_microphone(self) -> dict:
-        """Test microphone"""
         if self.speech_recognizer:
             return self.speech_recognizer.test_microphone()
-        return {
-            'success': False,
-            'message': 'Speech recognition not available'
-        }
-    
+        return {"success": False, "message": "Ses tanıma motoru başlatılamadı."}
+
     def get_available_voices(self) -> list:
-        """Get available TTS voices"""
-        if self.text_to_speech:
-            return self.text_to_speech.get_voices()
-        return []
-    
+        return self.text_to_speech.get_voices() if self.text_to_speech else []
+
     def set_voice(self, voice_id: str) -> bool:
-        """Set TTS voice"""
-        if self.text_to_speech:
-            return self.text_to_speech.set_voice(voice_id)
-        return False
-    
+        return bool(self.text_to_speech.set_voice(voice_id)) if self.text_to_speech else False
+
     def on_command(self, callback: Callable):
-        """Register callback for when command is received"""
         self.on_command_callback = callback
-    
+
     def on_response(self, callback: Callable):
-        """Register callback for when response is generated"""
         self.on_response_callback = callback
 
 
-# Global Jarvis instance
 _jarvis_instance = None
 
-
 def get_jarvis() -> Jarvis:
-    """Get or create the global Jarvis instance"""
     global _jarvis_instance
     if _jarvis_instance is None:
         _jarvis_instance = Jarvis()
     return _jarvis_instance
-
-# === JARVIS RESPONSIVE COMMAND PATCH ===
-def _jarvis_process_command_responsive(self, command: str, speak_response: bool = True) -> dict:
-    if not self.is_running:
-        result = {"success": False, "response": "JARVIS çalışmıyor."}
-        if self.on_response_callback:
-            self.on_response_callback(result)
-        return result
-
-    if self.on_command_callback:
-        try:
-            self.on_command_callback(command)
-        except Exception:
-            pass
-
-    def worker():
-        try:
-            result = self.command_processor.process(command)
-
-            if result.get("requires_confirmation"):
-                if self.on_response_callback:
-                    self.on_response_callback(result)
-                return
-
-            if self.on_response_callback:
-                self.on_response_callback(result)
-
-            if speak_response and self.text_to_speech:
-                def tts_worker():
-                    try:
-                        self.speak(result.get("response", ""), wait=True)
-                    except Exception as e:
-                        logger.error(f"TTS worker error: {e}")
-
-                Thread(
-                    target=tts_worker,
-                    daemon=True,
-                    name="JARVIS-TTS"
-                ).start()
-
-            logger.response(result.get("response", ""))
-
-        except Exception as e:
-            logger.error(f"Responsive command error: {e}")
-            result = {
-                "success": False,
-                "response": f"PATRON, komut işlenirken hata oluştu: {e}",
-                "intent": "error",
-            }
-            if self.on_response_callback:
-                self.on_response_callback(result)
-
-    Thread(
-        target=worker,
-        daemon=True,
-        name="JARVIS-Command"
-    ).start()
-
-    return {
-        "success": True,
-        "response": "İşleniyor...",
-        "intent": "processing",
-    }
-
-Jarvis.process_command = _jarvis_process_command_responsive
