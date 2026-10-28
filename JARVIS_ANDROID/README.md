@@ -5,7 +5,7 @@ Bağımsız Android JARVIS uygulaması. Bu proje, Windows Asistan 0.1.5 EXE'sini
 ## Güncel doğrulama
 
 - Package/application ID: `com.stagepulse.jarvis`
-- Sürüm: `2.2.2-piper` (versionCode 222)
+- Sürüm: `2.2.3` (versionCode 223)
 - minSdk 26 (Android 8.0), targetSdk 35
 - ABI: `arm64-v8a`, `armeabi-v7a`
 - Güncel CI/derleme geçmişi: [GitHub Actions](https://github.com/ibrahimFOH/JARVIS-Android/actions)
@@ -15,7 +15,7 @@ Bağımsız Android JARVIS uygulaması. Bu proje, Windows Asistan 0.1.5 EXE'sini
 
 - Android uygulaması açılışta sürüm kontrolü yapar; gereksiz istekleri azaltmak için otomatik denetim 12 saatte bir yapılır. Arayüzdeki **UPDATE** düğmesi denetimi elle başlatır.
 - Yeni Android APK'sı yalnızca bu depodaki en son GitHub Release içinden alınır. İndirmeden önce HTTPS kaynağı, indirildikten sonra SHA-256 özeti doğrulanır. Android güvenlik gereği kurulum onayı ister; sessiz kurulum yapılmaz.
-- Windows masaüstü JARVIS arayüzü de 12 saatte bir güncelleme kontrol eder; **UPDATE** düğmesi elle kontrol sağlar. Yeni ZIP'in SHA-256 değeri doğrulanır. Kurulum klasörü değiştirilirken `config/config.json` ve `config/bridge_token.txt` korunur; eski dizin geri dönüş için `rollback` klasöründe tutulur. Yönetici izni gereken kurulum konumlarında Windows UAC onayı gerekebilir.
+- Windows masaüstü JARVIS arayüzü de 12 saatte bir güncelleme kontrol eder; **UPDATE** düğmesi elle kontrol sağlar. Yeni ZIP'in SHA-256 değeri doğrulanır. Güncelleme mevcut klasörde uygulanır; `config/config.json` ve `config/bridge_token.txt` korunur. Eski EXE ve sürüm bilgisi, geri dönüş için yan `StagepulseJARVIS.rollback-*` klasöründe saklanır. Yönetici izni gereken kurulum konumlarında Windows UAC onayı gerekebilir.
 - Windows otomatik değiştirme yalnızca yayınlanmış PyInstaller `JARVIS.exe` paketi içinde çalışır. Kaynak kodu/CLI ile çalıştırılan sürüm kendisini dosya üzerine yazarak güncellemez.
 - Tek bir GitHub Release, hem `JARVIS-Android-release.apk` hem `JARVIS-Windows.zip` dosyalarını ve ortak `update.json` sürüm manifestini içerir. Release iş akışı yalnızca sürüm etiketi gönderildiğinde çalışır; etiket adı `JARVIS_HOST/VERSION` ve Android `versionName` ile eşleşmelidir.
 
