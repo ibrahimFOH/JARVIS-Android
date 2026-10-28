@@ -7,6 +7,7 @@ import math
 import time
 import sys
 import os
+import webbrowser
 from pathlib import Path
 from tkinter import filedialog
 from xml.sax.saxutils import escape
@@ -104,8 +105,10 @@ class JarvisGUI:
         )
         left.grid(row=1, column=0, sticky="ns", padx=(18, 7), pady=5)
 
+        self._telemetry_widgets = {}
         self._section(left, "SYSTEMS")
-        self._telemetry(left, "AI CORE", "OLLAMA", GREEN)
+        selected_provider = self.jarvis.command_processor.ai_brain.provider.upper()
+        self._telemetry(left, "AI CORE", selected_provider, GREEN)
         self._telemetry(left, "LOCAL CORE", "OLLAMA", GREEN)
         self._telemetry(left, "VOICE", "READY", GREEN)
         self._telemetry(left, "NETWORK", "ONLINE", GREEN)
@@ -264,7 +267,7 @@ class JarvisGUI:
             "JARVIS", "PATRON, JARVIS çevrimiçi. Sistemler hazır.", "green"
         )
         self._activity("SYSTEM INITIALIZED")
-        self._activity("AI CORE: OLLAMA ONLY")
+        self._activity("AI CORE: " + self.jarvis.command_processor.ai_brain.provider.upper())
         self._activity("LOCAL CORE: OLLAMA")
 
     def _section(self, parent, text):
@@ -279,9 +282,13 @@ class JarvisGUI:
         ctk.CTkLabel(
             row, text=label, text_color=MUTED, font=("Consolas", 9)
         ).pack(side="left")
-        ctk.CTkLabel(
+        value_label = ctk.CTkLabel(
             row, text=value, text_color=color, font=("Consolas", 9, "bold")
-        ).pack(side="right")
+        )
+        value_label.pack(side="right")
+        if not hasattr(self, "_telemetry_widgets"):
+            self._telemetry_widgets = {}
+        self._telemetry_widgets[label] = value_label
 
     def _meter(self, parent, label):
         ctk.CTkLabel(
@@ -650,6 +657,15 @@ class JarvisGUI:
         )
         if not filename:
             return
+        # The button is named PDF AÇ: open the actual document first, then
+        # continue with text extraction and optional AI analysis.
+        try:
+            if os.name == "nt":
+                os.startfile(filename)
+            else:
+                webbrowser.open(Path(filename).resolve().as_uri())
+        except Exception as open_exc:
+            logger.warning("PDF varsayılan görüntüleyicide açılamadı: " + str(open_exc))
         try:
             from pypdf import PdfReader
             reader = PdfReader(filename)
@@ -833,6 +849,9 @@ class JarvisGUI:
                 api_models={key: entry.get() for key, entry in model_entries.items()},
                 api_base_urls={key: entry.get() for key, entry in url_entries.items()},
             )
+            label = getattr(self, "_telemetry_widgets", {}).get("AI CORE")
+            if label is not None:
+                label.configure(text=brain.provider.upper())
             self._activity("AI PROVIDER CONFIGURED: " + brain.provider.upper())
 
         def save():
