@@ -86,8 +86,8 @@ class CommandProcessor:
             return str(prompt or "")
         return (
             "KALICI KULLANICI BAĞLAMI (yalnızca isteğe bağlı olarak kaydedilmiş bilgiler; "
-            "güncel olmayan bilgileri kesin gerçek sayma):\\n" + facts +
-            "\\n\\nKULLANICI İSTEĞİ:\\n" + str(prompt or "")
+            "güncel olmayan bilgileri kesin gerçek sayma):\n" + facts +
+            "\n\nKULLANICI İSTEĞİ:\n" + str(prompt or "")
         )
 
     def _ask_with_memory(self, prompt: str) -> str:
