@@ -157,7 +157,7 @@ class WindowsUpdateManager:
             )
 
         target_dir = Path(sys.executable).resolve().parent
-        if not (target_dir / "StagepulseStagepulseJARVIS.exe").is_file():
+        if not (target_dir / "StagepulseJARVIS.exe").is_file():
             raise RuntimeError("Geçerli kurulum klasöründe StagepulseJARVIS.exe bulunamadı; güncelleme iptal edildi.")
         if (target_dir / "main.py").exists() or (target_dir / "venv").is_dir() or (target_dir / "JARVIS_HOST").is_dir():
             raise RuntimeError(
@@ -215,7 +215,7 @@ class WindowsUpdateManager:
         new_exe = stage_dir / "StagepulseJARVIS.exe"
         if not new_exe.is_file() or not (stage_dir / "VERSION").is_file():
             shutil.rmtree(stage_dir, ignore_errors=True)
-            raise ValueError("İndirilen arşiv beklenen StagepulseStagepulseJARVIS.exe/VERSION dosyalarını içermiyor.")
+            raise ValueError("İndirilen arşiv beklenen StagepulseJARVIS.exe/VERSION dosyalarını içermiyor.")
 
         target_text = str(target_dir.resolve())
         stage_text = str(stage_dir.resolve())
