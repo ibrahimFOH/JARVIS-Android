@@ -242,3 +242,18 @@ def test_explicit_provider_does_not_silently_fallback_to_another_service(tmp_pat
     assert answer.startswith("Yapay zekâ yanıtı alınamadı.")
     assert calls == []
 
+def test_default_config_path_does_not_depend_on_current_working_directory(tmp_path, monkeypatch):
+    import utils.config_manager as config_module
+
+    monkeypatch.setattr(config_module.sys, "frozen", False, raising=False)
+    expected_source_path = config_module.ConfigManager._default_config_path()
+    monkeypatch.chdir(tmp_path)
+    assert config_module.ConfigManager._default_config_path() == expected_source_path
+
+    exe = tmp_path / "installed" / "StagepulseJARVIS.exe"
+    monkeypatch.setattr(config_module.sys, "frozen", True, raising=False)
+    monkeypatch.setattr(config_module.sys, "executable", str(exe), raising=False)
+    assert config_module.ConfigManager._default_config_path() == (
+        tmp_path / "installed" / "config" / "config.json"
+    )
+
