@@ -5,7 +5,7 @@ Bağımsız Android JARVIS uygulaması. Bu proje, Windows Asistan 0.1.5 EXE'sini
 ## Güncel doğrulama
 
 - Package/application ID: `com.stagepulse.jarvis`
-- Sürüm: `2.2.3` (versionCode 223)
+- Sürüm: `2.2.4` (versionCode 224)
 - minSdk 26 (Android 8.0), targetSdk 35
 - ABI: `arm64-v8a`, `armeabi-v7a`
 - Güncel CI/derleme geçmişi: [GitHub Actions](https://github.com/ibrahimFOH/JARVIS-Android/actions)
@@ -39,7 +39,7 @@ Android güncellemesinin mevcut kurulumun üzerine yüklenebilmesi için bütün
    - `ANDROID_SIGNING_KEY_ALIAS`: `jarvis-release`
    - `ANDROID_SIGNING_KEY_PASSWORD`: anahtar parolası
 3. Keystore'un yedek kopyasını güvenli şekilde sakla. Bu anahtar kaybolursa mevcut Android kurulumları yeni sürümle yerinde güncellenemeyebilir.
-4. Sürüm etiketini `v2.2.2-piper` biçiminde gönder. İş akışı Android ve Windows paketlerini kurar, özetlerini hesaplar ve tek GitHub Release olarak yayımlar.
+4. Sürüm etiketini `v2.2.4` biçiminde gönder. İş akışı Android ve Windows paketlerini kurar, özetlerini hesaplar ve tek GitHub Release olarak yayımlar.
 
 İmzalama sırları eklenmeden Android yayın iş akışı bilerek başarısız olur; sabit imzalama anahtarı olmadan güncellenebilir APK yayımlamak doğru değildir. Windows ZIP'i TLS ve manifestteki SHA-256 ile doğrulanır; ayrıca Windows kod imzalama sertifikası kullanılmadığından Windows SmartScreen uyarısı görülebilir.
 
