@@ -1,3 +1,6 @@
+import builtins
+import pytest
+
 from core.ai_brain import AIBrain
 
 
@@ -262,4 +265,16 @@ def test_default_cloud_models_use_current_model_aliases(tmp_path, monkeypatch):
     assert brain.gemini_model == "gemini-3.8-flash"
     assert brain.api_defaults["anthropic"][1] == "claude-sonnet-4-6"
     assert brain.api_defaults["deepseek"][1] == "deepseek-flash"
+
+def test_dpapi_failure_does_not_fall_back_to_plaintext(monkeypatch):
+    original_import = builtins.__import__
+
+    def block_win32crypt(name, *args, **kwargs):
+        if name == "win32crypt":
+            raise ImportError("DPAPI unavailable in test")
+        return original_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", block_win32crypt)
+    with pytest.raises(RuntimeError, match="şifrelenemedi"):
+        AIBrain._protect_key("test-secret")
 
