@@ -324,13 +324,9 @@ class AIBrain:
             "patron kim", "ibrahim kavasoğlu kim", "ibrahim kavasoglu kim",
         )
         if any(x in t for x in profile_questions):
-            return ("Sen İbrahim Kavasoğlu'sun; ses mühendisi ve tonmaister, Hatay/Antakya odaklı "
-                    "Stagepulse'un kurucusu ve yürütücüsüsün. Canlı ses, FOH/monitör, RF, IEM, "
-                    "Dante, SPL/akustik, sistem tasarımı ve stüdyo işlerinde deneyimlisin. "
-                    "Stagepulse için ses, ışık, LED, etkinlik organizasyonu, eğitim ve yazılım "
-                    "projeleri geliştiriyorsun. Türkçe yanıt, siyah-altın-beyaz marka görünümü, "
-                    "hafif ve çevrimdışı çalışabilen yazılımlar ve test edilmeden tamamlandı "
-                    "denmemesi önceliklerin arasında.")
+            return ("Kişisel profil bilgileri kaynak koda sabitlenmiyor. Profilini yerel "
+                    "ayarlarından veya açıkça kaydettiğin kişisel hafıza kayıtlarından "
+                    "sağlamadıkça kimliğin ya da geçmişin hakkında varsayım yapmam.")
         if any(x in t for x in ("kimsin","sen kimsin","adın ne","ismin ne")):
             return "Ben JARVIS'im, Patron. Türkçe çalışan ve Stagepulse iş akışlarına göre yapılandırılmış asistanınım."
         if any(x in t for x in ("ne yapabilirsin","neler yapabilirsin","yeteneklerin")):
