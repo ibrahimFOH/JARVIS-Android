@@ -31,3 +31,10 @@ LEGACY_PACKAGES/
 
 # Old JARVIS backup snapshots
 JARVIS_HOST/backup_*/
+
+# Signing material and local secrets
+*.jks
+*.keystore
+*.p12
+*.pfx
+*.mobileprovision

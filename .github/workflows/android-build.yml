@@ -102,6 +102,15 @@ jobs:
               "empty input feedback": 'Önce gönderilecek metni yaz.',
               "button re-enabled after response": 'if(textSendButton!=null)textSendButton.setEnabled(true);',
           }
+          bridge = Path("JARVIS_ANDROID/app/src/main/java/com/stagepulse/jarvis/BridgeClient.java").read_text(encoding="utf-8")
+          bridge_checks = {
+              "cleartext bridge restricted to private IPv4": "private static boolean isPrivateIpv4(String host)",
+              "host URL validated on command calls": "String base = validateBaseUrl(baseUrl);",
+          }
+          for label, snippet in bridge_checks.items():
+              assert snippet in bridge, "Missing Android bridge security behavior: " + label
+          permission = "if(granted && resume){"
+          assert permission in source and "private boolean pendingListenPermission = false;" in source, "Missing voice permission resume state"
           for label, snippet in checks.items():
               assert snippet in source, "Missing Android text-send behavior: " + label
           print("Android text-send button and handlers: PASS")

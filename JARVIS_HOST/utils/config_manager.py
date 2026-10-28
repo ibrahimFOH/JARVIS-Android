@@ -16,8 +16,24 @@ logger = get_logger()
 class ConfigManager:
     """Manages application configuration"""
     
-    def __init__(self, config_path: str = "config/config.json"):
-        self.config_path = Path(config_path)
+    @staticmethod
+    def _default_config_path() -> Path:
+        # A packaged EXE keeps its writable config beside the EXE so the updater
+        # can preserve it; source runs use JARVIS_HOST/config. Never depend on
+        # the process working directory, which varies for shortcuts and services.
+        if getattr(sys, "frozen", False):
+            base = Path(sys.executable).resolve().parent
+        else:
+            base = Path(__file__).resolve().parents[1]
+        return base / "config" / "config.json"
+
+    def __init__(self, config_path: Optional[str] = None):
+        if config_path is None:
+            self.config_path = self._default_config_path()
+        else:
+            self.config_path = Path(config_path)
+            if not self.config_path.is_absolute():
+                self.config_path = (Path(__file__).resolve().parents[1] / self.config_path).resolve()
         self.config: Dict[str, Any] = {}
         self.load_config()
     
@@ -201,7 +217,7 @@ class ConfigManager:
 _config = None
 
 
-def get_config(config_path: str = "config/config.json") -> ConfigManager:
+def get_config(config_path: Optional[str] = None) -> ConfigManager:
     """Get or create the global config instance"""
     global _config
     if _config is None:

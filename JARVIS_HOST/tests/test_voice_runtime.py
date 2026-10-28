@@ -66,3 +66,56 @@ def test_voice_button_pauses_and_resumes_continuous_listening():
     assert "self.root.after(600, self._resume_continuous_listening_after_voice)" in source
     assert "CONTINUOUS LISTENING RESUMED" in source
     assert "SÜREKLİ DİNLEME ETKİN; ayrı kayıt başlatılmadı." not in source
+
+def test_continuous_listening_uses_generations_after_rapid_restart():
+    import threading
+    from core.jarvis import Jarvis
+
+    jarvis = Jarvis.__new__(Jarvis)
+    jarvis.voice_enabled = True
+    jarvis.speech_recognizer = object()
+    jarvis.listening_continuously = False
+    jarvis.stop_event = threading.Event()
+    jarvis._continuous_lock = threading.Lock()
+    jarvis._continuous_generation = 0
+    jarvis._command_lock = threading.Lock()
+
+    first_capture = threading.Event()
+    release_first = threading.Event()
+    second_capture = threading.Event()
+    release_second = threading.Event()
+    calls_lock = threading.Lock()
+    calls = []
+
+    def fake_process_voice_command():
+        with jarvis._command_lock:
+            with calls_lock:
+                calls.append(threading.current_thread().name)
+                number = len(calls)
+            if number == 1:
+                first_capture.set()
+                assert release_first.wait(2)
+            elif number == 2:
+                second_capture.set()
+                assert release_second.wait(2)
+            return {"success": False, "error": "timeout"}
+
+    jarvis.process_voice_command = fake_process_voice_command
+
+    assert jarvis.start_listening()
+    assert first_capture.wait(2)
+    jarvis.stop_listening()
+    assert jarvis.start_listening()
+    release_first.set()
+    assert second_capture.wait(2)
+    jarvis.stop_listening()
+    release_second.set()
+
+    # Let both daemon loops observe their invalidated generation and exit.
+    for _ in range(50):
+        if len(calls) == 2 and not jarvis.listening_continuously:
+            break
+        threading.Event().wait(0.02)
+    assert len(calls) == 2
+    assert not jarvis.listening_continuously
+

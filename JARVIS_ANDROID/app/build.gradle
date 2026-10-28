@@ -12,8 +12,8 @@ android {
         applicationId 'com.stagepulse.jarvis'
         minSdk 26
         targetSdk 35
-        versionCode 223
-        versionName '2.2.3'
+        versionCode 224
+        versionName '2.2.4'
         ndk {
             abiFilters 'arm64-v8a', 'armeabi-v7a'
         }
@@ -121,21 +121,21 @@ def preparePiperAssets = tasks.register('preparePiperAssets') {
 
         File header = file('src/main/cpp/include/espeak-ng/speak_lib.h')
         downloadFile(
-                'https://raw.githubusercontent.com/siva-sub/NekoSpeak/main/app/src/main/cpp/include/espeak-ng/speak_lib.h',
+                'https://raw.githubusercontent.com/siva-sub/NekoSpeak/8248728d725958dbef8fab523a7ca2a8aad5c6d8/app/src/main/cpp/include/espeak-ng/speak_lib.h',
                 header
         )
 
         ['arm64-v8a', 'armeabi-v7a'].each { abi ->
             File so = new File(jniRoot, abi + '/libttsespeak.so')
             downloadFile(
-                    'https://raw.githubusercontent.com/siva-sub/NekoSpeak/main/app/src/main/jniLibs/' + abi + '/libttsespeak.so',
+                    'https://raw.githubusercontent.com/siva-sub/NekoSpeak/8248728d725958dbef8fab523a7ca2a8aad5c6d8/app/src/main/jniLibs/' + abi + '/libttsespeak.so',
                     so
             )
         }
 
         if (!new File(espeakDir, 'voices').exists()) {
             File zip = new File(buildDir, 'nekospeak-source.zip')
-            downloadFile('https://codeload.github.com/siva-sub/NekoSpeak/zip/refs/heads/main', zip)
+            downloadFile('https://codeload.github.com/siva-sub/NekoSpeak/zip/8248728d725958dbef8fab523a7ca2a8aad5c6d8', zip)
 
             File extracted = new File(buildDir, 'nekospeak-source')
             delete extracted

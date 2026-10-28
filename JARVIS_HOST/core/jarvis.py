@@ -44,6 +44,8 @@ class Jarvis:
         self.listening_continuously = False
         self.stop_event = threading.Event()
         self._command_lock = threading.Lock()
+        self._continuous_lock = threading.Lock()
+        self._continuous_generation = 0
         self.on_command_callback: Optional[Callable] = None
         self.on_response_callback: Optional[Callable] = None
         logger.info("JARVIS çekirdeği hazır.")
@@ -162,17 +164,25 @@ class Jarvis:
                 return result
 
     def start_listening(self):
-        """Start a continuous loop without recording over the previous response."""
+        """Start one continuous-listen generation; stale loops cannot be revived."""
         if not self.voice_enabled or self.speech_recognizer is None:
             logger.warning("Sürekli dinleme başlatılamadı; mikrofon kullanılamıyor.")
             return False
-        if self.listening_continuously:
-            return True
-        self.listening_continuously = True
-        self.stop_event.clear()
+        with self._continuous_lock:
+            if self.listening_continuously:
+                return True
+            self._continuous_generation += 1
+            generation = self._continuous_generation
+            self.listening_continuously = True
+            self.stop_event.clear()
+
         def listening_loop():
-            logger.info("Sürekli dinleme başladı.")
-            while self.listening_continuously and not self.stop_event.is_set():
+            logger.info("Sürekli dinleme başladı. Oturum: " + str(generation))
+            while (
+                self.listening_continuously
+                and generation == self._continuous_generation
+                and not self.stop_event.is_set()
+            ):
                 try:
                     result = self.process_voice_command()
                     if not result.get("success") and result.get("error") not in ("timeout", "no_recognition"):
@@ -181,12 +191,18 @@ class Jarvis:
                 except Exception as exc:
                     logger.error("Sürekli dinleme hatası: " + str(exc))
                     self.stop_event.wait(1.0)
-            logger.info("Sürekli dinleme durdu.")
+            logger.info("Sürekli dinleme durdu. Oturum: " + str(generation))
+
         threading.Thread(target=listening_loop, daemon=True, name="JARVIS-Continuous-Listen").start()
         return True
 
     def stop_listening(self):
-        self.listening_continuously = False
+        # Invalidate the current generation. If the user re-enables listening
+        # before an old microphone capture returns, that stale loop still exits.
+        with self._continuous_lock:
+            self.listening_continuously = False
+            self._continuous_generation += 1
+            self.stop_event.set()
         logger.info("Sürekli dinleme durduruluyor.")
 
     def start_wake_word_detection(self):

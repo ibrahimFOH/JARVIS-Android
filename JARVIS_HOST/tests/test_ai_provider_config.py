@@ -1,3 +1,6 @@
+import builtins
+import pytest
+
 from core.ai_brain import AIBrain
 
 
@@ -98,11 +101,11 @@ def test_groq_missing_key_reports_failure_without_network(tmp_path, monkeypatch)
     assert "anahtarı boş" in result["message"].lower()
 
 
-def test_turkish_profile_quick_response_is_preserved(tmp_path, monkeypatch):
+def test_personal_profile_is_not_hardcoded_in_source(tmp_path, monkeypatch):
     brain = fresh_brain(tmp_path, monkeypatch)
     answer = brain.ask("Ben kimim?")
-    assert "İbrahim Kavasoğlu" in answer
-    assert "Stagepulse" in answer
+    assert "kişisel profil bilgileri kaynak koda sabitlenmiyor" in answer.lower()
+    assert "İbrahim Kavasoğlu" not in answer
 
 
 def test_onefile_first_launch_finds_bundled_turkish_default_config(tmp_path, monkeypatch):
@@ -162,9 +165,9 @@ def test_legacy_api_provider_settings_are_preserved(tmp_path, monkeypatch):
     assert brain.api_base_urls["openai"] == "https://example.invalid/v1"
 
 
-def test_ollama_failure_uses_configured_groq_fallback(tmp_path, monkeypatch):
+def test_auto_provider_uses_configured_groq_fallback(tmp_path, monkeypatch):
     brain = fresh_brain(tmp_path, monkeypatch)
-    brain.provider = "ollama"
+    brain.provider = "auto"
     brain.groq_key = "test-key"
     monkeypatch.setattr(
         brain, "_ollama",
@@ -222,3 +225,56 @@ def test_phone_manager_parses_a_number_without_calling_automatically():
     result = phone.handle_command("ara +90 532 123 4567")
     assert result["success"] is True
     assert result["response"] == "+905321234567"
+
+def test_explicit_provider_does_not_silently_fallback_to_another_service(tmp_path, monkeypatch):
+    brain = fresh_brain(tmp_path, monkeypatch)
+    brain.provider = "ollama"
+    brain.groq_key = "test-key"
+    calls = []
+    monkeypatch.setattr(
+        brain, "_ollama",
+        lambda *_args, **_kwargs: "Ollama bağlantısında sorun oluştu: offline"
+    )
+    monkeypatch.setattr(
+        brain, "_compatible_groq",
+        lambda *_args, **_kwargs: calls.append("groq") or "cloud answer"
+    )
+
+    answer = brain.ask("Bu teknik metnin ana fikrini açıkla.")
+
+    assert answer.startswith("Yapay zekâ yanıtı alınamadı.")
+    assert calls == []
+
+def test_default_config_path_does_not_depend_on_current_working_directory(tmp_path, monkeypatch):
+    import utils.config_manager as config_module
+
+    monkeypatch.setattr(config_module.sys, "frozen", False, raising=False)
+    expected_source_path = config_module.ConfigManager._default_config_path()
+    monkeypatch.chdir(tmp_path)
+    assert config_module.ConfigManager._default_config_path() == expected_source_path
+
+    exe = tmp_path / "installed" / "StagepulseJARVIS.exe"
+    monkeypatch.setattr(config_module.sys, "frozen", True, raising=False)
+    monkeypatch.setattr(config_module.sys, "executable", str(exe), raising=False)
+    assert config_module.ConfigManager._default_config_path() == (
+        tmp_path / "installed" / "config" / "config.json"
+    )
+
+def test_default_cloud_models_use_current_model_aliases(tmp_path, monkeypatch):
+    brain = fresh_brain(tmp_path, monkeypatch)
+    assert brain.gemini_model == "gemini-3.8-flash"
+    assert brain.api_defaults["anthropic"][1] == "claude-sonnet-4-6"
+    assert brain.api_defaults["deepseek"][1] == "deepseek-flash"
+
+def test_dpapi_failure_does_not_fall_back_to_plaintext(monkeypatch):
+    original_import = builtins.__import__
+
+    def block_win32crypt(name, *args, **kwargs):
+        if name == "win32crypt":
+            raise ImportError("DPAPI unavailable in test")
+        return original_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", block_win32crypt)
+    with pytest.raises(RuntimeError, match="şifrelenemedi"):
+        AIBrain._protect_key("test-secret")
+

@@ -23,6 +23,7 @@ def main() -> int:
         "--collect-all", "customtkinter",
         "--collect-all", "pystray",
         "--collect-all", "pyttsx3",
+        "--collect-all", "comtypes",
         "--collect-all", "edge_tts",
         "--collect-all", "pygame",
         "--collect-all", "pypdf",
@@ -45,6 +46,8 @@ def main() -> int:
         "--hidden-import", "pythoncom",
         "--hidden-import", "pywintypes",
         "--hidden-import", "win32com.client",
+        "--hidden-import", "pyttsx3.drivers.sapi5",
+        "--hidden-import", "comtypes.client",
         "main.py",
     ]
     run(*args)

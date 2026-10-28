@@ -5,6 +5,7 @@ Set JARVIS_BRIDGE_TOKEN to a long random secret before exposing on the LAN.
 The bridge only accepts authenticated JSON requests and binds to the local network.
 """
 import json
+import ipaddress
 import os
 import secrets
 import sys
@@ -15,7 +16,7 @@ from urllib.parse import urlparse
 ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT))
 
-HOST = os.environ.get("JARVIS_BRIDGE_HOST", "0.0.0.0")
+HOST = os.environ.get("JARVIS_BRIDGE_HOST", "127.0.0.1")
 PORT = int(os.environ.get("JARVIS_BRIDGE_PORT", "8765"))
 TOKEN_FILE = ROOT / "config" / "bridge_token.txt"
 
@@ -58,7 +59,18 @@ class Handler(BaseHTTPRequestHandler):
     def log_message(self, fmt, *args):
         print("[bridge] " + (fmt % args))
 
+    def _peer_is_local(self):
+        try:
+            address = ipaddress.ip_address(self.client_address[0])
+            if getattr(address, "ipv4_mapped", None) is not None:
+                address = address.ipv4_mapped
+            return address.is_loopback or address.is_private or address.is_link_local
+        except (ValueError, IndexError, TypeError):
+            return False
+
     def do_GET(self):
+        if not self._peer_is_local():
+            return self._send(403, {"success": False, "error": "local_network_only"})
         if urlparse(self.path).path != "/api/health":
             return self._send(404, {"success": False, "error": "not_found"})
         if not secrets.compare_digest(self.headers.get("Authorization", ""), "Bearer " + TOKEN):
@@ -66,6 +78,8 @@ class Handler(BaseHTTPRequestHandler):
         return self._send(200, {"success": True, "service": "JARVIS", "sharedHost": True})
 
     def do_POST(self):
+        if not self._peer_is_local():
+            return self._send(403, {"success": False, "error": "local_network_only"})
         if urlparse(self.path).path != "/api/command":
             return self._send(404, {"success": False, "error": "not_found"})
         if not secrets.compare_digest(self.headers.get("Authorization", ""), "Bearer " + TOKEN):
@@ -86,8 +100,10 @@ class Handler(BaseHTTPRequestHandler):
             if not jarvis.is_running:
                 jarvis.start()
 
-            # Use the same command processor and AI configuration as the Windows app.
-            result = jarvis.command_processor.process(command)
+            # Serialize LAN commands with desktop and microphone commands. Without
+            # this lock, concurrent requests could mutate desktop state at once.
+            with jarvis._command_lock:
+                result = jarvis.command_processor.process(command)
             if not isinstance(result, dict):
                 result = {"success": False, "response": "JARVIS geçerli bir yanıt döndürmedi."}
             response = {
@@ -106,7 +122,11 @@ class Handler(BaseHTTPRequestHandler):
 
 if __name__ == "__main__":
     print(f"JARVIS bridge listening on http://{HOST}:{PORT}")
-    print("LAN access requires Windows Firewall permission for this port.")
+    if HOST in ("0.0.0.0", "::"):
+        print("WARNING: LAN mode uses HTTP. Use only on a trusted private Wi-Fi, never port-forward this port, and rotate the token if the device/network is untrusted.")
+        if os.environ.get("JARVIS_BRIDGE_ALLOW_LAN_HTTP", "") != "1":
+            raise SystemExit("LAN HTTP is disabled unless JARVIS_BRIDGE_ALLOW_LAN_HTTP=1 is explicitly set.")
+        print("LAN access requires Windows Firewall permission for this port.")
     try:
         ThreadingHTTPServer((HOST, PORT), Handler).serve_forever()
     except KeyboardInterrupt:
