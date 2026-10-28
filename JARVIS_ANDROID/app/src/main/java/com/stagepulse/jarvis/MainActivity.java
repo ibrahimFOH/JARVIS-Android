@@ -27,6 +27,8 @@ import java.util.concurrent.*;
 public class MainActivity extends Activity {
     private static final int REQ_AUDIO=9001;
     private static final int REQ_CONTACT=9002;
+    private boolean pendingListenPermission = false;
+    private boolean speechListening = false;
     private final ExecutorService io=Executors.newSingleThreadExecutor();
     private EditText command;
     private Button textSendButton;
@@ -500,16 +502,48 @@ public class MainActivity extends Activity {
             public void onReadyForSpeech(Bundle b){hud.setActive(true);status.setText("● LISTENING");}
             public void onBeginningOfSpeech(){} public void onRmsChanged(float r){} public void onBufferReceived(byte[] b){}
             public void onEndOfSpeech(){hud.setActive(false);}
-            public void onError(int e){hud.setActive(false);refreshVoiceStatus();append("JARVIS","Ses algılanamadı veya anlaşılmadı.");}
-            public void onResults(Bundle b){hud.setActive(false);ArrayList<String>x=b.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION);if(x!=null&&!x.isEmpty()){command.setText(x.get(0));sendCommand(x.get(0));}}
+            public void onError(int e){speechListening=false;hud.setActive(false);refreshVoiceStatus();append("JARVIS","Ses algılanamadı veya anlaşılmadı. Hata kodu: "+e);}
+            public void onResults(Bundle b){speechListening=false;hud.setActive(false);ArrayList<String>x=b.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION);if(x!=null&&!x.isEmpty()){command.setText(x.get(0));sendCommand(x.get(0));}}
             public void onPartialResults(Bundle b){} public void onEvent(int t,Bundle b){}
         });
     }
 
     private void listen(){
-        if(speech==null){toast("Bu cihazda konuşma tanıma servisi yok.");return;}
-        if(checkSelfPermission(Manifest.permission.RECORD_AUDIO)!=PackageManager.PERMISSION_GRANTED){requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO},REQ_AUDIO);return;}
-        Intent i=new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);i.putExtra(RecognizerIntent.EXTRA_LANGUAGE,"tr-TR");i.putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE,"tr-TR");i.putExtra(RecognizerIntent.EXTRA_MAX_RESULTS,3);speech.startListening(i);
+        if(speech==null){toast("Bu cihazda konuşma tanıma servisi yok veya cihaz hizmeti kullanılamıyor.");return;}
+        if(speechListening){toast("Sesli komut zaten dinleniyor.");return;}
+        if(checkSelfPermission(Manifest.permission.RECORD_AUDIO)!=PackageManager.PERMISSION_GRANTED){
+            pendingListenPermission=true;
+            requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO},REQ_AUDIO);
+            return;
+        }
+        Intent i=new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
+        i.putExtra(RecognizerIntent.EXTRA_LANGUAGE,"tr-TR");
+        i.putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE,"tr-TR");
+        i.putExtra(RecognizerIntent.EXTRA_MAX_RESULTS,3);
+        i.putExtra(RecognizerIntent.EXTRA_PROMPT,"JARVIS'a Türkçe komut verin");
+        try{
+            speechListening=true;
+            speech.startListening(i);
+        }catch(Exception e){
+            speechListening=false;
+            hud.setActive(false);
+            append("JARVIS","Sesli komut başlatılamadı: "+e.getClass().getSimpleName());
+            refreshVoiceStatus();
+        }
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults){
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if(requestCode!=REQ_AUDIO)return;
+        boolean granted=grantResults.length>0 && grantResults[0]==PackageManager.PERMISSION_GRANTED;
+        boolean resume=pendingListenPermission;
+        pendingListenPermission=false;
+        if(granted && resume){
+            listen();
+        }else if(resume){
+            toast("Sesli komut için mikrofon izni gerekli.");
+        }
     }
 
     private void sendCommand(String text){
