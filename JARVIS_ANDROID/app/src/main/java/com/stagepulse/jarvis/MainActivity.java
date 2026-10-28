@@ -12,6 +12,7 @@ import android.provider.Settings;
 import android.net.Uri;
 import android.speech.*;
 import android.view.Gravity;
+import android.view.inputmethod.EditorInfo;
 import android.widget.*;
 import java.text.SimpleDateFormat;
 import java.io.File;
@@ -25,6 +26,7 @@ public class MainActivity extends Activity {
     private static final int REQ_AUDIO=9001;
     private final ExecutorService io=Executors.newSingleThreadExecutor();
     private EditText command;
+    private Button textSendButton;
     private TextView status,chat;
     private HudView hud;
     private SpeechRecognizer speech;
@@ -74,19 +76,44 @@ public class MainActivity extends Activity {
         hud=new HudView(this); root.addView(hud,new LinearLayout.LayoutParams(-1,0,1));
         chat=tv("",12,white()); chat.setGravity(Gravity.BOTTOM); chat.setPadding(8,8,8,8); chat.setBackgroundColor(panel());
         ScrollView scroll=new ScrollView(this); scroll.addView(chat); root.addView(scroll,new LinearLayout.LayoutParams(-1,0,.65f));
-        command=new EditText(this); command.setHint("COMMAND // Türkçe komut gir..."); command.setHintTextColor(muted());
-        command.setTextColor(white()); command.setMinLines(2); command.setBackgroundColor(panel()); command.setPadding(14,12,14,12);
-        root.addView(command,new LinearLayout.LayoutParams(-1,-2));
-        LinearLayout row=new LinearLayout(this); row.setOrientation(LinearLayout.HORIZONTAL);
-        Button send=button("EXECUTE"), voice=button("◉ VOICE"), agents=button("AGENTS"), host=button("HOST"), update=button("UPDATE");
-        row.addView(send,new LinearLayout.LayoutParams(0,58,1));
+        LinearLayout inputRow=new LinearLayout(this);
+        inputRow.setOrientation(LinearLayout.HORIZONTAL);
+        inputRow.setGravity(Gravity.CENTER_VERTICAL);
+
+        command=new EditText(this);
+        command.setHint("Mesajını yaz...");
+        command.setHintTextColor(muted());
+        command.setTextColor(white());
+        command.setMinLines(2);
+        command.setMaxLines(4);
+        command.setImeOptions(EditorInfo.IME_ACTION_SEND);
+        command.setBackgroundColor(panel());
+        command.setPadding(14,12,14,12);
+        inputRow.addView(command,new LinearLayout.LayoutParams(0,-2,1));
+
+        textSendButton=button("GÖNDER");
+        textSendButton.setContentDescription("Yazılı komutu gönder");
+        inputRow.addView(textSendButton,new LinearLayout.LayoutParams(112,66));
+        root.addView(inputRow,new LinearLayout.LayoutParams(-1,-2));
+
+        LinearLayout row=new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        Button voice=button("◉ VOICE"), agents=button("AGENTS"), host=button("HOST"), update=button("UPDATE");
         row.addView(voice,new LinearLayout.LayoutParams(0,58,1));
         row.addView(agents,new LinearLayout.LayoutParams(0,58,1));
         row.addView(host,new LinearLayout.LayoutParams(0,58,1));
         row.addView(update,new LinearLayout.LayoutParams(0,58,1));
         root.addView(row);
+
         setContentView(root);
-        send.setOnClickListener(v->sendCommand(command.getText().toString()));
+        textSendButton.setOnClickListener(v->sendCommand(command.getText().toString()));
+        command.setOnEditorActionListener((v,actionId,event)->{
+            if(actionId==EditorInfo.IME_ACTION_SEND){
+                sendCommand(command.getText().toString());
+                return true;
+            }
+            return false;
+        });
         voice.setOnClickListener(v->listen());
         agents.setOnClickListener(v->showAgents());
         host.setOnClickListener(v->showHostSettings());
@@ -405,7 +432,13 @@ public class MainActivity extends Activity {
     }
 
     private void sendCommand(String text){
-        final String cmd=text.trim();if(cmd.isEmpty())return;append("PATRON",cmd);command.setText("");hud.setActive(true);status.setText("● PROCESSING");
+        final String cmd=text.trim();
+        if(cmd.isEmpty()){toast("Önce gönderilecek metni yaz.");return;}
+        if(textSendButton!=null)textSendButton.setEnabled(false);
+        append("PATRON",cmd);
+        command.setText("");
+        hud.setActive(true);
+        status.setText("● PROCESSING");
         io.submit(()->{
             String a;
             try{
@@ -433,7 +466,13 @@ public class MainActivity extends Activity {
                 a="İşlem tamamlanamadı Patron. Teknik bilgi: "+e.getClass().getSimpleName();
             }
             final String answer=a;
-            runOnUiThread(()->{hud.setActive(false);if(!status.getText().toString().startsWith("● AGENT"))refreshVoiceStatus();append("JARVIS",answer);speak(answer);});
+            runOnUiThread(()->{
+                hud.setActive(false);
+                if(textSendButton!=null)textSendButton.setEnabled(true);
+                if(!status.getText().toString().startsWith("● AGENT"))refreshVoiceStatus();
+                append("JARVIS",answer);
+                speak(answer);
+            });
         });
     }
 
