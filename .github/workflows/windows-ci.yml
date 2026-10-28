@@ -39,7 +39,7 @@ jobs:
       - name: Check Python syntax
         shell: pwsh
         run: |
-          python -m py_compile JARVIS_HOST/main.py JARVIS_HOST/core/ai_brain.py JARVIS_HOST/core/command_processor.py JARVIS_HOST/core/update_manager.py JARVIS_HOST/gui/main_window.py JARVIS_HOST/android_bridge.py
+          python -m py_compile JARVIS_HOST/main.py JARVIS_HOST/version.py JARVIS_HOST/core/ai_brain.py JARVIS_HOST/core/command_processor.py JARVIS_HOST/core/update_manager.py JARVIS_HOST/gui/main_window.py JARVIS_HOST/android_bridge.py JARVIS_HOST/voice/text_to_speech.py JARVIS_HOST/voice/speech_recognition.py
           if ($LASTEXITCODE -ne 0) { throw "Python syntax check failed" }
 
       - name: Verify expert workspace is wired into the desktop GUI
@@ -52,7 +52,7 @@ jobs:
         shell: pwsh
         working-directory: JARVIS_HOST
         run: |
-          python -m pytest tests/test_ai_provider_config.py -q
+          python -m pytest tests -q
           if ($LASTEXITCODE -ne 0) { throw "AI provider regression tests failed" }
 
       - name: Build single-file Windows EXE
