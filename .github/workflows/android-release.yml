@@ -129,14 +129,19 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install -r JARVIS_HOST/requirements.txt pyinstaller
 
-      - name: Build Windows JARVIS
+      - name: Build Windows single-file JARVIS
         shell: pwsh
         working-directory: JARVIS_HOST
         run: |
-          python -m PyInstaller --noconfirm --clean --name JARVIS --onedir --contents-directory . --windowed --add-data "config\config.example.json;config" --add-data "VERSION;." --collect-all customtkinter --collect-all pystray --collect-all pyttsx3 --collect-all speech_recognition --collect-all pvporcupine --hidden-import win32timezone main.py
-          if (!(Test-Path "dist\JARVIS\JARVIS.exe")) { throw "PyInstaller did not create dist\JARVIS\JARVIS.exe" }
-          if (!(Test-Path "dist\JARVIS\VERSION")) { throw "VERSION was not included in the release package" }
-          Compress-Archive -Path "dist\JARVIS\*" -DestinationPath "$env:GITHUB_WORKSPACE\JARVIS-Windows.zip" -CompressionLevel Optimal -Force
+          python build_jarvis_exe.py
+          if ($LASTEXITCODE -ne 0) { throw "Single-file Windows EXE build failed" }
+          $exe = "dist\StagepulseJARVIS.exe"
+          if (!(Test-Path $exe)) { throw "StagepulseJARVIS.exe was not created" }
+          $packageDir = Join-Path $env:RUNNER_TEMP "StagepulseJARVIS-Windows"
+          New-Item -ItemType Directory -Force -Path $packageDir | Out-Null
+          Copy-Item -LiteralPath $exe -Destination (Join-Path $packageDir "StagepulseJARVIS.exe") -Force
+          Copy-Item -LiteralPath "VERSION" -Destination (Join-Path $packageDir "VERSION") -Force
+          Compress-Archive -Path (Join-Path $packageDir "*") -DestinationPath "$env:GITHUB_WORKSPACE\JARVIS-Windows.zip" -CompressionLevel Optimal -Force
           if (!(Test-Path "$env:GITHUB_WORKSPACE\JARVIS-Windows.zip")) { throw "Windows ZIP package was not created" }
 
       - name: Upload Windows release artifact
