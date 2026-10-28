@@ -125,8 +125,12 @@ class AIBrain:
                 None, None, None, 0
             )[1]
             return {"dpapi": base64.b64encode(protected).decode("ascii")}
-        except Exception:
-            return {"plain": secret}
+        except Exception as exc:
+            # Never silently downgrade a credential to cleartext on disk.
+            raise RuntimeError(
+                "API anahtarı güvenli biçimde şifrelenemedi. Windows DPAPI desteğini kontrol et; "
+                "şifreleme olmadan anahtar diske kaydedilmedi."
+            ) from exc
 
     @staticmethod
     def _unprotect_key(value):
