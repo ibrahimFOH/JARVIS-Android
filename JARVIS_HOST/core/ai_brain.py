@@ -391,11 +391,18 @@ KULLANICI PROFİLİ (kalıcı çalışma bağlamı):
         except Exception as e:
             return "Ollama bağlantısında sorun oluştu: "+str(e)
 
-    def ask(self, prompt):
+    def ask(self, prompt, memory_context=""):
         instant = self._instant(prompt)
-        if instant:
+        if instant and not memory_context:
             return instant
+        # Search only the user's actual request; saved memory must never leak into web queries.
         context = self._web(prompt) if self._needs_web(prompt) else ""
+        if memory_context:
+            prompt = (
+                "KALICI KULLANICI BAĞLAMI (yalnızca isteğe bağlı olarak kaydedilmiş bilgiler; "
+                "güncel olmayan bilgileri kesin gerçek sayma):\n" + str(memory_context) +
+                "\n\nKULLANICI İSTEĞİ:\n" + str(prompt or "")
+            )
         if self.provider == "auto":
             order = []
             if self.groq_key:

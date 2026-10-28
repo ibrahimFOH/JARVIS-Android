@@ -6,6 +6,10 @@ import threading
 import math
 import time
 import sys
+import os
+from pathlib import Path
+from tkinter import filedialog
+from xml.sax.saxutils import escape
 from utils.logger import get_logger
 from utils.config_manager import get_config
 from core.update_manager import WindowsUpdateManager
@@ -41,6 +45,10 @@ class JarvisGUI:
         self.root.geometry("1280x760")
         self.root.minsize(1050, 680)
         self.root.configure(fg_color=BG)
+        self._fullscreen = bool(config.get("gui.fullscreen_start", True))
+        self.root.bind("<F11>", self._toggle_fullscreen)
+        self.root.bind("<Escape>", self._exit_fullscreen)
+        self.root.after(100, self._start_fullscreen)
 
         self._setup_ui()
         self.jarvis.on_command(self._on_command)
@@ -49,6 +57,8 @@ class JarvisGUI:
         self._animate_hud()
         self._clock_tick()
         self._check_for_updates(manual=False)
+        if config.get("voice.continuous_listening", True):
+            self.root.after(900, self._start_continuous_listening)
 
     def _setup_ui(self):
         self.root.grid_columnconfigure(1, weight=1)
@@ -112,6 +122,16 @@ class JarvisGUI:
         ctk.CTkSwitch(
             left, text="Voice", variable=self.voice_var,
             command=self._toggle_voice,
+            progress_color=GOLD2, button_color=GOLD,
+            button_hover_color=WHITE, text_color=WHITE
+        ).pack(anchor="w", padx=12, pady=4)
+
+        self.always_listening_var = ctk.BooleanVar(
+            value=config.get("voice.continuous_listening", True)
+        )
+        ctk.CTkSwitch(
+            left, text="Always listen", variable=self.always_listening_var,
+            command=self._toggle_continuous_listening,
             progress_color=GOLD2, button_color=GOLD,
             button_hover_color=WHITE, text_color=WHITE
         ).pack(anchor="w", padx=12, pady=4)
@@ -217,6 +237,20 @@ class JarvisGUI:
             border_width=1, border_color=GOLD, text_color=GOLD,
             command=lambda: self._check_for_updates(manual=True)
         ).grid(row=0, column=5, padx=(4, 0))
+
+        ctk.CTkButton(
+            bottom, text="PDF AÇ", width=78, height=44,
+            fg_color="#090B0D", hover_color="#171B20",
+            border_width=1, border_color=GOLD, text_color=GOLD,
+            command=self._on_pdf_clicked
+        ).grid(row=0, column=6, padx=(4, 0))
+
+        ctk.CTkButton(
+            bottom, text="SOHBET PDF", width=105, height=44,
+            fg_color="#090B0D", hover_color="#171B20",
+            border_width=1, border_color=GOLD, text_color=GOLD,
+            command=self._export_chat_pdf
+        ).grid(row=0, column=7, padx=(4, 0))
 
         self.chat_display = ctk.CTkTextbox(
             center, width=1, height=1, fg_color=BG,
@@ -548,9 +582,149 @@ class JarvisGUI:
             self._activity("WAKE WORD DISABLED")
 
     def _toggle_voice(self):
-        enabled = self.voice_var.get()
-        config.set("voice.enabled", enabled, save=False)
+        enabled = bool(self.voice_var.get())
+        config.set("voice.enabled", enabled, save=True)
+        self.jarvis.set_voice_enabled(enabled)
+        if not enabled and self.always_listening_var.get():
+            self.always_listening_var.set(False)
+            config.set("voice.continuous_listening", False, save=True)
+            self.jarvis.stop_listening()
+        elif enabled and self.always_listening_var.get():
+            self._start_continuous_listening()
         self._activity("VOICE " + ("ENABLED" if enabled else "DISABLED"))
+
+    def _toggle_continuous_listening(self):
+        enabled = bool(self.always_listening_var.get()) and bool(self.voice_var.get())
+        config.set("voice.continuous_listening", enabled, save=True)
+        if enabled:
+            started = self.jarvis.start_listening()
+            if started:
+                self.status.configure(text="● ALWAYS LISTENING", text_color=GOLD)
+                self.phase.configure(text="LISTENING")
+                self._activity("CONTINUOUS LISTENING STARTED")
+            else:
+                self.always_listening_var.set(False)
+                config.set("voice.continuous_listening", False, save=True)
+                messagebox.showwarning(
+                    "Mikrofon", "Sürekli dinleme başlatılamadı. Mikrofonu ve Windows izinlerini kontrol edin.",
+                    parent=self.root
+                )
+        else:
+            self.jarvis.stop_listening()
+            self.status.configure(text="● ONLINE", text_color=GREEN)
+            self.phase.configure(text="IDLE")
+            self._activity("CONTINUOUS LISTENING STOPPED")
+
+    def _start_continuous_listening(self):
+        if not self._running or not self.voice_var.get() or not self.always_listening_var.get():
+            return
+        self._toggle_continuous_listening()
+
+    def _start_fullscreen(self):
+        try:
+            self.root.attributes("-fullscreen", self._fullscreen)
+        except Exception as exc:
+            logger.warning("Tam ekran başlatılamadı: " + str(exc))
+
+    def _toggle_fullscreen(self, _event=None):
+        self._fullscreen = not self._fullscreen
+        try:
+            self.root.attributes("-fullscreen", self._fullscreen)
+        except Exception as exc:
+            logger.warning("Tam ekran değiştirilemedi: " + str(exc))
+        return "break"
+
+    def _exit_fullscreen(self, _event=None):
+        self._fullscreen = False
+        try:
+            self.root.attributes("-fullscreen", False)
+            self.root.geometry("1280x760")
+        except Exception as exc:
+            logger.warning("Tam ekrandan çıkılamadı: " + str(exc))
+        return "break"
+
+    def _on_pdf_clicked(self):
+        filename = filedialog.askopenfilename(
+            parent=self.root, title="Analiz edilecek PDF dosyasını seçin",
+            filetypes=[("PDF dosyaları", "*.pdf")]
+        )
+        if not filename:
+            return
+        try:
+            from pypdf import PdfReader
+            reader = PdfReader(filename)
+            pages = []
+            for page in reader.pages:
+                text = page.extract_text() or ""
+                if text.strip():
+                    pages.append(text.strip())
+                if sum(len(item) for item in pages) >= 45000:
+                    break
+            document_text = "\n\n".join(pages).strip()
+            if not document_text:
+                messagebox.showwarning(
+                    "PDF", "Bu PDF'den metin çıkarılamadı. Tarama/görüntü tabanlı PDF'ler için OCR gerekir.",
+                    parent=self.root
+                )
+                return
+            document_text = document_text[:45000]
+            prompt = (
+                "Aşağıdaki PDF belgesini Türkçe incele. Önce kapsamlı ama anlaşılır bir özet, "
+                "sonra önemli maddeler, tarihler ve varsa riskleri ver. Belgede bulunmayan bilgi uydurma.\n\n"
+                "DOSYA: " + Path(filename).name + "\n\nBELGE METNİ:\n" + document_text
+            )
+            self._append_to_chat("YOU", "PDF analizi: " + Path(filename).name, "gold")
+            self.task.configure(text="PDF analiz ediliyor: " + Path(filename).name[:60])
+            self.phase.configure(text="PROCESSING PDF")
+            self.status.configure(text="● PROCESSING", text_color=GOLD)
+            self.jarvis.process_command(prompt, speak_response=self.voice_var.get())
+        except Exception as exc:
+            logger.error("PDF analizi başarısız")
+            messagebox.showerror("PDF", "PDF okunamadı: " + str(exc), parent=self.root)
+
+    def _export_chat_pdf(self):
+        transcript = self.chat_display.get("1.0", "end").strip()
+        if not transcript:
+            messagebox.showwarning("Sohbet PDF", "Kaydedilecek sohbet bulunamadı.", parent=self.root)
+            return
+        filename = filedialog.asksaveasfilename(
+            parent=self.root, title="Sohbeti PDF olarak kaydet",
+            defaultextension=".pdf", filetypes=[("PDF dosyası", "*.pdf")],
+            initialfile="Stagepulse-JARVIS-Sohbet.pdf"
+        )
+        if not filename:
+            return
+        try:
+            from reportlab.lib import colors
+            from reportlab.lib.pagesizes import A4
+            from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+            from reportlab.lib.units import mm
+            from reportlab.pdfbase import pdfmetrics
+            from reportlab.pdfbase.ttfonts import TTFont
+            from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
+
+            font_name = "Helvetica"
+            font_path = Path(os.environ.get("WINDIR", "C:/Windows")) / "Fonts" / "arial.ttf"
+            bold_path = Path(os.environ.get("WINDIR", "C:/Windows")) / "Fonts" / "arialbd.ttf"
+            if font_path.is_file():
+                pdfmetrics.registerFont(TTFont("StagepulseArial", str(font_path)))
+                font_name = "StagepulseArial"
+                if bold_path.is_file():
+                    pdfmetrics.registerFont(TTFont("StagepulseArial-Bold", str(bold_path)))
+                    pdfmetrics.registerFontFamily(font_name, normal=font_name, bold="StagepulseArial-Bold", italic=font_name, boldItalic="StagepulseArial-Bold")
+            styles = getSampleStyleSheet()
+            body = ParagraphStyle("StagepulseBody", parent=styles["BodyText"], fontName=font_name, fontSize=9, leading=13, textColor=colors.HexColor("#202020"), wordWrap="CJK", spaceAfter=5)
+            heading = ParagraphStyle("StagepulseHeading", parent=styles["Title"], fontName=font_name, fontSize=16, leading=20, textColor=colors.HexColor("#8C7220"), spaceAfter=10)
+            story = [Paragraph("STAGEPULSE JARVIS SOHBET RAPORU", heading),
+                     Paragraph(escape(time.strftime("%d.%m.%Y %H:%M")), body), Spacer(1, 4 * mm)]
+            for line in transcript.splitlines():
+                story.append(Paragraph(escape(line) if line.strip() else "&#160;", body))
+            doc = SimpleDocTemplate(filename, pagesize=A4, rightMargin=18*mm, leftMargin=18*mm, topMargin=17*mm, bottomMargin=17*mm, title="Stagepulse JARVIS Sohbet Raporu", author="Stagepulse")
+            doc.build(story)
+            messagebox.showinfo("Sohbet PDF", "PDF kaydedildi:\n" + filename, parent=self.root)
+        except Exception as exc:
+            logger.error("Sohbet PDF dışa aktarma başarısız")
+            messagebox.showerror("Sohbet PDF", "PDF oluşturulamadı: " + str(exc), parent=self.root)
 
     def _clear_chat(self):
         self.chat_display.configure(state="normal")
@@ -778,11 +952,22 @@ class JarvisGUI:
                 messagebox.showwarning("Uzmanlar", "Önce bir görev veya soru yaz.", parent=win)
                 return
             role = role_var.get()
+            system_prompt = ""
+            tool_output = ""
+            try:
+                from core.specialist_agents import route_agent, prepare_expert_task
+                specialist_id = route_agent(role + "\n" + query)
+                if specialist_id:
+                    system_prompt, tool_output = prepare_expert_task(specialist_id, query)
+            except Exception as exc:
+                logger.warning("Uzman profil/araç sistemi kullanılamadı: " + str(exc))
             prompt = (
                 "UZMANLIK: " + role + "\n" + roles[role] +
+                ("\n\nUZMAN TEKNİK TALİMATLARI:\n" + system_prompt if system_prompt else "") +
+                ("\n\nDOĞRULANABİLİR HESAPLAMA ARAÇLARI:\n" + tool_output if tool_output else "") +
                 "\n\nKullanıcı isteği: " + query +
                 "\n\nYanıtı Türkçe ver. Gerektiğinde adım adım yönerge, kontrol listesi, "
-                "riskler ve doğrulanması gereken varsayımları ekle."
+                "riskler ve doğrulanması gereken varsayımları ek. Hesap sonuçlarının varsayımlarını açıkla."
             )
             self._append_to_chat("YOU / " + role, query, "gold")
             self._activity("EXPERT TASK: " + role)
@@ -836,10 +1021,13 @@ def _render_response_safe(self, result):
     if hasattr(self, "phase"):
         self.phase.configure(text="IDLE")
     if hasattr(self, "status"):
+        listening = bool(getattr(self, "always_listening_var", None) and self.always_listening_var.get())
         self.status.configure(
-            text="● ONLINE" if success else "● ERROR",
-            text_color=GREEN if success else RED
+            text=("● ALWAYS LISTENING" if listening else "● ONLINE") if success else "● ERROR",
+            text_color=GOLD if listening and success else (GREEN if success else RED)
         )
+    if hasattr(self, "phase") and getattr(self, "always_listening_var", None) is not None and self.always_listening_var.get() and success:
+        self.phase.configure(text="LISTENING")
     if hasattr(self, "_activity"):
         self._activity(
             ("OK  " if success else "ERR ") +
@@ -847,6 +1035,9 @@ def _render_response_safe(self, result):
         )
 
 def _jarvis_gui_voice(self):
+    if getattr(self, "always_listening_var", None) is not None and self.always_listening_var.get():
+        self._activity("SÜREKLİ DİNLEME ETKİN; ayrı kayıt başlatılmadı.")
+        return
     if getattr(self, "_voice_busy", False):
         return
 

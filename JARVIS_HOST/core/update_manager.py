@@ -61,15 +61,20 @@ class WindowsUpdateManager:
 
     def current_version(self):
         if getattr(sys, "frozen", False):
-            base = Path(sys.executable).resolve().parent
+            candidates = [
+                Path(sys.executable).resolve().parent / "VERSION",
+                Path(getattr(sys, "_MEIPASS", Path(sys.executable).resolve().parent)) / "VERSION",
+            ]
         else:
-            base = Path(__file__).resolve().parents[1]
-        version_file = base / "VERSION"
-        try:
-            version = version_file.read_text(encoding="utf-8").strip()
-            return version or "0.0.0"
-        except OSError:
-            return "0.0.0"
+            candidates = [Path(__file__).resolve().parents[1] / "VERSION"]
+        for version_file in candidates:
+            try:
+                version = version_file.read_text(encoding="utf-8").strip()
+                if version:
+                    return version
+            except OSError:
+                continue
+        return "0.0.0"
 
     def _should_check(self, force):
         if force:
@@ -149,9 +154,10 @@ class WindowsUpdateManager:
                 "Kaynak kodu ile çalıştırıldığında yeni paketi elle kurmak gerekir."
             )
 
-        target_dir = Path(sys.executable).resolve().parent
-        if not (target_dir / "JARVIS.exe").is_file():
-            raise RuntimeError("Geçerli kurulum klasöründe JARVIS.exe bulunamadı; güncelleme iptal edildi.")
+        running_exe = Path(sys.executable).resolve()
+        target_dir = running_exe.parent
+        if running_exe.name.lower() not in {"jarvis.exe", "stagepulsejarvis.exe"} or not running_exe.is_file():
+            raise RuntimeError("Güncelleme yalnızca resmi JARVIS.exe veya StagepulseJARVIS.exe uygulamasından başlatılabilir.")
         if (target_dir / "main.py").exists() or (target_dir / "venv").is_dir() or (target_dir / "JARVIS_HOST").is_dir():
             raise RuntimeError(
                 "Bu klasör bir kaynak kodu/venv çalışma alanına benziyor. "
@@ -205,13 +211,16 @@ class WindowsUpdateManager:
             shutil.rmtree(stage_dir, ignore_errors=True)
             raise
 
-        new_exe = stage_dir / "JARVIS.exe"
-        if not new_exe.is_file() or not (stage_dir / "VERSION").is_file():
+        candidate_names = (running_exe.name, "StagepulseJARVIS.exe", "JARVIS.exe")
+        new_exe = next((stage_dir / name for name in candidate_names if (stage_dir / name).is_file()), None)
+        if new_exe is None or not (stage_dir / "VERSION").is_file():
             shutil.rmtree(stage_dir, ignore_errors=True)
-            raise ValueError("İndirilen arşiv beklenen JARVIS.exe/VERSION dosyalarını içermiyor.")
+            raise ValueError("İndirilen arşiv tanınan bir JARVIS EXE dosyası ve VERSION içermiyor.")
+        new_exe_name = new_exe.name
 
         target_text = str(target_dir.resolve())
         stage_text = str(stage_dir.resolve())
+        old_exe_name = running_exe.name
         pid_to_wait = os.getpid()
 
         def ps_quote(value):
@@ -222,9 +231,16 @@ $ErrorActionPreference = 'Stop'
 $target = __TARGET__
 $stage = __STAGE__
 $parentPid = __PARENT_PID__
+$newName = __NEW_EXE__
+$oldName = __OLD_EXE__
 $stamp = Get-Date -Format 'yyyyMMdd-HHmmss'
-$backup = "$target.rollback-$stamp"
+$backup = Join-Path (Split-Path -Parent $target) ("StagepulseJARVIS.rollback-" + $stamp)
+New-Item -ItemType Directory -Force -Path $backup | Out-Null
 while (Get-Process -Id $parentPid -ErrorAction SilentlyContinue) { Start-Sleep -Seconds 1 }
+$oldExe = Join-Path $target $oldName
+$newExe = Join-Path $target $newName
+$oldVersion = Join-Path $target 'VERSION'
+$hadVersion = Test-Path -LiteralPath $oldVersion -PathType Leaf
 try {
     foreach ($relative in @('config\config.json', 'config\bridge_token.txt')) {
         $oldFile = Join-Path $target $relative
@@ -234,36 +250,42 @@ try {
             Copy-Item -LiteralPath $oldFile -Destination $newFile -Force
         }
     }
-    $oldLogs = Join-Path $target 'logs'
-    if (Test-Path -LiteralPath $oldLogs -PathType Container) {
-        $newLogs = Join-Path $stage 'logs'
-        New-Item -ItemType Directory -Force -Path $newLogs | Out-Null
-        Copy-Item -Path (Join-Path $oldLogs '*') -Destination $newLogs -Recurse -Force -ErrorAction SilentlyContinue
+    if (Test-Path -LiteralPath $oldExe -PathType Leaf) {
+        Copy-Item -LiteralPath $oldExe -Destination (Join-Path $backup $oldName) -Force
     }
-    Move-Item -LiteralPath $target -Destination $backup
-    try {
-        Move-Item -LiteralPath $stage -Destination $target
-        $newExe = Join-Path $target 'JARVIS.exe'
-        $process = Start-Process -FilePath $newExe -WorkingDirectory $target -PassThru
-        Start-Sleep -Seconds 8
-        if ($process.HasExited) { throw 'Yeni JARVIS beklenmedik biçimde kapandı.' }
-        # Retain one dated rollback folder rather than deleting the previous install/data.
-    } catch {
-        if (Test-Path -LiteralPath $target -PathType Container) {
-            Remove-Item -LiteralPath $target -Recurse -Force
-        }
-        if (Test-Path -LiteralPath $backup -PathType Container) {
-            Move-Item -LiteralPath $backup -Destination $target
-            Start-Process -FilePath (Join-Path $target 'JARVIS.exe') -WorkingDirectory $target
-        }
-        throw
+    if ($hadVersion) {
+        Copy-Item -LiteralPath $oldVersion -Destination (Join-Path $backup 'VERSION') -Force
     }
+    Copy-Item -Path (Join-Path $stage '*') -Destination $target -Recurse -Force
+    if ($oldName -ne $newName -and (Test-Path -LiteralPath $oldExe -PathType Leaf)) {
+        Remove-Item -LiteralPath $oldExe -Force
+    }
+    $process = Start-Process -FilePath $newExe -WorkingDirectory $target -PassThru
+    Start-Sleep -Seconds 8
+    if ($process.HasExited) { throw 'Yeni JARVIS beklenmedik biçimde kapandı.' }
+    # Keep the previous executable and VERSION in a dated rollback folder.
 } catch {
+    if (Test-Path -LiteralPath $newExe -PathType Leaf) {
+        Remove-Item -LiteralPath $newExe -Force -ErrorAction SilentlyContinue
+    }
+    $backupExe = Join-Path $backup $oldName
+    if (Test-Path -LiteralPath $backupExe -PathType Leaf) {
+        Copy-Item -LiteralPath $backupExe -Destination $oldExe -Force
+        Start-Process -FilePath $oldExe -WorkingDirectory $target -ErrorAction SilentlyContinue
+    }
+    $backupVersion = Join-Path $backup 'VERSION'
+    if (Test-Path -LiteralPath $backupVersion -PathType Leaf) {
+        Copy-Item -LiteralPath $backupVersion -Destination $oldVersion -Force
+    } elseif (-not $hadVersion -and (Test-Path -LiteralPath $oldVersion -PathType Leaf)) {
+        Remove-Item -LiteralPath $oldVersion -Force -ErrorAction SilentlyContinue
+    }
     $_ | Out-File -FilePath (Join-Path $env:TEMP 'stagepulse-jarvis-update-error.txt') -Encoding utf8
     exit 1
 }
 """.replace("__TARGET__", ps_quote(target_text)).replace(
             "__STAGE__", ps_quote(stage_text)
+        ).replace("__NEW_EXE__", ps_quote(new_exe_name)).replace(
+            "__OLD_EXE__", ps_quote(old_exe_name)
         ).replace("__PARENT_PID__", str(pid_to_wait))
 
         encoded = base64.b64encode(script.encode("utf-16le")).decode("ascii")

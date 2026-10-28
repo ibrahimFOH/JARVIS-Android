@@ -3,6 +3,8 @@ name: JARVIS Android Build
 on:
   push:
     branches: [ main ]
+  pull_request:
+    branches: [ main ]
   workflow_dispatch:
 
 jobs:
@@ -16,7 +18,7 @@ jobs:
         shell: bash
         run: |
           python -m pip install --quiet requests
-          python -m py_compile JARVIS_HOST/core/ai_brain.py JARVIS_HOST/core/command_processor.py JARVIS_HOST/core/update_manager.py JARVIS_HOST/gui/main_window.py
+          python -m py_compile JARVIS_HOST/core/ai_brain.py JARVIS_HOST/core/command_processor.py JARVIS_HOST/core/jarvis.py JARVIS_HOST/core/update_manager.py JARVIS_HOST/gui/main_window.py JARVIS_HOST/voice/text_to_speech.py JARVIS_HOST/voice/speech_recognition.py
           python - <<'PY'
           import ast
           import re

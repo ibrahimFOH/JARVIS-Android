@@ -35,3 +35,9 @@ colorama>=0.4.6
 # Testing (optional)
 pytest>=7.4.0
 pytest-cov>=4.1.0
+
+# Turkish neural TTS with local speech fallback and PDF tools
+edge-tts>=7.0.0
+pygame-ce>=2.5.0
+pypdf>=5.0.0
+reportlab>=4.2.0

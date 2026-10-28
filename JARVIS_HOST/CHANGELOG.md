@@ -1,5 +1,15 @@
 # Jarvis V2 Changelog
 
+## Version 2.2.3 (2026-10-28)
+
+### Reliability and features
+- Serialized speech output with Turkish Edge neural voice and local Windows TTS fallback.
+- Added clear microphone/network diagnostics and serialized capture, command processing, and speech to reduce self-triggering.
+- Added configurable continuous listening, fullscreen shortcuts, PDF analysis/export, and bounded direct-URL image downloads.
+- Added opt-in local memory commands and domain-specific audio/production specialists with deterministic engineering tools.
+- Fixed Windows update packaging/version detection and changed updates to apply in-place with configuration/token preservation and rollback.
+
+
 ## Version 2.0.0 (2025-10-22)
 
 ### Initial Release
