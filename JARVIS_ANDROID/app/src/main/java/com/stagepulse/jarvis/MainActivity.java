@@ -29,6 +29,8 @@ public class MainActivity extends Activity {
     private HudView hud;
     private SpeechRecognizer speech;
     private PiperTts piper;
+    private android.speech.tts.TextToSpeech systemTts;
+    private boolean systemTtsReady = false;
     private AgencyAgent activeAgent;
     private android.content.SharedPreferences bridgePrefs;
     private android.content.SharedPreferences updatePrefs;
@@ -347,11 +349,40 @@ public class MainActivity extends Activity {
                     speak("PATRON, bağımsız Android çekirdeği hazır. Türkçe ses motoru da hazır.");
                 }),
                 () -> runOnUiThread(() -> {
-                    status.setText("● VOICE ERROR");
-                    status.setTextColor(0xFFFF5555);
-                    append("JARVIS","Türkçe ses motoru başlatılamadı. Piper/eSpeak başlatma hatası. Logcat: JARVIS_PIPER.");
+                    status.setText("● VOICE FALLBACK");
+                    status.setTextColor(gold());
+                    append("JARVIS","Piper başlatılamadı. Android sistemindeki Türkçe ses motoru yedeği deneniyor.");
+                    initSystemTtsFallback();
                 })
         );
+    }
+
+    private void initSystemTtsFallback() {
+        if (systemTts != null) return;
+        systemTts = new android.speech.tts.TextToSpeech(getApplicationContext(), result -> runOnUiThread(() -> {
+            if (systemTts == null) return;
+            if (result == android.speech.tts.TextToSpeech.SUCCESS) {
+                int languageResult = systemTts.setLanguage(new Locale("tr", "TR"));
+                systemTts.setSpeechRate(0.95f);
+                systemTtsReady = languageResult != android.speech.tts.TextToSpeech.LANG_MISSING_DATA
+                        && languageResult != android.speech.tts.TextToSpeech.LANG_NOT_SUPPORTED;
+                if (systemTtsReady) {
+                    status.setText("● ONLINE · SYSTEM TTS");
+                    status.setTextColor(gold());
+                    append("JARVIS","Android sistem ses yedeği hazır. Türkçe ses desteği kullanılabilir.");
+                    speak("PATRON, Piper kullanılamadı. Android sistem ses yedeği hazır.");
+                } else {
+                    status.setText("● VOICE ERROR");
+                    status.setTextColor(0xFFFF5555);
+                    append("JARVIS","Bu cihazın sistem TTS motorunda Türkçe dil verisi bulunamadı. Ayarlardan Türkçe ses verisini yükleyin.");
+                }
+            } else {
+                systemTtsReady = false;
+                status.setText("● VOICE ERROR");
+                status.setTextColor(0xFFFF5555);
+                append("JARVIS","Piper ve Android sistem ses motoru başlatılamadı.");
+            }
+        }));
     }
 
     private void initSpeech(){
@@ -409,8 +440,9 @@ public class MainActivity extends Activity {
     private void statusPost(String text){runOnUiThread(()->status.setText(text));}
 
     private void refreshVoiceStatus(){
-        boolean ready=piper!=null&&piper.isReady();
-        status.setText(ready?"● ONLINE":"● VOICE ERROR");
+        boolean piperReady=piper!=null&&piper.isReady();
+        boolean ready=piperReady||systemTtsReady;
+        status.setText(piperReady?"● ONLINE · PIPER":(systemTtsReady?"● ONLINE · SYSTEM TTS":"● VOICE ERROR"));
         status.setTextColor(ready?gold():0xFFFF5555);
     }
 
@@ -453,13 +485,24 @@ public class MainActivity extends Activity {
         return "Komutunuz alındı Patron. Bu komut için Android yerel çekirdeğinde henüz bir işlem tanımlı değil.";
     }
 
-    private void speak(String s){if(piper!=null&&piper.isReady())piper.speak(s);}
+    private void speak(String s){
+        if (s == null || s.trim().isEmpty()) return;
+        if (piper != null && piper.isReady()) {
+            piper.speak(s);
+            return;
+        }
+        if (systemTts != null && systemTtsReady) {
+            systemTts.speak(s, android.speech.tts.TextToSpeech.QUEUE_ADD, null,
+                    "stagepulse-jarvis-" + System.nanoTime());
+        }
+    }
     private void append(String who,String msg){chat.append((chat.length()>0?"\n\n":"")+who+"\n"+msg);}
     private void toast(String s){Toast.makeText(this,s,Toast.LENGTH_SHORT).show();}
 
     @Override protected void onDestroy(){
         if(speech!=null)speech.destroy();
         if(piper!=null)piper.release();
+        if(systemTts!=null){systemTts.stop();systemTts.shutdown();systemTts=null;}
         io.shutdownNow();
         super.onDestroy();
     }
