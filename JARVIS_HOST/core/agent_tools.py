@@ -64,7 +64,7 @@ class RepositoryManager:
     @staticmethod
     def is_command(command):
         text = str(command or "").strip().lower()
-        return bool(re.match(r"^(?:git|repo|depo)\\b", text)) or text.startswith(
+        return bool(re.match(r"^(?:git|repo|depo)\b", text)) or text.startswith(
             ("değişiklikleri ekle", "degisiklikleri ekle")
         )
 
@@ -106,7 +106,7 @@ class RepositoryManager:
             if parts.scheme != "https":
                 return False, "Düz HTTP güvenli değil. HTTPS veya SSH kullan."
             return True, ""
-        if re.match(r"^git@[A-Za-z0-9.-]+:[A-Za-z0-9_./-]+(?:\\.git)?$", target):
+        if re.match(r"^git@[A-Za-z0-9.-]+:[A-Za-z0-9_./-]+(?:\.git)?$", target):
             return True, ""
         return False, ""
 
@@ -215,22 +215,22 @@ class RepositoryManager:
     def handle_command(self, command):
         text = str(command or "").strip()
         low = text.lower().strip()
-        bind_match = re.match(r"^(?:(?:git\\s+)?repo|depo|depoyu|github deposunu)\\s+(?:bağla|bagla|bağlan|baglan)\\s*(.*)$", text, re.IGNORECASE)
+        bind_match = re.match(r"^(?:(?:git\s+)?repo|depo|depoyu|github deposunu)\s+(?:bağla|bagla|bağlan|baglan)\s*(.*)$", text, re.IGNORECASE)
         if bind_match:
             target = bind_match.group(1).strip()
             return self.bind(target) if target else {
                 "success": False,
                 "response": "Klasör veya URL belirt. Örnek: repo bağla C:\\Stagepulse\\Proje ya da repo bağla https://github.com/kullanici/depo.git",
             }
-        clone_match = re.match(r"^(?:repo|depo)\\s+klonla\\s+(.+)$", text, re.IGNORECASE)
+        clone_match = re.match(r"^(?:repo|depo)\s+klonla\s+(.+)$", text, re.IGNORECASE)
         if clone_match:
             return self.bind(clone_match.group(1))
         if low in ("değişiklikleri ekle", "degisiklikleri ekle", "git add .", "git ekle hepsi", "git ekle tümü", "git ekle tumu"):
             return self._add(".")
-        add_match = re.match(r"^(?:git\\s+add|git\\s+ekle|repo\\s+ekle)\\s+(.+)$", text, re.IGNORECASE)
+        add_match = re.match(r"^(?:git\s+add|git\s+ekle|repo\s+ekle)\s+(.+)$", text, re.IGNORECASE)
         if add_match:
             return self._add(add_match.group(1))
-        commit_match = re.match(r"^git\\s+commit\\s*(.*)$", text, re.IGNORECASE)
+        commit_match = re.match(r"^git\s+commit\s*(.*)$", text, re.IGNORECASE)
         if commit_match:
             return self._commit(commit_match.group(1))
         if low in ("git push", "git gönder", "git gonder", "repo gönder", "repo gonder", "değişiklikleri gönder", "degisiklikleri gonder"):
@@ -258,7 +258,7 @@ class RepositoryManager:
             return self._run("log", "-5", "--oneline", "--decorate")
         if low in ("git branch", "git dallar", "repo dalları", "repo dallari"):
             return self._run("branch", "--list")
-        if re.match(r"^(git|repo|depo)\\b", low):
+        if re.match(r"^(git|repo|depo)\b", low):
             return {"success": False, "response": "Komutlar: repo bağla <klasör/URL>, git status, git add <dosya|.>, git commit <mesaj>, git push, git pull, git diff, git log, git branch."}
         return None
 
@@ -275,7 +275,7 @@ class PhoneManager:
     @classmethod
     def is_command(cls, command):
         text = cls._normalize(command)
-        return text in ("telefonu bagla", "telefon bagla", "telefonu baglan", "phone link", "phone link ac", "telefon baglantisini ac") or text.startswith(("ara ", "telefon ara ", "telefonu ara "))
+        return text in ("telefonu bagla", "telefon bagla", "telefonu baglan", "phone link", "phone link ac", "telefon baglantisini ac") or bool(re.match(r"^(?:ara|telefon ara|telefonu ara)\s+[+0-9() .-]+$", text))
 
     @staticmethod
     def _adb_path():
@@ -333,7 +333,7 @@ class PhoneManager:
         text = self._normalize(raw)
         if text in ("telefonu bagla", "telefon bagla", "telefonu baglan", "phone link", "phone link ac", "telefon baglantisini ac"):
             return self.open_phone_link()
-        match = re.match(r"^(?:ara|telefon ara|telefonu ara)\\s+(.+)$", text)
+        match = re.match(r"^(?:ara|telefon ara|telefonu ara)\s+(.+)$", text)
         if not match:
             return None
         tail = match.group(1).strip()
