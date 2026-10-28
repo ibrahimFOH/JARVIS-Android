@@ -257,3 +257,9 @@ def test_default_config_path_does_not_depend_on_current_working_directory(tmp_pa
         tmp_path / "installed" / "config" / "config.json"
     )
 
+def test_default_cloud_models_use_current_model_aliases(tmp_path, monkeypatch):
+    brain = fresh_brain(tmp_path, monkeypatch)
+    assert brain.gemini_model == "gemini-3.8-flash"
+    assert brain.api_defaults["anthropic"][1] == "claude-sonnet-4-6"
+    assert brain.api_defaults["deepseek"][1] == "deepseek-flash"
+
