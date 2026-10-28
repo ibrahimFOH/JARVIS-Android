@@ -24,5 +24,5 @@ def test_unrelated_command_is_not_treated_as_image_download():
 
 
 def test_local_private_ip_is_rejected_before_network_access():
-    with pytest.raises(ValueError, match="özel olmayan ağ"):
+    with pytest.raises(ValueError, match="indirilemez"):
         _validate_public_http_url("http://192.168.1.10/image.png")
