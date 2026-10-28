@@ -308,7 +308,7 @@ class JarvisGUI:
             command=self._on_pdf_clicked, **quick_button_style
         ).pack(fill="x", padx=10, pady=4)
         ctk.CTkButton(
-            right, text="Uzmanlar",
+            right, text="UZMANLAR",
             command=self._open_experts, **quick_button_style
         ).pack(fill="x", padx=10, pady=4)
         ctk.CTkButton(
