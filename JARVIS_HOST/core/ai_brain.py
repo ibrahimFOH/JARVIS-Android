@@ -394,10 +394,10 @@ profil bilgilerini gereksiz yere yanıta kopyalama."""
             available.append("gemini")
         available.extend(name for name in self.api_defaults if self.api_keys.get(name))
         # A named provider is an explicit user choice. Do not silently transmit
-        # prompts to another service or incur cloud charges when it fails. Only
-        # "auto" enables fallback across configured providers.
+        # prompts to another service or incur cloud charges when it fails. "auto"
+        # prefers local Ollama, then uses configured cloud providers only on failure.
         if self.provider == "auto":
-            order = available + ["ollama"]
+            order = ["ollama"] + available
         else:
             order = [self.provider]
         errors = []
