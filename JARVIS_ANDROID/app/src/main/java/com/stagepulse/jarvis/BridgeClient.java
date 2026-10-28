@@ -24,13 +24,22 @@ public final class BridgeClient {
             if (url.getUserInfo() != null || url.getQuery() != null || url.getRef() != null) {
                 throw new IOException("Windows host adresinde kullanıcı bilgisi, sorgu veya fragment kullanılamaz.");
             }
+            String path = url.getPath();
+            if (path != null && !path.isEmpty() && !"/".equals(path)) {
+                throw new IOException("Yalnızca host kök adresini gir; /api yolu otomatik eklenir.");
+            }
             String protocol = url.getProtocol().toLowerCase(java.util.Locale.ROOT);
-            if ("https".equals(protocol)) return raw.trim().replaceAll("/+$", "");
+            if ("https".equals(protocol)) {
+                if (url.getPort() == 0 || url.getPort() > 65535) {
+                    throw new IOException("Windows host portu geçersiz.");
+                }
+                return raw.trim().replaceAll("/+$", "");
+            }
             if (!"http".equals(protocol) || !isPrivateIpv4(url.getHost())) {
                 throw new IOException("Düz HTTP yalnızca özel IPv4 LAN adresleriyle kullanılabilir. Uzak host için HTTPS kullan.");
             }
-            if (url.getPort() == 0 || url.getPort() > 65535) {
-                throw new IOException("Windows host portu geçersiz.");
+            if (url.getPort() < 1 || url.getPort() > 65535) {
+                throw new IOException("LAN bağlantısı için geçerli port belirt; varsayılan port 8765.");
             }
             return raw.trim().replaceAll("/+$", "");
         } catch (MalformedURLException e) {
