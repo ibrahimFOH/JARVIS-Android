@@ -231,9 +231,16 @@ $ErrorActionPreference = 'Stop'
 $target = __TARGET__
 $stage = __STAGE__
 $parentPid = __PARENT_PID__
+$newName = __NEW_EXE__
+$oldName = __OLD_EXE__
 $stamp = Get-Date -Format 'yyyyMMdd-HHmmss'
-$backup = "$target.rollback-$stamp"
+$backup = Join-Path (Split-Path -Parent $target) ("StagepulseJARVIS.rollback-" + $stamp)
+New-Item -ItemType Directory -Force -Path $backup | Out-Null
 while (Get-Process -Id $parentPid -ErrorAction SilentlyContinue) { Start-Sleep -Seconds 1 }
+$oldExe = Join-Path $target $oldName
+$newExe = Join-Path $target $newName
+$oldVersion = Join-Path $target 'VERSION'
+$hadVersion = Test-Path -LiteralPath $oldVersion -PathType Leaf
 try {
     foreach ($relative in @('config\config.json', 'config\bridge_token.txt')) {
         $oldFile = Join-Path $target $relative
@@ -243,31 +250,35 @@ try {
             Copy-Item -LiteralPath $oldFile -Destination $newFile -Force
         }
     }
-    $oldLogs = Join-Path $target 'logs'
-    if (Test-Path -LiteralPath $oldLogs -PathType Container) {
-        $newLogs = Join-Path $stage 'logs'
-        New-Item -ItemType Directory -Force -Path $newLogs | Out-Null
-        Copy-Item -Path (Join-Path $oldLogs '*') -Destination $newLogs -Recurse -Force -ErrorAction SilentlyContinue
+    if (Test-Path -LiteralPath $oldExe -PathType Leaf) {
+        Copy-Item -LiteralPath $oldExe -Destination (Join-Path $backup $oldName) -Force
     }
-    Move-Item -LiteralPath $target -Destination $backup
-    try {
-        Move-Item -LiteralPath $stage -Destination $target
-        $newExe = Join-Path $target __NEW_EXE__
-        $process = Start-Process -FilePath $newExe -WorkingDirectory $target -PassThru
-        Start-Sleep -Seconds 8
-        if ($process.HasExited) { throw 'Yeni JARVIS beklenmedik biçimde kapandı.' }
-        # Retain one dated rollback folder rather than deleting the previous install/data.
-    } catch {
-        if (Test-Path -LiteralPath $target -PathType Container) {
-            Remove-Item -LiteralPath $target -Recurse -Force
-        }
-        if (Test-Path -LiteralPath $backup -PathType Container) {
-            Move-Item -LiteralPath $backup -Destination $target
-            Start-Process -FilePath (Join-Path $target __OLD_EXE__) -WorkingDirectory $target
-        }
-        throw
+    if ($hadVersion) {
+        Copy-Item -LiteralPath $oldVersion -Destination (Join-Path $backup 'VERSION') -Force
     }
+    Copy-Item -Path (Join-Path $stage '*') -Destination $target -Recurse -Force
+    if ($oldName -ne $newName -and (Test-Path -LiteralPath $oldExe -PathType Leaf)) {
+        Remove-Item -LiteralPath $oldExe -Force
+    }
+    $process = Start-Process -FilePath $newExe -WorkingDirectory $target -PassThru
+    Start-Sleep -Seconds 8
+    if ($process.HasExited) { throw 'Yeni JARVIS beklenmedik biçimde kapandı.' }
+    # Keep the previous executable and VERSION in a dated rollback folder.
 } catch {
+    if (Test-Path -LiteralPath $newExe -PathType Leaf) {
+        Remove-Item -LiteralPath $newExe -Force -ErrorAction SilentlyContinue
+    }
+    $backupExe = Join-Path $backup $oldName
+    if (Test-Path -LiteralPath $backupExe -PathType Leaf) {
+        Copy-Item -LiteralPath $backupExe -Destination $oldExe -Force
+        Start-Process -FilePath $oldExe -WorkingDirectory $target -ErrorAction SilentlyContinue
+    }
+    $backupVersion = Join-Path $backup 'VERSION'
+    if (Test-Path -LiteralPath $backupVersion -PathType Leaf) {
+        Copy-Item -LiteralPath $backupVersion -Destination $oldVersion -Force
+    } elseif (-not $hadVersion -and (Test-Path -LiteralPath $oldVersion -PathType Leaf)) {
+        Remove-Item -LiteralPath $oldVersion -Force -ErrorAction SilentlyContinue
+    }
     $_ | Out-File -FilePath (Join-Path $env:TEMP 'stagepulse-jarvis-update-error.txt') -Encoding utf8
     exit 1
 }
