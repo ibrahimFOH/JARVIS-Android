@@ -157,8 +157,8 @@ class WindowsUpdateManager:
             )
 
         target_dir = Path(sys.executable).resolve().parent
-        if not (target_dir / "StagepulseJARVIS.exe").is_file():
-            raise RuntimeError("Geçerli kurulum klasöründe JARVIS.exe bulunamadı; güncelleme iptal edildi.")
+        if not (target_dir / "StagepulseStagepulseJARVIS.exe").is_file():
+            raise RuntimeError("Geçerli kurulum klasöründe StagepulseJARVIS.exe bulunamadı; güncelleme iptal edildi.")
         if (target_dir / "main.py").exists() or (target_dir / "venv").is_dir() or (target_dir / "JARVIS_HOST").is_dir():
             raise RuntimeError(
                 "Bu klasör bir kaynak kodu/venv çalışma alanına benziyor. "
@@ -212,10 +212,10 @@ class WindowsUpdateManager:
             shutil.rmtree(stage_dir, ignore_errors=True)
             raise
 
-        new_exe = stage_dir / "JARVIS.exe"
+        new_exe = stage_dir / "StagepulseJARVIS.exe"
         if not new_exe.is_file() or not (stage_dir / "VERSION").is_file():
             shutil.rmtree(stage_dir, ignore_errors=True)
-            raise ValueError("İndirilen arşiv beklenen StagepulseJARVIS.exe/VERSION dosyalarını içermiyor.")
+            raise ValueError("İndirilen arşiv beklenen StagepulseStagepulseJARVIS.exe/VERSION dosyalarını içermiyor.")
 
         target_text = str(target_dir.resolve())
         stage_text = str(stage_dir.resolve())
@@ -250,7 +250,7 @@ try {
     Move-Item -LiteralPath $target -Destination $backup
     try {
         Move-Item -LiteralPath $stage -Destination $target
-        $newExe = Join-Path $target 'JARVIS.exe'
+        $newExe = Join-Path $target 'StagepulseJARVIS.exe'
         $process = Start-Process -FilePath $newExe -WorkingDirectory $target -PassThru
         Start-Sleep -Seconds 8
         if ($process.HasExited) { throw 'Yeni JARVIS beklenmedik biçimde kapandı.' }
@@ -261,7 +261,7 @@ try {
         }
         if (Test-Path -LiteralPath $backup -PathType Container) {
             Move-Item -LiteralPath $backup -Destination $target
-            Start-Process -FilePath (Join-Path $target 'JARVIS.exe') -WorkingDirectory $target
+            Start-Process -FilePath (Join-Path $target 'StagepulseJARVIS.exe') -WorkingDirectory $target
         }
         throw
     }
