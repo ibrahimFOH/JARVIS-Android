@@ -190,18 +190,25 @@ class Jarvis:
         logger.info("Stopping continuous listening...")
     
     def start_wake_word_detection(self):
-        """Start wake word detection"""
+        """Start wake-word detection and report whether the listener really started."""
         if not self.wake_word_detector:
             logger.warning("Wake word detection not available")
-            return
-        
+            return False
+
         def on_wake_word():
             logger.info("Wake word detected - processing command")
             self.speak("Evet, Patron?")
             self.process_voice_command()
-        
-        self.wake_word_detector.start(on_wake_word)
-    
+
+        try:
+            self.wake_word_detector.start(on_wake_word)
+            self.wake_word_enabled = True
+            return True
+        except Exception as exc:
+            self.wake_word_enabled = False
+            logger.error("Wake word detection failed: " + str(exc))
+            return False
+
     def speak(self, text: str, wait: bool = True):
         """Speak text using text-to-speech"""
         if self.text_to_speech and self.text_to_speech.available:
