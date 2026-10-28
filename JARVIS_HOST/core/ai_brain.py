@@ -120,11 +120,16 @@ class AIBrain:
             return {"plain": ""}
         try:
             import win32crypt
-            protected = win32crypt.CryptProtectData(
+            protected_result = win32crypt.CryptProtectData(
                 secret.encode("utf-8"), "Stagepulse JARVIS API Key",
                 None, None, None, 0
-            )[1]
-            return {"dpapi": base64.b64encode(protected).decode("ascii")}
+            )
+            # PyWin32 versions differ: some return the encrypted bytes directly,
+            # others expose a (description, bytes) tuple.
+            protected = protected_result[-1] if isinstance(protected_result, tuple) else protected_result
+            if not isinstance(protected, (bytes, bytearray, memoryview)):
+                raise TypeError("DPAPI şifreli veriyi bytes olarak döndürmedi.")
+            return {"dpapi": base64.b64encode(bytes(protected)).decode("ascii")}
         except Exception as exc:
             # Never silently downgrade a credential to cleartext on disk.
             raise RuntimeError(
@@ -142,9 +147,15 @@ class AIBrain:
             try:
                 import win32crypt
                 encrypted = base64.b64decode(value["dpapi"])
-                return win32crypt.CryptUnprotectData(
+                result = win32crypt.CryptUnprotectData(
                     encrypted, None, None, None, 0
-                )[1].decode("utf-8")
+                )
+                plaintext = result[-1] if isinstance(result, tuple) else result
+                if isinstance(plaintext, str):
+                    return plaintext
+                if not isinstance(plaintext, (bytes, bytearray, memoryview)):
+                    raise TypeError("DPAPI çözülmüş veriyi bytes olarak döndürmedi.")
+                return bytes(plaintext).decode("utf-8")
             except Exception:
                 return ""
         return str(value.get("plain", ""))
