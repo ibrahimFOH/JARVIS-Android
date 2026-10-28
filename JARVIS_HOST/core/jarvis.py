@@ -120,18 +120,24 @@ class Jarvis:
         return {"success": True, "response": "Komut işleniyor.", "async": True}
 
     def process_voice_command(self) -> dict:
-        """Listen, execute, speak, and return only after the command has completed."""
+        """Own the command lock during capture, processing, and speech to avoid self-triggering."""
         if not self.voice_enabled or self.speech_recognizer is None:
-            return {"success": False, "error": "voice_disabled",
-                    "message": "Sesli komutlar etkin değil veya mikrofon başlatılamadı."}
-        listened = self.speech_recognizer.listen()
-        if not listened.get("success"):
-            return listened
-        command = str(listened.get("text", "")).strip()
-        if not command:
-            return {"success": False, "error": "no_recognition", "message": "Konuşma anlaşılamadı."}
-        self._notify_command(command)
+            return {
+                "success": False,
+                "error": "voice_disabled",
+                "message": "Sesli komutlar etkin değil veya mikrofon başlatılamadı.",
+            }
+
+        # Do not record assistant speech or let multiple listeners capture the same phrase.
         with self._command_lock:
+            listened = self.speech_recognizer.listen()
+            if not listened.get("success"):
+                return listened
+            command = str(listened.get("text", "")).strip()
+            if not command:
+                return {"success": False, "error": "no_recognition", "message": "Konuşma anlaşılamadı."}
+
+            self._notify_command(command)
             try:
                 result = self.command_processor.process(command)
                 if not isinstance(result, dict):
@@ -146,8 +152,12 @@ class Jarvis:
                 return result
             except Exception as exc:
                 logger.error("Sesli komut işleme hatası: " + str(exc))
-                result = {"success": False, "error": "command_failed", "text": command,
-                          "response": "Patron, sesli komut işlenirken hata oluştu: " + str(exc)}
+                result = {
+                    "success": False,
+                    "error": "command_failed",
+                    "text": command,
+                    "response": "Patron, sesli komut işlenirken hata oluştu: " + str(exc),
+                }
                 self._notify_response(result)
                 return result
 
