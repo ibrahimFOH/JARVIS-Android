@@ -43,13 +43,13 @@ def _normalize_direct_command(value: str) -> str:
 def _open_pdf_from_command(command: str):
     """Open a user-specified PDF in the operating system's default viewer."""
     original = str(command or "").strip()
-    match = re.match(r"^(?:pdf\\s+aç|pdf\\s+ac|pdf\\s+open|aç\\s+pdf|ac\\s+pdf)\\s+(.+)$", original, flags=re.IGNORECASE)
+    match = re.match(r"^(?:pdf\s+aç|pdf\s+ac|pdf\s+open|aç\s+pdf|ac\s+pdf)\s+(.+)$", original, flags=re.IGNORECASE)
     if not match:
         return None
     target = match.group(1).strip().strip('"').strip("'")
     path = Path(target).expanduser()
     if path.suffix.lower() != ".pdf":
-        return {"success": False, "response": "PDF aç komutuna .pdf dosyasının tam yolunu ekle. Örnek: pdf aç C:\\\\Belgeler\\\\rapor.pdf", "intent": "open_pdf"}
+        return {"success": False, "response": "PDF aç komutuna .pdf dosyasının tam yolunu ekle. Örnek: pdf aç C:\\Belgeler\\rapor.pdf", "intent": "open_pdf"}
     if not path.is_file():
         return {"success": False, "response": "PDF dosyası bulunamadı: " + str(path), "intent": "open_pdf"}
     try:
