@@ -46,7 +46,8 @@ class WindowsUpdateManager:
     @staticmethod
     def _version_tuple(value):
         match = re.search(r"(\d+)\.(\d+)\.(\d+)", str(value or ""))
-        return tuple(int(part) for part in match.groups()) if match else (0, 0, 0)
+        parts = re.findall(r"\\d+", str(value or ""))
+        return tuple(int(part) for part in parts) if parts else (0, 0, 0)
 
     @staticmethod
     def _trusted_release_url(value):
@@ -60,6 +61,12 @@ class WindowsUpdateManager:
         )
 
     def current_version(self):
+        try:
+            from version import __version__
+            if __version__ and __version__ != "0.0.0-dev":
+                return str(__version__)
+        except Exception:
+            pass
         if getattr(sys, "frozen", False):
             base = Path(sys.executable).resolve().parent
         else:
@@ -124,7 +131,7 @@ class WindowsUpdateManager:
         metadata = metadata_response.json()
         package_url = metadata.get("windowsUrl")
         package_hash = str(metadata.get("windowsSha256", "")).lower()
-        version_name = str(metadata.get("versionName", ""))
+        version_name = str(metadata.get("windowsVersionName") or metadata.get("versionName", ""))
         if not self._trusted_release_url(package_url):
             raise ValueError("Windows güncelleme paketi geçerli bir GitHub Release adresi değil.")
         if not re.fullmatch(r"[a-f0-9]{64}", package_hash):
@@ -150,7 +157,7 @@ class WindowsUpdateManager:
             )
 
         target_dir = Path(sys.executable).resolve().parent
-        if not (target_dir / "JARVIS.exe").is_file():
+        if not (target_dir / "StagepulseJARVIS.exe").is_file():
             raise RuntimeError("Geçerli kurulum klasöründe JARVIS.exe bulunamadı; güncelleme iptal edildi.")
         if (target_dir / "main.py").exists() or (target_dir / "venv").is_dir() or (target_dir / "JARVIS_HOST").is_dir():
             raise RuntimeError(
@@ -208,7 +215,7 @@ class WindowsUpdateManager:
         new_exe = stage_dir / "JARVIS.exe"
         if not new_exe.is_file() or not (stage_dir / "VERSION").is_file():
             shutil.rmtree(stage_dir, ignore_errors=True)
-            raise ValueError("İndirilen arşiv beklenen JARVIS.exe/VERSION dosyalarını içermiyor.")
+            raise ValueError("İndirilen arşiv beklenen StagepulseJARVIS.exe/VERSION dosyalarını içermiyor.")
 
         target_text = str(target_dir.resolve())
         stage_text = str(stage_dir.resolve())
