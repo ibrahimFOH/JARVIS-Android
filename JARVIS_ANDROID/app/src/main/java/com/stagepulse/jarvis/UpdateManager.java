@@ -19,7 +19,7 @@ import java.util.Locale;
 /** Checks public signed GitHub releases and verifies downloaded APK bytes before installation. */
 public final class UpdateManager {
     private static final String RELEASE_API =
-            "https://api.github.com/repos/ibrahimFOH/JARVIS-Android/releases/latest";
+            "https://api.github.com/repos/ibrahimFOH/JARVIS-Android/releases?per_page=30";
     private static final int CONNECT_TIMEOUT_MS = 10000;
     private static final int READ_TIMEOUT_MS = 30000;
     private static final long MAX_APK_BYTES = 300L * 1024L * 1024L;
@@ -36,7 +36,7 @@ public final class UpdateManager {
         private UpdateInfo(JSONObject json, String tagName) throws Exception {
             packageName = json.getString("packageName");
             versionCode = json.getInt("versionCode");
-            versionName = json.getString("versionName");
+            versionName = json.optString("androidVersionName", json.optString("versionName", ""));
             apkUrl = json.getString("apkUrl");
             sha256 = json.getString("sha256").toLowerCase(Locale.ROOT);
             notes = json.optString("notes", "Stagepulse JARVIS güncellemesi.");
@@ -58,34 +58,47 @@ public final class UpdateManager {
     }
 
     public UpdateInfo checkLatest(int installedVersionCode) throws Exception {
-        JSONObject release = getJson(RELEASE_API);
-        String tagName = release.optString("tag_name", "");
-        JSONArray assets = release.optJSONArray("assets");
-        if (assets == null) throw new IllegalStateException("Release dosyaları bulunamadı.");
+        JSONArray releases = getJsonArray(RELEASE_API);
+        UpdateInfo best = null;
 
-        String metadataUrl = null;
-        for (int i = 0; i < assets.length(); i++) {
-            JSONObject asset = assets.optJSONObject(i);
-            if (asset != null && "update.json".equals(asset.optString("name"))) {
-                metadataUrl = asset.optString("browser_download_url", null);
-                break;
+        // Windows-only releases share the repository but intentionally contain no APK.
+        // Scan recent releases and select the newest compatible Android manifest instead
+        // of failing whenever a Windows desktop release is published most recently.
+        for (int i = 0; i < releases.length(); i++) {
+            JSONObject release = releases.optJSONObject(i);
+            if (release == null || release.optBoolean("draft", false)
+                    || release.optBoolean("prerelease", false)) continue;
+            String tagName = release.optString("tag_name", "");
+            JSONArray assets = release.optJSONArray("assets");
+            if (assets == null) continue;
+
+            String metadataUrl = null;
+            for (int j = 0; j < assets.length(); j++) {
+                JSONObject asset = assets.optJSONObject(j);
+                if (asset != null && "update.json".equals(asset.optString("name"))) {
+                    metadataUrl = asset.optString("browser_download_url", null);
+                    break;
+                }
+            }
+            if (metadataUrl == null || metadataUrl.trim().isEmpty()) continue;
+            try {
+                URL metadata = new URL(metadataUrl);
+                if (!"https".equalsIgnoreCase(metadata.getProtocol())
+                        || !"github.com".equalsIgnoreCase(metadata.getHost())
+                        || !metadata.getPath().contains("/releases/download/")) {
+                    continue;
+                }
+                JSONObject json = getJson(metadataUrl);
+                if (!json.has("apkUrl") || !json.has("versionCode")
+                        || !json.has("packageName")) continue;
+                UpdateInfo candidate = new UpdateInfo(json, tagName);
+                if (!"com.stagepulse.jarvis".equals(candidate.packageName)) continue;
+                if (best == null || candidate.versionCode > best.versionCode) best = candidate;
+            } catch (Exception invalidManifest) {
+                // Ignore non-Android manifests, malformed metadata, and Windows-only releases.
             }
         }
-        if (metadataUrl == null || metadataUrl.trim().isEmpty()) {
-            throw new IllegalStateException("Son yayın update.json içermiyor.");
-        }
-        URL metadata = new URL(metadataUrl);
-        if (!"https".equalsIgnoreCase(metadata.getProtocol())
-                || !"github.com".equalsIgnoreCase(metadata.getHost())
-                || !metadata.getPath().contains("/releases/download/")) {
-            throw new SecurityException("Güncelleme bilgisi beklenmeyen kaynaktan geliyor.");
-        }
-
-        UpdateInfo info = new UpdateInfo(getJson(metadataUrl), tagName);
-        if (!"com.stagepulse.jarvis".equals(info.packageName)) {
-            throw new SecurityException("Güncelleme paketi bu JARVIS uygulamasına ait değil.");
-        }
-        return info.versionCode > installedVersionCode ? info : null;
+        return best != null && best.versionCode > installedVersionCode ? best : null;
     }
 
     public File downloadAndVerify(UpdateInfo info, File destination) throws Exception {
@@ -133,6 +146,25 @@ public final class UpdateManager {
                 throw new SecurityException("İndirilen APK bütünlük kontrolünü geçemedi.");
             }
             return destination;
+        } finally {
+            connection.disconnect();
+        }
+    }
+
+    private static JSONArray getJsonArray(String address) throws Exception {
+        HttpURLConnection connection = open(address);
+        try {
+            int status = connection.getResponseCode();
+            if (status < 200 || status >= 300) {
+                throw new IllegalStateException("Güncelleme sunucusu HTTP " + status + " döndürdü.");
+            }
+            StringBuilder body = new StringBuilder();
+            try (BufferedReader reader = new BufferedReader(
+                    new InputStreamReader(connection.getInputStream(), StandardCharsets.UTF_8))) {
+                String line;
+                while ((line = reader.readLine()) != null) body.append(line);
+            }
+            return new JSONArray(body.toString());
         } finally {
             connection.disconnect();
         }
