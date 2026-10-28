@@ -54,7 +54,7 @@ class WindowsUpdateManager:
         return (
             parsed.scheme == "https"
             and parsed.hostname == "github.com"
-            and "/releases/download/" in parsed.path
+            and parsed.path.startswith(f"/{REPOSITORY}/releases/download/")
             and parsed.username is None
             and parsed.password is None
         )
