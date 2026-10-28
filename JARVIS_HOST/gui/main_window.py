@@ -679,7 +679,7 @@ class JarvisGUI:
             self.status.configure(text="● PROCESSING", text_color=GOLD)
             self.jarvis.process_command(prompt, speak_response=self.voice_var.get())
         except Exception as exc:
-            logger.exception("PDF analizi başarısız")
+            logger.error("PDF analizi başarısız")
             messagebox.showerror("PDF", "PDF okunamadı: " + str(exc), parent=self.root)
 
     def _export_chat_pdf(self):
@@ -723,7 +723,7 @@ class JarvisGUI:
             doc.build(story)
             messagebox.showinfo("Sohbet PDF", "PDF kaydedildi:\n" + filename, parent=self.root)
         except Exception as exc:
-            logger.exception("Sohbet PDF dışa aktarma başarısız")
+            logger.error("Sohbet PDF dışa aktarma başarısız")
             messagebox.showerror("Sohbet PDF", "PDF oluşturulamadı: " + str(exc), parent=self.root)
 
     def _clear_chat(self):
@@ -1010,10 +1010,13 @@ def _render_response_safe(self, result):
     if hasattr(self, "phase"):
         self.phase.configure(text="IDLE")
     if hasattr(self, "status"):
+        listening = bool(getattr(self, "always_listening_var", None) and self.always_listening_var.get())
         self.status.configure(
-            text="● ONLINE" if success else "● ERROR",
-            text_color=GREEN if success else RED
+            text=("● ALWAYS LISTENING" if listening else "● ONLINE") if success else "● ERROR",
+            text_color=GOLD if listening and success else (GREEN if success else RED)
         )
+    if hasattr(self, "phase") and getattr(self, "always_listening_var", None) is not None and self.always_listening_var.get() and success:
+        self.phase.configure(text="LISTENING")
     if hasattr(self, "_activity"):
         self._activity(
             ("OK  " if success else "ERR ") +
@@ -1021,6 +1024,9 @@ def _render_response_safe(self, result):
         )
 
 def _jarvis_gui_voice(self):
+    if getattr(self, "always_listening_var", None) is not None and self.always_listening_var.get():
+        self._activity("SÜREKLİ DİNLEME ETKİN; ayrı kayıt başlatılmadı.")
+        return
     if getattr(self, "_voice_busy", False):
         return
 
