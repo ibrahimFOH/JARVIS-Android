@@ -45,7 +45,7 @@ public final class UpdateManager {
             URL apk = new URL(apkUrl);
             if (!"https".equalsIgnoreCase(apk.getProtocol())
                     || !"github.com".equalsIgnoreCase(apk.getHost())
-                    || !apk.getPath().contains("/releases/download/")) {
+                    || !apk.getPath().startsWith("/ibrahimFOH/JARVIS-Android/releases/download/")) {
                 throw new SecurityException("APK adresi güvenilir bir GitHub Release adresi değil.");
             }
             if (!sha256.matches("[a-f0-9]{64}")) {
@@ -77,7 +77,7 @@ public final class UpdateManager {
         URL metadata = new URL(metadataUrl);
         if (!"https".equalsIgnoreCase(metadata.getProtocol())
                 || !"github.com".equalsIgnoreCase(metadata.getHost())
-                || !metadata.getPath().contains("/releases/download/")) {
+                || !metadata.getPath().startsWith("/ibrahimFOH/JARVIS-Android/releases/download/")) {
             throw new SecurityException("Güncelleme bilgisi beklenmeyen kaynaktan geliyor.");
         }
 
