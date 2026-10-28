@@ -52,4 +52,4 @@ def test_recognition_service_error_is_visible(monkeypatch):
         lambda *args, **kwargs: (_ for _ in ()).throw(sr.RequestError("offline")),
     )
     assert recognizer._recognize_audio(object()) is None
-    assert "internet" in recognizer.last_recognition_error.lower()
+    assert "offline" in recognizer.last_recognition_error.lower()
