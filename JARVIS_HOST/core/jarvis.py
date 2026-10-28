@@ -199,6 +199,30 @@ class Jarvis:
             logger.error("Seslendirme çağrısı başarısız: " + str(exc))
             return False
 
+    def set_voice_enabled(self, enabled: bool):
+        """Enable or disable voice components without restarting the GUI."""
+        enabled = bool(enabled)
+        if not enabled:
+            self.voice_enabled = False
+            self.stop_listening()
+            if self.text_to_speech:
+                try:
+                    self.text_to_speech.stop()
+                except Exception:
+                    pass
+            return True
+        try:
+            if self.speech_recognizer is None:
+                self.speech_recognizer = SpeechRecognizer()
+            if self.text_to_speech is None:
+                self.text_to_speech = TextToSpeech()
+            self.voice_enabled = True
+            return True
+        except Exception as exc:
+            logger.error("Ses bileşenleri etkinleştirilemedi: " + str(exc))
+            self.voice_enabled = False
+            return False
+
     def set_voice_rate(self, rate: int):
         return self.text_to_speech.set_rate(rate) if self.text_to_speech else False
 
