@@ -20,6 +20,7 @@ from modules import (
 )
 from datetime import datetime
 from core.ai_brain import AIBrain
+from core.memory_manager import MemoryManager
 
 logger = get_logger()
 
@@ -63,6 +64,7 @@ class CommandProcessor:
         self.validator = Validator()
         self.response_generator = ResponseGenerator()
         self.ai_brain = AIBrain()
+        self.memory = MemoryManager()
         
         # Initialize modules
         self.app_manager = ApplicationManager()
@@ -73,8 +75,35 @@ class CommandProcessor:
         
         logger.info("Command processor initialized")
     
+    def _with_memory(self, prompt: str) -> str:
+        """Attach only explicitly saved, non-secret user facts to an AI request."""
+        try:
+            facts = self.memory.context(limit=15)
+        except Exception as exc:
+            logger.warning("Kalıcı hafıza okunamadı: " + str(exc))
+            facts = ""
+        if not facts:
+            return str(prompt or "")
+        return (
+            "KALICI KULLANICI BAĞLAMI (yalnızca isteğe bağlı olarak kaydedilmiş bilgiler; "
+            "güncel olmayan bilgileri kesin gerçek sayma):\\n" + facts +
+            "\\n\\nKULLANICI İSTEĞİ:\\n" + str(prompt or "")
+        )
+
+    def _ask_with_memory(self, prompt: str) -> str:
+        return self.ai_brain.ask(self._with_memory(prompt))
+
     def process(self, command: str) -> Dict[str, Any]:
         logger.command(command)
+
+        # Memory actions are explicit opt-in commands and bypass intent matching.
+        try:
+            memory_response = self.memory.handle_command(command)
+        except Exception as exc:
+            logger.error("Kalıcı hafıza komutu başarısız: " + str(exc))
+            return {"success": False, "response": "Kalıcı hafıza işlemi başarısız oldu.", "intent": "memory"}
+        if memory_response is not None:
+            return {"success": True, "response": memory_response, "intent": "memory"}
 
         # Run explicit personal website aliases before generic app/AI recognition.
         # This prevents "Stagepulse.com.tr" from being misheard as Facebook or
@@ -114,7 +143,7 @@ class CommandProcessor:
 
         if intent == 'unknown' or confidence < 0.3:
             try:
-                ai_response = self.ai_brain.ask(command)
+                ai_response = self._ask_with_memory(command)
                 return {'success': True, 'response': ai_response, 'intent': 'ai'}
             except Exception:
                 pass
@@ -631,7 +660,7 @@ class CommandProcessor:
         """AI fallback for recognized intents without a local executor."""
         try:
             prompt = f"Komut: {intent.replace('_', ' ')}. Parametreler: {parameters}. Kullanıcının isteğini Türkçe yanıtla."
-            response = self.ai_brain.ask(prompt)
+            response = self._ask_with_memory(prompt)
             return {
                 'success': True,
                 'response': response,
@@ -652,7 +681,7 @@ def _jarvis_ai_fallback(self, command):
     try:
         if not hasattr(self, "_jarvis_ai_brain"):
             self._jarvis_ai_brain = AIBrain()
-        answer = self._jarvis_ai_brain.ask(command)
+        answer = self._ask_with_memory(command)
         return {
             "success": True,
             "response": answer,
