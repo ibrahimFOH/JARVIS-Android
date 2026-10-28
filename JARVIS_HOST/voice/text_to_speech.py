@@ -98,6 +98,8 @@ class TextToSpeech:
         self._cancel_current.clear()
         if not self.prefer_native and self._speak_edge(text):
             return True
+        if self._cancel_current.is_set():
+            return False
         if self._speak_native(text):
             return True
         if self.prefer_native and self._speak_edge(text):
