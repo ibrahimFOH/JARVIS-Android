@@ -809,7 +809,7 @@ class JarvisGUI:
         ).pack(anchor="w", padx=20, pady=(14, 3))
         ctk.CTkLabel(
             content,
-            text="API anahtarları yerel ayar dosyasında saklanır; Windows'ta DPAPI ile korunmaya çalışılır. Anahtarları kaynak koduna veya GitHub'a yazma.",
+            text="API anahtarları yerel ayar dosyasında Windows DPAPI ile şifrelenir. DPAPI başarısız olursa anahtar düz metin kaydedilmez ve kayıt hata verir. Anahtarları kaynak koduna veya GitHub'a yazma.",
             text_color=MUTED, wraplength=550, justify="left",
             font=("Consolas", 9)
         ).pack(anchor="w", padx=20, pady=(0, 4))
