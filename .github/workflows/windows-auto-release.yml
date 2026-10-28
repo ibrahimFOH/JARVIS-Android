@@ -1,0 +1,109 @@
+name: Stagepulse JARVIS Single-EXE Release
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'JARVIS_HOST/**'
+      - '.github/workflows/windows-auto-release.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: stagepulse-jarvis-single-exe-release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Test, build and publish the single-file Windows EXE
+    runs-on: windows-latest
+    timeout-minutes: 50
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11 x64
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          architecture: 'x64'
+          cache: pip
+          cache-dependency-path: JARVIS_HOST/requirements.txt
+
+      - name: Stamp a monotonic release version
+        shell: pwsh
+        run: |
+          $date = Get-Date -Format 'yyyy.MM.dd'
+          $version = "$date.${{ github.run_id }}"
+          Set-Content -Path 'JARVIS_HOST/VERSION' -Value $version -NoNewline -Encoding utf8
+          Set-Content -Path 'JARVIS_HOST/version.py' -Value "__version__ = `"$version`"" -Encoding utf8
+          "JARVIS_VERSION=$version" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
+      - name: Install dependencies
+        shell: pwsh
+        run: |
+          python -m pip install --upgrade pip
+          if ($LASTEXITCODE -ne 0) { throw 'pip upgrade failed' }
+          python -m pip install -r JARVIS_HOST/requirements.txt pyinstaller
+          if ($LASTEXITCODE -ne 0) { throw 'dependency installation failed' }
+
+      - name: Compile sources and run tests
+        shell: pwsh
+        run: |
+          python -m compileall -q JARVIS_HOST
+          if ($LASTEXITCODE -ne 0) { throw 'Python compile check failed' }
+          python -m pytest JARVIS_HOST/tests -q
+          if ($LASTEXITCODE -ne 0) { throw 'JARVIS test suite failed' }
+
+      - name: Build single-file EXE
+        shell: pwsh
+        run: |
+          python JARVIS_HOST/build_jarvis_exe.py
+          if ($LASTEXITCODE -ne 0) { throw 'single-file EXE build failed' }
+          $exe = 'JARVIS_HOST/dist/StagepulseJARVIS.exe'
+          if (!(Test-Path $exe)) { throw 'single-file EXE is missing' }
+          if ((Get-Item $exe).Length -lt 1000000) { throw 'EXE is unexpectedly small' }
+
+      - name: Prepare update archive and manifest
+        shell: pwsh
+        run: |
+          $dist = 'JARVIS_HOST/dist'
+          $package = 'JARVIS_HOST/release-package'
+          if (Test-Path $package) { Remove-Item $package -Recurse -Force }
+          New-Item -ItemType Directory -Path $package | Out-Null
+          Copy-Item "$dist/StagepulseJARVIS.exe" "$package/StagepulseJARVIS.exe"
+          Copy-Item 'JARVIS_HOST/VERSION' "$package/VERSION"
+          Copy-Item 'JARVIS_HOST/VERSION' "$dist/VERSION"
+          $zip = "$dist/StagepulseJARVIS-Windows.zip"
+          if (Test-Path $zip) { Remove-Item $zip -Force }
+          Compress-Archive -Path "$package/*" -DestinationPath $zip -CompressionLevel Optimal
+          $hash = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLowerInvariant()
+          $url = "https://github.com/${{ github.repository }}/releases/download/v${{ env.JARVIS_VERSION }}/StagepulseJARVIS-Windows.zip"
+          $metadata = @{
+            versionName = "$env:JARVIS_VERSION"
+            windowsVersionName = "$env:JARVIS_VERSION"
+            windowsUrl = $url
+            windowsSha256 = $hash
+            notes = 'Stagepulse JARVIS tek dosya Windows sürümü. İndirme SHA-256 ile doğrulanır.'
+          } | ConvertTo-Json -Depth 5
+          Set-Content -Path "$dist/update.json" -Value $metadata -Encoding utf8
+          Write-Host "Release version: $env:JARVIS_VERSION"
+          Write-Host "Windows package SHA-256: $hash"
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ env.JARVIS_VERSION }}
+          name: Stagepulse JARVIS v${{ env.JARVIS_VERSION }}
+          body: |
+            Stagepulse JARVIS tek dosya Windows sürümü.
+            Güncelleme paketi SHA-256 ile doğrulanır. API anahtarları EXE içine gömülmez.
+          make_latest: true
+          fail_on_unmatched_files: true
+          files: |
+            JARVIS_HOST/dist/StagepulseJARVIS.exe
+            JARVIS_HOST/dist/StagepulseJARVIS-Windows.zip
+            JARVIS_HOST/dist/VERSION
+            JARVIS_HOST/dist/update.json
