@@ -222,3 +222,23 @@ def test_phone_manager_parses_a_number_without_calling_automatically():
     result = phone.handle_command("ara +90 532 123 4567")
     assert result["success"] is True
     assert result["response"] == "+905321234567"
+
+def test_explicit_provider_does_not_silently_fallback_to_another_service(tmp_path, monkeypatch):
+    brain = fresh_brain(tmp_path, monkeypatch)
+    brain.provider = "ollama"
+    brain.groq_key = "test-key"
+    calls = []
+    monkeypatch.setattr(
+        brain, "_ollama",
+        lambda *_args, **_kwargs: "Ollama bağlantısında sorun oluştu: offline"
+    )
+    monkeypatch.setattr(
+        brain, "_compatible_groq",
+        lambda *_args, **_kwargs: calls.append("groq") or "cloud answer"
+    )
+
+    answer = brain.ask("Bu teknik metnin ana fikrini açıkla.")
+
+    assert answer.startswith("Yapay zekâ yanıtı alınamadı.")
+    assert calls == []
+
