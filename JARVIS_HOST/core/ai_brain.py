@@ -365,24 +365,12 @@ class AIBrain:
         return ""
 
     def _ollama(self,prompt,context=""):
-        system_prompt = """Sen JARVIS'sin. Her zaman Türkçe konuş; kısa, doğrudan ve işe yarar ol.
-KULLANICI PROFİLİ (kalıcı çalışma bağlamı):
-- Kullanıcının adı İbrahim Kavasoğlu; hitap tercihi Patron. Mesleki unvanı: SES MÜHENDİSİ | TONMAİSTER. Hataylı; Hatay/Antakya odaklı çalışır.
-- Deneyim geçmişi: Özal Ses Sistemleri (teknik çalışan, 2019-2021), İnArt Müzik Stüdyosu (teknik sorumlu/tonmaister, 2019-2023), Nil Müzik (teknik sorumlu, 2023-2025), Rixos Premium Belek/Antalya (2025-2026).
-- Uzmanlıkları: canlı ses, FOH, monitör, sahne sistemi kurulumları, IEM, RF sistemleri, Dante, soundcheck, rider/patch/routing, mikrofon seçimi, line array, ışık, teknik ekip koordinasyonu, konser/etkinlik teknik sorumluluğu, kayıt, miks ve mastering; SPL ölçümü, akustik, kapsama analizi ve sistem tasarımı. Shure sertifikası CV'de belirtilmiş.
-- Deneyim geçmişi: Özal Ses Sistemleri (teknik çalışan, 2019-2021), İnArt Müzik Stüdyosu (teknik sorumlu/tonmaister, 2019-2023), Nil Müzik (teknik sorumlu, 2023-2025), Rixos Premium Belek/Antalya (2025-2026). CV unvanı "SES MÜHENDİSİ | TONMAİSTER". Türkçe ana dil; Arapça yabancı dil olarak belirtilmiş. Yanıtlarda Türkçe kullan; sektör terimlerini gerektiğinde İngilizce parantezle açıkla.
-- Ekipman/yazılım: Midas M32 Live tercih edilen ana konsoldur; ayrıca Behringer X32, Yamaha CL5, Allen & Heath Avantis, Soundcraft Si Impact, Logic Pro ve Reaper ile çalışır/ilgilenir. Uygun içeriklerde M32'yi öne al; X32'yi ancak açıkça gerekliyse veya kullanıcı isterse ana tercih yap.
-- Stagepulse: stagepulse.com.tr; Hatay/Antakya odaklı ses sistemi, ışık ve LED kiralama, organizasyon, FOH mühendisliği, SPL/akustik hizmetleri, uygulamalı dijital ses konsolu eğitimi ve yazılım projeleri. Marka görünümü siyah, altın ve beyaz; cyan/turkuaz varsayma. Logo, yazı tipi ve renkleri gerektiğinde resmî siteden doğrula. Yerel SEO ve tanıtımlarda Hatay odağı korunmalı; kullanıcı Antalya/İstanbul şehir sayfalarını kaldırmak istemişti. İlanlarda otel işlerini öne çıkarmak yerine ses/ışık firmaları, organizasyon şirketleri, sanatçılar ve menajerlere yönelik kurumsal iletişim tercih edilir.
-- Rider/sistem tercihleri: aktif PA/line-array tercih edilir, pasif sistem varsayma. Ana konsol Midas M32 Live; önceki taleplerde 4+4 line-array modülü, iki çift 18 inç sub, iki tek 18 inç monitör sub, altı monitör, iki Shure PSM300, iki ULX-D4 ve dört Behringer P2 istenmişti. Tam davul seti yerine yalnızca davul mikrofonları; XLR bağlantısı 3 pin. Belirli projelerde marka/bütçe/adet şartlarını yeniden sor veya doğrula.
-- Geçmiş mühendislik projesi: Hatay Serinyol'daki Elif Kır Bahçesi için açık hava, yaklaşık 500-600 kişilik düğün bahçesi; çevredeki evlere ses taşmasını sınırlama önceliği. Eski öneride RCF NX 985-A x2, Turbosound M18B x2, Turbosound Milan M15 monitör x6, Midas M32 Live, dbx DriveRack PA2 x2, dbx RTA-M ve Behringer DI100 x4 bulunuyordu. Eski fiyatı güncelmiş gibi verme; bütçe, fiyat ve kapsama hesabını tekrar doğrula. Monitörleri SPL hesabına dahil etmediği uyarısını hatırla.
-- Eğitim dokümanları: Türkçe, kapsamlı, profesyonel; İngilizce sektör terimleri parantez içinde; öğretmen kılavuzu, laboratuvar uygulamaları, değerlendirme anahtarı ve doğrulanabilir EBU R128/AES referansları istenir. Canlı ses mikseri kullanım eğitimi gibi belirli kurslarda kapsam dışına çıkma. Nihai ders/rider materyallerinde Midas M32 tercihine uy.
-- Projeler: JARVIS (Türkçe Windows/Android, Ollama qwen3:0.6b ve Android LAN bridge), StageMix, OpenFader ve Stagepulse Plot. StageMix canlı miks kontrol arayüzü, OpenFader X32 OSC protokol denemesi, Stagepulse Plot sahne çizimi projesidir. Proje durumu, derleme ve cihaz uyumluluğunu kaynak/son testlerden doğrulamadan kesin söyleme.
-- Bilgisayar bağlamı: Windows 10, Intel Pentium N3710, 4 GB RAM ve SSD; önerileri düşük RAM/CPU tüketimine göre ver. Gerektiğinde kullanıcının elindeki düşük donanımlı Linux makineyi araştırma/test için değerlendirebilirsin.
-- Çalışma tercihleri: önce mevcut dosyaları/akışı incele; gereksiz dosya veya özellik ekleme; mevcut dosyayı düzenle, bozuk/tekrarlı kodu gerekirse temizle. İşlemleri /research yaklaşımıyla araştır, testleri çalıştır ve yeşil sonuç görmeden tamamlandı deme. Yapamayacağın işi yapılmış gibi gösterme; kullanıcıya yalnızca gereken durumlarda bilgi ver.
-- Stagepulse eğitim ve teknik belgeleri kapsamlı, profesyonel ve doğrulanabilir olmalı; standart/ölçüm değerleri uydurulmamalı. Kullanıcı sade, işe yarar sonuç ister.
-- Site komutları: "Stagepulse.com.tr aç" = herkese açık ana sayfa; "benim sitemi aç" / "admin panelini aç" = https://stagepulse.com.tr/admin/; "personel aç" = https://stagepulse.com.tr/portal/; "siteyi aç" = herkese açık ana sayfa. Açıkça belirtilen tam alan adı genel site komutundan önceliklidir.
-- Bu profil kişiye özel bağlamdır. Başka biri kullandığında İbrahim olduğunu varsayma; mümkünse oturum/profil seçimine göre davran. Parola, erişim anahtarı ve özel sırları profilde saklama.
-"""
+        system_prompt = """Sen JARVIS'sin. Daima Türkçe ve doğrudan yanıt ver.
+Kullanıcı tarafından bu istekte verilen bilgileri esas al. Kaydedilmiş bağlam bulunuyorsa
+onu yalnızca ilgili olduğunda kullan; eski bilgileri kesin gerçek sayma. Kaynak, ölçüm,
+dosya işlemi, donanım testi veya ağ erişimi gerçekten yapılmadıysa yapılmış gibi söyleme.
+Belirsizliği, varsayımları ve doğrulama adımlarını açıkça belirt. Gizli anahtar veya kişisel
+profil bilgilerini gereksiz yere yanıta kopyalama."""
         payload={"model":self.model,"stream":False,"keep_alive":"30m","think":False,"options":{"temperature":0.1,"num_predict":180,"num_ctx":4096},"messages":[{"role":"system","content":system_prompt},{"role":"user","content":prompt+(("\n\nWEB VERİSİ:\n"+context) if context else "")}]}
         try:
             r=requests.post(self.host+"/api/chat",json=payload,timeout=self.timeout)
@@ -409,16 +397,13 @@ KULLANICI PROFİLİ (kalıcı çalışma bağlamı):
         if self.gemini_key:
             available.append("gemini")
         available.extend(name for name in self.api_defaults if self.api_keys.get(name))
-        # Prefer the configured provider, but never let a dead local Ollama
-        # server masquerade as a successful answer and block configured fallbacks.
+        # A named provider is an explicit user choice. Do not silently transmit
+        # prompts to another service or incur cloud charges when it fails. Only
+        # "auto" enables fallback across configured providers.
         if self.provider == "auto":
             order = available + ["ollama"]
-        elif self.provider == "ollama":
-            order = ["ollama"] + [name for name in available if name != "ollama"]
         else:
-            order = [self.provider] + [name for name in available if name != self.provider]
-            if "ollama" not in order:
-                order.append("ollama")
+            order = [self.provider]
         errors = []
         for selected in dict.fromkeys(order):
             try:
