@@ -11,6 +11,7 @@ import android.os.*;
 import android.provider.Settings;
 import android.net.Uri;
 import android.speech.*;
+import android.speech.tts.TextToSpeech;
 import android.view.Gravity;
 import android.widget.*;
 import java.text.SimpleDateFormat;
@@ -29,6 +30,8 @@ public class MainActivity extends Activity {
     private HudView hud;
     private SpeechRecognizer speech;
     private PiperTts piper;
+    private TextToSpeech androidTts;
+    private volatile boolean androidTtsReady = false;
     private AgencyAgent activeAgent;
     private android.content.SharedPreferences bridgePrefs;
     private android.content.SharedPreferences updatePrefs;
@@ -52,6 +55,7 @@ public class MainActivity extends Activity {
             if (candidate.isFile()) pendingUpdateFile = candidate;
         }
         buildUi();
+        initAndroidTts();
         initPiper();
         initSpeech();
         append("JARVIS","PATRON, bağımsız Android çekirdeği hazır.");
@@ -336,6 +340,31 @@ public class MainActivity extends Activity {
         return null;
     }
 
+    private void initAndroidTts(){
+        try {
+            androidTts = new TextToSpeech(getApplicationContext(), result -> {
+                if (result != TextToSpeech.SUCCESS || androidTts == null) {
+                    androidTtsReady = false;
+                    runOnUiThread(this::refreshVoiceStatus);
+                    return;
+                }
+                int language = androidTts.setLanguage(new Locale("tr", "TR"));
+                androidTts.setSpeechRate(1.0f);
+                androidTtsReady = language != TextToSpeech.LANG_MISSING_DATA
+                        && language != TextToSpeech.LANG_NOT_SUPPORTED;
+                runOnUiThread(() -> {
+                    refreshVoiceStatus();
+                    if (androidTtsReady && (piper == null || !piper.isReady())) {
+                        append("JARVIS", "Türkçe Android sistem ses yedeği hazır.");
+                    }
+                });
+            });
+        } catch (Exception exc) {
+            androidTtsReady = false;
+            append("SYSTEM", "Android sistem ses yedeği başlatılamadı: " + exc.getClass().getSimpleName());
+        }
+    }
+
     private void initPiper(){
         piper=new PiperTts(this);
         status.setText("● VOICE INIT");
@@ -347,15 +376,19 @@ public class MainActivity extends Activity {
                     speak("PATRON, bağımsız Android çekirdeği hazır. Türkçe ses motoru da hazır.");
                 }),
                 () -> runOnUiThread(() -> {
-                    status.setText("● VOICE ERROR");
-                    status.setTextColor(0xFFFF5555);
-                    append("JARVIS","Türkçe ses motoru başlatılamadı. Piper/eSpeak başlatma hatası. Logcat: JARVIS_PIPER.");
+                    refreshVoiceStatus();
+                    append("JARVIS", androidTtsReady
+                            ? "Piper başlatılamadı; Android sistem ses yedeği kullanılacak."
+                            : "Türkçe ses motoru başlatılamadı. Android TTS dil desteğini kontrol edin. Logcat: JARVIS_PIPER.");
                 })
         );
     }
 
     private void initSpeech(){
-        if(!SpeechRecognizer.isRecognitionAvailable(this))return;
+        if(!SpeechRecognizer.isRecognitionAvailable(this)){
+            append("SYSTEM", "Bu cihazda Android konuşma tanıma servisi bulunamadı.");
+            return;
+        }
         speech=SpeechRecognizer.createSpeechRecognizer(this);
         speech.setRecognitionListener(new RecognitionListener(){
             public void onReadyForSpeech(Bundle b){hud.setActive(true);status.setText("● LISTENING");}
@@ -409,9 +442,10 @@ public class MainActivity extends Activity {
     private void statusPost(String text){runOnUiThread(()->status.setText(text));}
 
     private void refreshVoiceStatus(){
-        boolean ready=piper!=null&&piper.isReady();
-        status.setText(ready?"● ONLINE":"● VOICE ERROR");
-        status.setTextColor(ready?gold():0xFFFF5555);
+        boolean piperReady = piper != null && piper.isReady();
+        boolean ready = piperReady || androidTtsReady;
+        status.setText(ready ? (piperReady ? "● ONLINE / PIPER" : "● ONLINE / ANDROID TTS") : "● VOICE ERROR");
+        status.setTextColor(ready ? gold() : 0xFFFF5555);
     }
 
     private boolean isResearchCommand(String c){
@@ -453,13 +487,22 @@ public class MainActivity extends Activity {
         return "Komutunuz alındı Patron. Bu komut için Android yerel çekirdeğinde henüz bir işlem tanımlı değil.";
     }
 
-    private void speak(String s){if(piper!=null&&piper.isReady())piper.speak(s);}
+    private void speak(String s){
+        if (s == null || s.trim().isEmpty()) return;
+        if (piper != null && piper.isReady()) { piper.speak(s); return; }
+        if (androidTtsReady && androidTts != null) {
+            androidTts.speak(s, TextToSpeech.QUEUE_FLUSH, null, "stagepulse-jarvis-" + System.currentTimeMillis());
+        } else {
+            append("SYSTEM", "Ses motoru kullanılamıyor; metin yanıtı ekranda gösterildi.");
+        }
+    }
     private void append(String who,String msg){chat.append((chat.length()>0?"\n\n":"")+who+"\n"+msg);}
     private void toast(String s){Toast.makeText(this,s,Toast.LENGTH_SHORT).show();}
 
     @Override protected void onDestroy(){
         if(speech!=null)speech.destroy();
         if(piper!=null)piper.release();
+        if(androidTts!=null){androidTts.stop();androidTts.shutdown();androidTts=null;}
         io.shutdownNow();
         super.onDestroy();
     }
