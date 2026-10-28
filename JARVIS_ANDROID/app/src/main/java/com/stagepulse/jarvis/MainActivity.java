@@ -5,6 +5,8 @@ import android.app.Activity;
 import android.app.AlertDialog;
 import android.app.PendingIntent;
 import android.content.*;
+import android.database.Cursor;
+import android.provider.ContactsContract;
 import android.content.pm.PackageManager;
 import android.content.pm.PackageInstaller;
 import android.os.*;
@@ -24,6 +26,7 @@ import java.util.concurrent.*;
 
 public class MainActivity extends Activity {
     private static final int REQ_AUDIO=9001;
+    private static final int REQ_CONTACT=9002;
     private final ExecutorService io=Executors.newSingleThreadExecutor();
     private EditText command;
     private Button textSendButton;
@@ -73,9 +76,22 @@ public class MainActivity extends Activity {
         TextView title=tv("J.A.R.V.I.S.",27,gold()); title.setTypeface(null,1); top.addView(title);
         top.addView(tv("JUST A RATHER VERY INTELLIGENT SYSTEM   //   STAGEPULSE",10,muted()));
         status=tv("● ONLINE",11,gold()); status.setTypeface(null,1); top.addView(status); root.addView(top);
-        hud=new HudView(this); root.addView(hud,new LinearLayout.LayoutParams(-1,0,1));
-        chat=tv("",12,white()); chat.setGravity(Gravity.BOTTOM); chat.setPadding(8,8,8,8); chat.setBackgroundColor(panel());
-        ScrollView scroll=new ScrollView(this); scroll.addView(chat); root.addView(scroll,new LinearLayout.LayoutParams(-1,0,.65f));
+        boolean landscape = getResources().getConfiguration().orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE;
+        hud=new HudView(this);
+        chat=tv("",12,white()); chat.setGravity(Gravity.BOTTOM); chat.setPadding(12,12,12,12); chat.setBackgroundColor(panel());
+        ScrollView scroll=new ScrollView(this); scroll.setBackgroundColor(panel()); scroll.addView(chat);
+        if (landscape) {
+            LinearLayout workArea = new LinearLayout(this);
+            workArea.setOrientation(LinearLayout.HORIZONTAL);
+            LinearLayout.LayoutParams hudParams = new LinearLayout.LayoutParams(0, -1, 0.48f);
+            LinearLayout.LayoutParams chatParams = new LinearLayout.LayoutParams(0, -1, 0.52f);
+            workArea.addView(hud, hudParams);
+            workArea.addView(scroll, chatParams);
+            root.addView(workArea, new LinearLayout.LayoutParams(-1, 0, 1));
+        } else {
+            root.addView(hud, new LinearLayout.LayoutParams(-1, 0, 0.42f));
+            root.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 0.58f));
+        }
         LinearLayout inputRow=new LinearLayout(this);
         inputRow.setOrientation(LinearLayout.HORIZONTAL);
         inputRow.setGravity(Gravity.CENTER_VERTICAL);
@@ -98,11 +114,12 @@ public class MainActivity extends Activity {
 
         LinearLayout row=new LinearLayout(this);
         row.setOrientation(LinearLayout.HORIZONTAL);
-        Button voice=button("◉ VOICE"), agents=button("AGENTS"), host=button("HOST"), update=button("UPDATE");
+        Button voice=button("◉ SES"), agents=button("UZMANLAR"), host=button("BİLGİSAYAR"), update=button("GÜNCELLE"), call=button("ARA");
         row.addView(voice,new LinearLayout.LayoutParams(0,58,1));
         row.addView(agents,new LinearLayout.LayoutParams(0,58,1));
         row.addView(host,new LinearLayout.LayoutParams(0,58,1));
         row.addView(update,new LinearLayout.LayoutParams(0,58,1));
+        row.addView(call,new LinearLayout.LayoutParams(0,58,1));
         root.addView(row);
 
         setContentView(root);
@@ -118,6 +135,70 @@ public class MainActivity extends Activity {
         agents.setOnClickListener(v->showAgents());
         host.setOnClickListener(v->showHostSettings());
         update.setOnClickListener(v->checkForUpdates(true));
+        call.setOnClickListener(v->pickContactForCall());
+    }
+
+    private void pickContactForCall() {
+        try {
+            Intent pick = new Intent(Intent.ACTION_PICK, ContactsContract.CommonDataKinds.Phone.CONTENT_URI);
+            startActivityForResult(pick, REQ_CONTACT);
+        } catch (Exception e) {
+            toast("Kişi seçici açılamadı. Telefon uygulamasından numara seçebilirsin.");
+        }
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode != REQ_CONTACT || resultCode != RESULT_OK || data == null || data.getData() == null) return;
+        try (Cursor cursor = getContentResolver().query(
+                data.getData(),
+                new String[]{ContactsContract.CommonDataKinds.Phone.NUMBER},
+                null, null, null)) {
+            if (cursor != null && cursor.moveToFirst()) {
+                String number = cursor.getString(0);
+                confirmDial(number);
+            } else {
+                toast("Seçilen kişide telefon numarası bulunamadı.");
+            }
+        } catch (Exception e) {
+            toast("Telefon numarası okunamadı.");
+        }
+    }
+
+    private boolean handleDialCommand(String text) {
+        java.util.regex.Matcher matcher = java.util.regex.Pattern
+                .compile("^(?:ara|telefon ara|telefonu ara)\\s+([+0-9() .-]{7,24})$", java.util.regex.Pattern.CASE_INSENSITIVE | java.util.regex.Pattern.UNICODE_CASE)
+                .matcher(text == null ? "" : text.trim());
+        if (!matcher.matches()) return false;
+        String rawNumber = matcher.group(1).trim();
+        String digits = rawNumber.replaceAll("\\D", "");
+        if (digits.length() < 7 || digits.length() > 15) return false;
+        String number = (rawNumber.startsWith("+") ? "+" : "") + digits;
+        append("PATRON", text.trim());
+        command.setText("");
+        confirmDial(number);
+        return true;
+    }
+
+    private void confirmDial(String number) {
+        if (number == null || number.trim().isEmpty()) {
+            toast("Telefon numarası bulunamadı.");
+            return;
+        }
+        new AlertDialog.Builder(this)
+                .setTitle("TELEFON ARAMASI")
+                .setMessage("Telefonun arama ekranı açılacak. Aramayı başlatmak için cihazdaki arama düğmesine sen basacaksın.\\n\\n" + number)
+                .setPositiveButton("ARAMA EKRANINI AÇ", (dialog, which) -> {
+                    try {
+                        Intent dial = new Intent(Intent.ACTION_DIAL, Uri.parse("tel:" + Uri.encode(number)));
+                        startActivity(dial);
+                    } catch (Exception e) {
+                        toast("Telefon arama ekranı açılamadı.");
+                    }
+                })
+                .setNegativeButton("İPTAL", null)
+                .show();
     }
 
     private Button button(String s){Button b=new Button(this);b.setText(s);b.setTextColor(gold());b.setTextSize(11);b.setBackgroundColor(panel());return b;}
@@ -434,6 +515,7 @@ public class MainActivity extends Activity {
     private void sendCommand(String text){
         final String cmd=text.trim();
         if(cmd.isEmpty()){toast("Önce gönderilecek metni yaz.");return;}
+        if(handleDialCommand(cmd)) return;
         if(textSendButton!=null)textSendButton.setEnabled(false);
         append("PATRON",cmd);
         command.setText("");
