@@ -52,6 +52,7 @@ jobs:
       - name: Compile sources and run tests
         shell: pwsh
         run: |
+          $env:PYTHONPATH = "JARVIS_HOST"
           python -m compileall -q JARVIS_HOST
           if ($LASTEXITCODE -ne 0) { throw 'Python compile check failed' }
           python -m pytest JARVIS_HOST/tests -q
