@@ -5,6 +5,7 @@ Set JARVIS_BRIDGE_TOKEN to a long random secret before exposing on the LAN.
 The bridge only accepts authenticated JSON requests and binds to the local network.
 """
 import json
+import ipaddress
 import os
 import secrets
 import sys
@@ -58,7 +59,18 @@ class Handler(BaseHTTPRequestHandler):
     def log_message(self, fmt, *args):
         print("[bridge] " + (fmt % args))
 
+    def _peer_is_local(self):
+        try:
+            address = ipaddress.ip_address(self.client_address[0])
+            if getattr(address, "ipv4_mapped", None) is not None:
+                address = address.ipv4_mapped
+            return address.is_loopback or address.is_private or address.is_link_local
+        except (ValueError, IndexError, TypeError):
+            return False
+
     def do_GET(self):
+        if not self._peer_is_local():
+            return self._send(403, {"success": False, "error": "local_network_only"})
         if urlparse(self.path).path != "/api/health":
             return self._send(404, {"success": False, "error": "not_found"})
         if not secrets.compare_digest(self.headers.get("Authorization", ""), "Bearer " + TOKEN):
@@ -66,6 +78,8 @@ class Handler(BaseHTTPRequestHandler):
         return self._send(200, {"success": True, "service": "JARVIS", "sharedHost": True})
 
     def do_POST(self):
+        if not self._peer_is_local():
+            return self._send(403, {"success": False, "error": "local_network_only"})
         if urlparse(self.path).path != "/api/command":
             return self._send(404, {"success": False, "error": "not_found"})
         if not secrets.compare_digest(self.headers.get("Authorization", ""), "Bearer " + TOKEN):
