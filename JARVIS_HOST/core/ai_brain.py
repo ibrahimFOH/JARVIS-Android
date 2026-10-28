@@ -403,37 +403,40 @@ KULLANICI PROFİLİ (kalıcı çalışma bağlamı):
                 "güncel olmayan bilgileri kesin gerçek sayma):\n" + str(memory_context) +
                 "\n\nKULLANICI İSTEĞİ:\n" + str(prompt or "")
             )
+        available = []
+        if self.groq_key:
+            available.append("groq")
+        if self.gemini_key:
+            available.append("gemini")
+        available.extend(name for name in self.api_defaults if self.api_keys.get(name))
+        # Prefer the configured provider, but never let a dead local Ollama
+        # server masquerade as a successful answer and block configured fallbacks.
         if self.provider == "auto":
-            order = []
-            if self.groq_key:
-                order.append("groq")
-            if self.gemini_key:
-                order.append("gemini")
-            order.extend(name for name in self.api_defaults if self.api_keys.get(name))
-            order.append("ollama")
+            order = available + ["ollama"]
+        elif self.provider == "ollama":
+            order = ["ollama"] + [name for name in available if name != "ollama"]
         else:
-            order = [self.provider]
+            order = [self.provider] + [name for name in available if name != self.provider]
+            if "ollama" not in order:
+                order.append("ollama")
         errors = []
-        for selected in order:
+        for selected in dict.fromkeys(order):
             try:
                 if selected == "ollama":
-                    return self._ollama(prompt, context)
+                    answer = self._ollama(prompt, context)
+                    if not answer or answer.startswith("Ollama bağlantısında sorun oluştu:"):
+                        raise RuntimeError(answer or "Ollama boş yanıt döndürdü.")
+                    return answer
                 if selected == "gemini":
                     return self._gemini_api(prompt, context)
                 if selected == "groq":
-                    if not self.groq_key:
-                        raise RuntimeError("Groq API anahtarı boş.")
                     return self._compatible_groq(prompt, context)
                 if selected in self.api_defaults:
                     return self._compatible_api(selected, prompt, context)
                 raise RuntimeError("Bilinmeyen sağlayıcı: " + selected)
             except Exception as exc:
                 errors.append(selected.upper() + ": " + str(exc))
-                if self.provider != "auto":
-                    break
-        if self.provider == "ollama":
-            return "Ollama bağlantısında sorun oluştu. Ollama servisinin çalıştığını ve modelin yüklü olduğunu kontrol et."
-        return "Yapay zekâ yanıtı alınamadı. " + " | ".join(errors)
+        return "Yapay zekâ yanıtı alınamadı. Denenen sağlayıcılar: " + " | ".join(errors)
 
     def _compatible_groq(self, prompt, context=""):
         user_text = prompt + (("\n\nWEB VERİSİ:\n" + context) if context else "")

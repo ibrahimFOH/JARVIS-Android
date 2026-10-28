@@ -53,3 +53,16 @@ def test_recognition_service_error_is_visible(monkeypatch):
     )
     assert recognizer._recognize_audio(object()) is None
     assert "offline" in recognizer.last_recognition_error.lower()
+
+
+def test_voice_button_pauses_and_resumes_continuous_listening():
+    from pathlib import Path
+
+    source_path = Path(__file__).resolve().parents[1] / "gui" / "main_window.py"
+    source = source_path.read_text(encoding="utf-8")
+    assert '"VOICE INPUT: CONTINUOUS LISTENING PAUSED"' in source
+    assert "self.jarvis.stop_listening()" in source
+    assert "self.jarvis.process_voice_command()" in source
+    assert "self.root.after(600, self._resume_continuous_listening_after_voice)" in source
+    assert "CONTINUOUS LISTENING RESUMED" in source
+    assert "SÜREKLİ DİNLEME ETKİN; ayrı kayıt başlatılmadı." not in source

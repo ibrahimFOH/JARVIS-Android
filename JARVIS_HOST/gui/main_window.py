@@ -1035,11 +1035,23 @@ def _render_response_safe(self, result):
         )
 
 def _jarvis_gui_voice(self):
-    if getattr(self, "always_listening_var", None) is not None and self.always_listening_var.get():
-        self._activity("SÜREKLİ DİNLEME ETKİN; ayrı kayıt başlatılmadı.")
-        return
+    # The one-shot VOICE button remains useful while continuous listening is
+    # enabled: pause the background loop, capture one command, then resume it.
     if getattr(self, "_voice_busy", False):
         return
+
+    self._resume_continuous_after_voice = bool(
+        getattr(self, "always_listening_var", None)
+        and self.always_listening_var.get()
+    )
+    if self._resume_continuous_after_voice:
+        self.always_listening_var.set(False)
+        config.set("voice.continuous_listening", False, save=True)
+        try:
+            self.jarvis.stop_listening()
+        except Exception as exc:
+            logger.warning("Sürekli dinleme geçici olarak durdurulamadı: " + str(exc))
+        self._activity("VOICE INPUT: CONTINUOUS LISTENING PAUSED")
 
     self._voice_busy = True
     try:
@@ -1066,6 +1078,7 @@ def _jarvis_gui_voice(self):
         daemon=True,
         name="JARVIS-Voice"
     ).start()
+
 
 def _voice_result_safe(self, result):
     if isinstance(result, dict) and result.get("success"):
@@ -1101,6 +1114,35 @@ def _voice_finished_safe(self):
         self.status.configure(text="● ONLINE", text_color=GREEN)
     except Exception:
         pass
+
+    if getattr(self, "_resume_continuous_after_voice", False):
+        self._resume_continuous_after_voice = False
+        try:
+            self.root.after(600, self._resume_continuous_listening_after_voice)
+        except Exception as exc:
+            logger.warning("Sürekli dinlemeye dönüş zamanlanamadı: " + str(exc))
+
+
+def _resume_continuous_listening_after_voice(self):
+    if not self._running or not self.voice_var.get():
+        return
+    try:
+        started = self.jarvis.start_listening()
+        if started:
+            self.always_listening_var.set(True)
+            config.set("voice.continuous_listening", True, save=True)
+            self.status.configure(text="● ALWAYS LISTENING", text_color=GOLD)
+            self.phase.configure(text="LISTENING")
+            self._activity("CONTINUOUS LISTENING RESUMED")
+        else:
+            self.always_listening_var.set(False)
+            config.set("voice.continuous_listening", False, save=True)
+            self.status.configure(text="● ERROR", text_color=RED)
+            self._activity("CONTINUOUS LISTENING RESUME FAILED")
+    except Exception as exc:
+        logger.error("Sürekli dinleme yeniden başlatılamadı: " + str(exc))
+        self._activity("CONTINUOUS LISTENING RESUME FAILED")
+
 
 JarvisGUI._on_response = _jarvis_gui_response
 JarvisGUI._on_voice_clicked = _jarvis_gui_voice

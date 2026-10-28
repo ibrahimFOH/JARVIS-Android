@@ -160,3 +160,65 @@ def test_legacy_api_provider_settings_are_preserved(tmp_path, monkeypatch):
     assert brain.api_keys["openai"] == "legacy-openai-key"
     assert brain.api_models["openai"] == "legacy-model"
     assert brain.api_base_urls["openai"] == "https://example.invalid/v1"
+
+
+def test_ollama_failure_uses_configured_groq_fallback(tmp_path, monkeypatch):
+    brain = fresh_brain(tmp_path, monkeypatch)
+    brain.provider = "ollama"
+    brain.groq_key = "test-key"
+    monkeypatch.setattr(
+        brain, "_ollama",
+        lambda _prompt, _context="": "Ollama bağlantısında sorun oluştu: sunucu kapalı",
+    )
+    monkeypatch.setattr(
+        brain, "_compatible_groq",
+        lambda _prompt, _context="": "Türkçe yedek yanıt",
+    )
+    assert brain.ask("Bir test sorusu") == "Türkçe yedek yanıt"
+
+
+def test_repository_manager_add_commit_and_status(tmp_path):
+    import subprocess
+    from core.agent_tools import RepositoryManager
+
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    subprocess.run(["git", "init", str(repo)], check=True, capture_output=True, text=True)
+    subprocess.run(["git", "-C", str(repo), "config", "user.email", "jarvis-test@example.invalid"], check=True)
+    subprocess.run(["git", "-C", str(repo), "config", "user.name", "JARVIS Test"], check=True)
+    manager = RepositoryManager(settings_path=tmp_path / "repository.json")
+    bound = manager.bind(str(repo))
+    assert bound["success"] is True
+    (repo / "sample.txt").write_text("Stagepulse test", encoding="utf-8")
+    added = manager.handle_command("git add .")
+    assert added["success"] is True
+    committed = manager.handle_command("git commit Initial test commit")
+    assert committed["success"] is True
+    status = manager.handle_command("git status")
+    assert status["success"] is True
+    assert "sample.txt" not in status["response"]
+
+
+def test_repository_manager_refuses_pull_with_uncommitted_files(tmp_path):
+    import subprocess
+    from core.agent_tools import RepositoryManager
+
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    subprocess.run(["git", "init", str(repo)], check=True, capture_output=True, text=True)
+    manager = RepositoryManager(settings_path=tmp_path / "repository.json")
+    assert manager.bind(str(repo))["success"] is True
+    (repo / "untracked.txt").write_text("keep me", encoding="utf-8")
+    result = manager.handle_command("git pull")
+    assert result["success"] is False
+    assert "Yerel değişiklikler var" in result["response"]
+
+
+def test_phone_manager_parses_a_number_without_calling_automatically():
+    from core.agent_tools import PhoneManager
+
+    phone = PhoneManager()
+    phone._dial = lambda number: {"success": True, "response": number}
+    result = phone.handle_command("ara +90 532 123 4567")
+    assert result["success"] is True
+    assert result["response"] == "+905321234567"

@@ -40,6 +40,30 @@ def _normalize_direct_command(value: str) -> str:
     return re.sub(r"\s+", " ", value).strip()
 
 
+def _open_pdf_from_command(command: str):
+    """Open a user-specified PDF in the operating system's default viewer."""
+    original = str(command or "").strip()
+    match = re.match(r"^(?:pdf\s+aç|pdf\s+ac|pdf\s+open|aç\s+pdf|ac\s+pdf)\s+(.+)$", original, flags=re.IGNORECASE)
+    if not match:
+        return None
+    target = match.group(1).strip().strip('"').strip("'")
+    path = Path(target).expanduser()
+    if path.suffix.lower() != ".pdf":
+        return {"success": False, "response": "PDF aç komutuna .pdf dosyasının tam yolunu ekle. Örnek: pdf aç C:\\Belgeler\\rapor.pdf", "intent": "open_pdf"}
+    if not path.is_file():
+        return {"success": False, "response": "PDF dosyası bulunamadı: " + str(path), "intent": "open_pdf"}
+    try:
+        resolved = path.resolve()
+        if os.name == "nt":
+            os.startfile(str(resolved))
+        else:
+            webbrowser.open(resolved.as_uri())
+        return {"success": True, "response": "PDF varsayılan görüntüleyicide açılıyor: " + str(resolved), "intent": "open_pdf"}
+    except Exception as exc:
+        logger.warning("PDF harici görüntüleyicide açılamadı: " + str(exc))
+        return {"success": False, "response": "PDF görüntüleyici açılamadı: " + str(exc), "intent": "open_pdf"}
+
+
 def _parse_image_download_command(command: str):
     """Return (matched, url) for explicit image-download commands."""
     original = str(command or "").strip()
@@ -214,6 +238,34 @@ class CommandProcessor:
 
     def process(self, command: str) -> Dict[str, Any]:
         logger.command(command)
+
+        # Explicit OS integrations run before generic intent/LLM routing so that
+        # Git operations and dialer requests execute rather than merely being described.
+        try:
+            from core.agent_tools import RepositoryManager, PhoneManager
+            if RepositoryManager.is_command(command):
+                if not hasattr(self, "_repository_manager"):
+                    self._repository_manager = RepositoryManager()
+                routed = self._repository_manager.handle_command(command)
+                if routed is not None:
+                    return routed
+            if PhoneManager.is_command(command):
+                if not hasattr(self, "_phone_manager"):
+                    self._phone_manager = PhoneManager()
+                routed = self._phone_manager.handle_command(command)
+                if routed is not None:
+                    return routed
+        except Exception as exc:
+            logger.error("System integration failed: " + str(exc))
+            return {
+                "success": False,
+                "response": "Bu sistem işlemi tamamlanamadı: " + str(exc),
+                "intent": "system_integration",
+            }
+
+        pdf_result = _open_pdf_from_command(command)
+        if pdf_result is not None:
+            return pdf_result
 
         image_request, image_url = _parse_image_download_command(command)
         if image_request:
