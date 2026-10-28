@@ -215,6 +215,30 @@ class CommandProcessor:
     def process(self, command: str) -> Dict[str, Any]:
         logger.command(command)
 
+        # Explicit OS integrations run before generic intent/LLM routing so that
+        # Git operations and dialer requests execute rather than merely being described.
+        try:
+            from core.agent_tools import RepositoryManager, PhoneManager
+            if RepositoryManager.is_command(command):
+                if not hasattr(self, "_repository_manager"):
+                    self._repository_manager = RepositoryManager()
+                routed = self._repository_manager.handle_command(command)
+                if routed is not None:
+                    return routed
+            if PhoneManager.is_command(command):
+                if not hasattr(self, "_phone_manager"):
+                    self._phone_manager = PhoneManager()
+                routed = self._phone_manager.handle_command(command)
+                if routed is not None:
+                    return routed
+        except Exception as exc:
+            logger.error("System integration failed: " + str(exc))
+            return {
+                "success": False,
+                "response": "Bu sistem işlemi tamamlanamadı: " + str(exc),
+                "intent": "system_integration",
+            }
+
         image_request, image_url = _parse_image_download_command(command)
         if image_request:
             if not image_url:
