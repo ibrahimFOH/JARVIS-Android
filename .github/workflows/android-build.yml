@@ -89,6 +89,24 @@ jobs:
         with:
           gradle-version: '8.9'
 
+      - name: Verify visible Android text-send button
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          source = Path("JARVIS_ANDROID/app/src/main/java/com/stagepulse/jarvis/MainActivity.java").read_text(encoding="utf-8")
+          checks = {
+              "visible Turkish send button": 'textSendButton=button("GÖNDER")',
+              "button sends typed text": 'textSendButton.setOnClickListener(v->sendCommand(command.getText().toString()))',
+              "keyboard send action": 'command.setImeOptions(EditorInfo.IME_ACTION_SEND)',
+              "empty input feedback": 'Önce gönderilecek metni yaz.',
+              "button re-enabled after response": 'if(textSendButton!=null)textSendButton.setEnabled(true);',
+          }
+          for label, snippet in checks.items():
+              assert snippet in source, "Missing Android text-send behavior: " + label
+          print("Android text-send button and handlers: PASS")
+          PY
+
       - name: Build debug APK
         run: gradle -p JARVIS_ANDROID assembleDebug --no-daemon
 
