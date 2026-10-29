@@ -11,6 +11,9 @@ import android.content.pm.PackageManager;
 import android.content.pm.PackageInstaller;
 import android.os.*;
 import android.provider.Settings;
+import android.graphics.Canvas;
+import android.graphics.Paint;
+import android.graphics.pdf.PdfDocument;
 import android.net.Uri;
 import android.speech.*;
 import android.view.Gravity;
@@ -27,6 +30,8 @@ import java.util.concurrent.*;
 public class MainActivity extends Activity {
     private static final int REQ_AUDIO=9001;
     private static final int REQ_CONTACT=9002;
+    private static final int REQ_OPEN_PDF=9003;
+    private static final int REQ_EXPORT_PDF=9004;
     private boolean pendingListenPermission = false;
     private boolean speechListening = false;
     private final ExecutorService io=Executors.newSingleThreadExecutor();
@@ -35,7 +40,6 @@ public class MainActivity extends Activity {
     private TextView status,chat;
     private HudView hud;
     private SpeechRecognizer speech;
-    private PiperTts piper;
     private android.speech.tts.TextToSpeech systemTts;
     private boolean systemTtsReady = false;
     private AgencyAgent activeAgent;
@@ -61,7 +65,7 @@ public class MainActivity extends Activity {
             if (candidate.isFile()) pendingUpdateFile = candidate;
         }
         buildUi();
-        initPiper();
+        initSystemTtsFallback();
         initSpeech();
         append("JARVIS","PATRON, bağımsız Android çekirdeği hazır.");
         checkForUpdates(false);
@@ -72,57 +76,100 @@ public class MainActivity extends Activity {
     }
 
     private void buildUi(){
-        LinearLayout root=new LinearLayout(this); root.setOrientation(LinearLayout.VERTICAL);
-        root.setPadding(18,12,18,12); root.setBackgroundColor(0xFF050505);
-        LinearLayout top=new LinearLayout(this); top.setOrientation(LinearLayout.VERTICAL);
-        TextView title=tv("J.A.R.V.I.S.",27,gold()); title.setTypeface(null,1); top.addView(title);
-        top.addView(tv("JUST A RATHER VERY INTELLIGENT SYSTEM   //   STAGEPULSE",10,muted()));
-        status=tv("● ONLINE",11,gold()); status.setTypeface(null,1); top.addView(status); root.addView(top);
-        boolean landscape = getResources().getConfiguration().orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE;
+        LinearLayout root=new LinearLayout(this);
+        root.setOrientation(LinearLayout.VERTICAL);
+        root.setBaselineAligned(false);
+        root.setPadding(12,8,12,4);
+        root.setBackgroundColor(0xFF050505);
+
+        LinearLayout top=new LinearLayout(this);
+        top.setOrientation(LinearLayout.VERTICAL);
+        TextView title=tv("J.A.R.V.I.S.",25,gold());
+        title.setTypeface(null,1);
+        top.addView(title,new LinearLayout.LayoutParams(-1,-2));
+        top.addView(tv("JUST A RATHER VERY INTELLIGENT SYSTEM   //   STAGEPULSE",10,muted()),
+                new LinearLayout.LayoutParams(-1,-2));
+        status=tv("● ONLINE",11,gold());
+        status.setTypeface(null,1);
+        top.addView(status,new LinearLayout.LayoutParams(-1,-2));
+        root.addView(top,new LinearLayout.LayoutParams(-1,-2));
+
+        boolean landscape=getResources().getConfiguration().orientation==android.content.res.Configuration.ORIENTATION_LANDSCAPE;
         hud=new HudView(this);
-        chat=tv("",12,white()); chat.setGravity(Gravity.BOTTOM); chat.setPadding(12,12,12,12); chat.setBackgroundColor(panel());
-        ScrollView scroll=new ScrollView(this); scroll.setBackgroundColor(panel()); scroll.addView(chat);
-        if (landscape) {
-            LinearLayout workArea = new LinearLayout(this);
+        chat=tv("",13,white());
+        chat.setGravity(Gravity.TOP|Gravity.START);
+        chat.setPadding(12,12,12,12);
+        chat.setBackgroundColor(panel());
+        chat.setTextIsSelectable(true);
+        ScrollView scroll=new ScrollView(this);
+        scroll.setFillViewport(true);
+        scroll.setBackgroundColor(panel());
+        scroll.addView(chat,new ScrollView.LayoutParams(-1,-2));
+
+        if(landscape){
+            LinearLayout workArea=new LinearLayout(this);
             workArea.setOrientation(LinearLayout.HORIZONTAL);
-            LinearLayout.LayoutParams hudParams = new LinearLayout.LayoutParams(0, -1, 0.48f);
-            LinearLayout.LayoutParams chatParams = new LinearLayout.LayoutParams(0, -1, 0.52f);
-            workArea.addView(hud, hudParams);
-            workArea.addView(scroll, chatParams);
-            root.addView(workArea, new LinearLayout.LayoutParams(-1, 0, 1));
-        } else {
-            root.addView(hud, new LinearLayout.LayoutParams(-1, 0, 0.42f));
-            root.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 0.58f));
+            workArea.setBaselineAligned(false);
+            workArea.addView(hud,new LinearLayout.LayoutParams(0,-1,0.36f));
+            workArea.addView(scroll,new LinearLayout.LayoutParams(0,-1,0.64f));
+            root.addView(workArea,new LinearLayout.LayoutParams(-1,0,1f));
+        }else{
+            root.addView(hud,new LinearLayout.LayoutParams(-1,0,0.34f));
+            root.addView(scroll,new LinearLayout.LayoutParams(-1,0,0.66f));
         }
+
         LinearLayout inputRow=new LinearLayout(this);
         inputRow.setOrientation(LinearLayout.HORIZONTAL);
         inputRow.setGravity(Gravity.CENTER_VERTICAL);
+        inputRow.setPadding(0,4,0,2);
 
         command=new EditText(this);
-        command.setHint("Mesajını yaz...");
+        command.setHint("Türkçe komut yaz...");
         command.setHintTextColor(muted());
         command.setTextColor(white());
-        command.setMinLines(2);
-        command.setMaxLines(4);
-        command.setImeOptions(EditorInfo.IME_ACTION_SEND);
+        command.setSingleLine(false);
+        command.setMinLines(1);
+        command.setMaxLines(2);
+        command.setImeOptions(EditorInfo.IME_ACTION_SEND|EditorInfo.IME_FLAG_NO_EXTRACT_UI);
+        command.setInputType(android.text.InputType.TYPE_CLASS_TEXT|android.text.InputType.TYPE_TEXT_FLAG_CAP_SENTENCES|android.text.InputType.TYPE_TEXT_FLAG_MULTI_LINE);
         command.setBackgroundColor(panel());
-        command.setPadding(14,12,14,12);
-        inputRow.addView(command,new LinearLayout.LayoutParams(0,-2,1));
+        command.setPadding(12,6,12,6);
+        inputRow.addView(command,new LinearLayout.LayoutParams(0,54,1f));
 
         textSendButton=button("GÖNDER");
+        textSendButton.setTextSize(12);
+        textSendButton.setMinWidth(0);
+        textSendButton.setPadding(4,0,4,0);
         textSendButton.setContentDescription("Yazılı komutu gönder");
-        inputRow.addView(textSendButton,new LinearLayout.LayoutParams(112,66));
-        root.addView(inputRow,new LinearLayout.LayoutParams(-1,-2));
+        inputRow.addView(textSendButton,new LinearLayout.LayoutParams(94,52));
+        root.addView(inputRow,new LinearLayout.LayoutParams(-1,58));
 
-        LinearLayout row=new LinearLayout(this);
-        row.setOrientation(LinearLayout.HORIZONTAL);
-        Button voice=button("◉ SES"), agents=button("UZMANLAR"), host=button("BİLGİSAYAR"), update=button("GÜNCELLE"), call=button("ARA");
-        row.addView(voice,new LinearLayout.LayoutParams(0,58,1));
-        row.addView(agents,new LinearLayout.LayoutParams(0,58,1));
-        row.addView(host,new LinearLayout.LayoutParams(0,58,1));
-        row.addView(update,new LinearLayout.LayoutParams(0,58,1));
-        row.addView(call,new LinearLayout.LayoutParams(0,58,1));
-        root.addView(row);
+        HorizontalScrollView actionScroller=new HorizontalScrollView(this);
+        actionScroller.setHorizontalScrollBarEnabled(false);
+        actionScroller.setFillViewport(false);
+        LinearLayout actions=new LinearLayout(this);
+        actions.setOrientation(LinearLayout.HORIZONTAL);
+        actions.setGravity(Gravity.CENTER_VERTICAL);
+        actions.setPadding(0,0,0,2);
+
+        Button voice=button("◉ SES");
+        Button agents=button("UZMANLAR");
+        Button host=button("BİLGİSAYAR");
+        Button update=button("GÜNCELLE");
+        Button call=button("ARA");
+        Button openPdf=button("PDF AÇ");
+        Button savePdf=button("SOHBET PDF");
+        Button clear=button("TEMİZLE");
+        Button[] controls={voice,agents,host,update,call,openPdf,savePdf,clear};
+        int[] widths={78,100,112,96,70,82,112,86};
+        for(int i=0;i<controls.length;i++){
+            controls[i].setTextSize(10);
+            controls[i].setMinWidth(0);
+            controls[i].setPadding(2,0,2,0);
+            actions.addView(controls[i],new LinearLayout.LayoutParams(widths[i],46));
+        }
+        actionScroller.addView(actions,new HorizontalScrollView.LayoutParams(-2,48));
+        root.addView(actionScroller,new LinearLayout.LayoutParams(-1,48));
 
         setContentView(root);
         textSendButton.setOnClickListener(v->sendCommand(command.getText().toString()));
@@ -138,6 +185,89 @@ public class MainActivity extends Activity {
         host.setOnClickListener(v->showHostSettings());
         update.setOnClickListener(v->checkForUpdates(true));
         call.setOnClickListener(v->pickContactForCall());
+        openPdf.setOnClickListener(v->openPdf());
+        savePdf.setOnClickListener(v->exportChatPdf());
+        clear.setOnClickListener(v->{
+            chat.setText("");
+            append("JARVIS","Sohbet temizlendi.");
+        });
+    }
+
+    private void openPdf(){
+        Intent intent=new Intent(Intent.ACTION_OPEN_DOCUMENT);
+        intent.addCategory(Intent.CATEGORY_OPENABLE);
+        intent.setType("application/pdf");
+        try{
+            startActivityForResult(intent,REQ_OPEN_PDF);
+        }catch(Exception e){
+            toast("PDF seçici açılamadı.");
+        }
+    }
+
+    private void exportChatPdf(){
+        Intent intent=new Intent(Intent.ACTION_CREATE_DOCUMENT);
+        intent.addCategory(Intent.CATEGORY_OPENABLE);
+        intent.setType("application/pdf");
+        intent.putExtra(Intent.EXTRA_TITLE,"Stagepulse-JARVIS-Sohbet.pdf");
+        try{
+            startActivityForResult(intent,REQ_EXPORT_PDF);
+        }catch(Exception e){
+            toast("PDF kaydetme ekranı açılamadı.");
+        }
+    }
+
+    private void writeChatPdf(Uri destination){
+        if(destination==null)return;
+        PdfDocument pdf=new PdfDocument();
+        Paint paint=new Paint(Paint.ANTI_ALIAS_FLAG);
+        paint.setTextSize(10f);
+        paint.setColor(android.graphics.Color.BLACK);
+        int pageNumber=1;
+        PdfDocument.Page page=pdf.startPage(new PdfDocument.PageInfo.Builder(595,842,pageNumber).create());
+        Canvas canvas=page.getCanvas();
+        int x=42,y=48,lineHeight=15;
+        canvas.drawText("STAGEPULSE // J.A.R.V.I.S. SOHBET KAYDI",x,y,paint);
+        y+=28;
+        String content=chat==null?"":chat.getText().toString();
+        for(String paragraph:content.split("\\n",-1)){
+            if(paragraph.isEmpty()){
+                y+=lineHeight;
+            }else{
+                String remaining=paragraph;
+                while(!remaining.isEmpty()){
+                    int max= Math.max(20,(int)((595-84)/Math.max(1,paint.measureText("M"))));
+                    int cut=Math.min(max,remaining.length());
+                    while(cut>1&&paint.measureText(remaining.substring(0,cut))>595-84)cut--;
+                    canvas.drawText(remaining.substring(0,cut),x,y,paint);
+                    remaining=remaining.substring(cut).replaceFirst("^\\\\s+", "");
+                    y+=lineHeight;
+                    if(y>800){
+                        pdf.finishPage(page);
+                        pageNumber++;
+                        page=pdf.startPage(new PdfDocument.PageInfo.Builder(595,842,pageNumber).create());
+                        canvas=page.getCanvas();
+                        y=48;
+                    }
+                }
+            }
+            if(y>800){
+                pdf.finishPage(page);
+                pageNumber++;
+                page=pdf.startPage(new PdfDocument.PageInfo.Builder(595,842,pageNumber).create());
+                canvas=page.getCanvas();
+                y=48;
+            }
+        }
+        pdf.finishPage(page);
+        try(OutputStream output=getContentResolver().openOutputStream(destination,"w")){
+            if(output==null)throw new java.io.IOException("Dosya hedefi açılamadı.");
+            pdf.writeTo(output);
+            toast("Sohbet PDF olarak kaydedildi.");
+        }catch(Exception e){
+            toast("PDF kaydedilemedi: "+e.getClass().getSimpleName());
+        }finally{
+            pdf.close();
+        }
     }
 
     private void pickContactForCall() {
@@ -150,21 +280,34 @@ public class MainActivity extends Activity {
     }
 
     @Override
-    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
-        super.onActivityResult(requestCode, resultCode, data);
-        if (requestCode != REQ_CONTACT || resultCode != RESULT_OK || data == null || data.getData() == null) return;
-        try (Cursor cursor = getContentResolver().query(
-                data.getData(),
-                new String[]{ContactsContract.CommonDataKinds.Phone.NUMBER},
-                null, null, null)) {
-            if (cursor != null && cursor.moveToFirst()) {
-                String number = cursor.getString(0);
-                confirmDial(number);
-            } else {
-                toast("Seçilen kişide telefon numarası bulunamadı.");
+    protected void onActivityResult(int requestCode,int resultCode,Intent data){
+        super.onActivityResult(requestCode,resultCode,data);
+        if(resultCode!=RESULT_OK||data==null||data.getData()==null)return;
+        Uri selected=data.getData();
+        if(requestCode==REQ_CONTACT){
+            try(Cursor cursor=getContentResolver().query(
+                    selected,
+                    new String[]{ContactsContract.CommonDataKinds.Phone.NUMBER},
+                    null,null,null)){
+                if(cursor!=null&&cursor.moveToFirst()){
+                    confirmDial(cursor.getString(0));
+                }else{
+                    toast("Seçilen kişide telefon numarası bulunamadı.");
+                }
+            }catch(Exception e){
+                toast("Telefon numarası okunamadı.");
             }
-        } catch (Exception e) {
-            toast("Telefon numarası okunamadı.");
+        }else if(requestCode==REQ_OPEN_PDF){
+            Intent view=new Intent(Intent.ACTION_VIEW);
+            view.setDataAndType(selected,"application/pdf");
+            view.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            try{
+                startActivity(Intent.createChooser(view,"PDF dosyasını aç"));
+            }catch(Exception e){
+                toast("PDF görüntüleyici bulunamadı.");
+            }
+        }else if(requestCode==REQ_EXPORT_PDF){
+            writeChatPdf(selected);
         }
     }
 
@@ -448,25 +591,6 @@ public class MainActivity extends Activity {
         return null;
     }
 
-    private void initPiper(){
-        piper=new PiperTts(this);
-        status.setText("● VOICE INIT");
-        piper.initialize(
-                () -> runOnUiThread(() -> {
-                    status.setText("● ONLINE");
-                    status.setTextColor(gold());
-                    append("JARVIS","Türkçe DFKI ses motoru hazır. Doğrudan cihaz üzerinde çalışıyorum.");
-                    speak("PATRON, bağımsız Android çekirdeği hazır. Türkçe ses motoru da hazır.");
-                }),
-                () -> runOnUiThread(() -> {
-                    status.setText("● VOICE FALLBACK");
-                    status.setTextColor(gold());
-                    append("JARVIS","Piper başlatılamadı. Android sistemindeki Türkçe ses motoru yedeği deneniyor.");
-                    initSystemTtsFallback();
-                })
-        );
-    }
-
     private void initSystemTtsFallback() {
         if (systemTts != null) return;
         systemTts = new android.speech.tts.TextToSpeech(getApplicationContext(), result -> runOnUiThread(() -> {
@@ -479,8 +603,8 @@ public class MainActivity extends Activity {
                 if (systemTtsReady) {
                     status.setText("● ONLINE · SYSTEM TTS");
                     status.setTextColor(gold());
-                    append("JARVIS","Android sistem ses yedeği hazır. Türkçe ses desteği kullanılabilir.");
-                    speak("PATRON, Piper kullanılamadı. Android sistem ses yedeği hazır.");
+                    append("JARVIS","Android sistem Türkçe ses motoru hazır.");
+                    speak("PATRON, JARVIS hazır. Türkçe ses motoru aktif.");
                 } else {
                     status.setText("● VOICE ERROR");
                     status.setTextColor(0xFFFF5555);
@@ -490,7 +614,7 @@ public class MainActivity extends Activity {
                 systemTtsReady = false;
                 status.setText("● VOICE ERROR");
                 status.setTextColor(0xFFFF5555);
-                append("JARVIS","Piper ve Android sistem ses motoru başlatılamadı.");
+                append("JARVIS","Android sistem ses motoru başlatılamadı. Ayarlardan Türkçe konuşma sesini yükleyin.");
             }
         }));
     }
@@ -595,10 +719,8 @@ public class MainActivity extends Activity {
     private void statusPost(String text){runOnUiThread(()->status.setText(text));}
 
     private void refreshVoiceStatus(){
-        boolean piperReady=piper!=null&&piper.isReady();
-        boolean ready=piperReady||systemTtsReady;
-        status.setText(piperReady?"● ONLINE · PIPER":(systemTtsReady?"● ONLINE · SYSTEM TTS":"● VOICE ERROR"));
-        status.setTextColor(ready?gold():0xFFFF5555);
+        status.setText(systemTtsReady?"● ONLINE · SYSTEM TTS":"● VOICE ERROR");
+        status.setTextColor(systemTtsReady?gold():0xFFFF5555);
     }
 
     private boolean isResearchCommand(String c){
@@ -641,14 +763,10 @@ public class MainActivity extends Activity {
     }
 
     private void speak(String s){
-        if (s == null || s.trim().isEmpty()) return;
-        if (piper != null && piper.isReady()) {
-            piper.speak(s);
-            return;
-        }
-        if (systemTts != null && systemTtsReady) {
-            systemTts.speak(s, android.speech.tts.TextToSpeech.QUEUE_ADD, null,
-                    "stagepulse-jarvis-" + System.nanoTime());
+        if(s==null||s.trim().isEmpty())return;
+        if(systemTts!=null&&systemTtsReady){
+            systemTts.speak(s,android.speech.tts.TextToSpeech.QUEUE_ADD,null,
+                    "stagepulse-jarvis-"+System.nanoTime());
         }
     }
     private void append(String who,String msg){chat.append((chat.length()>0?"\n\n":"")+who+"\n"+msg);}
@@ -656,7 +774,6 @@ public class MainActivity extends Activity {
 
     @Override protected void onDestroy(){
         if(speech!=null)speech.destroy();
-        if(piper!=null)piper.release();
         if(systemTts!=null){systemTts.stop();systemTts.shutdown();systemTts=null;}
         io.shutdownNow();
         super.onDestroy();
