@@ -39,12 +39,12 @@ class AIBrain:
             return provider_settings.get(field, default) if isinstance(provider_settings, dict) else default
 
         self.api_defaults = {
-            "openai": ("https://api.openai.com/v1", "gpt-4.1-mini"),
-            "grok": ("https://api.x.ai/v1", "grok-4.1"),
+            "openai": ("https://api.openai.com/v1", "gpt-6-luna"),
+            "grok": ("https://api.x.ai/v1", "grok-4.7"),
             "anthropic": ("https://api.anthropic.com/v1", "claude-sonnet-4-6"),
             "deepseek": ("https://api.deepseek.com", "deepseek-flash"),
             "perplexity": ("https://api.perplexity.ai", "sonar"),
-            "openrouter": ("https://openrouter.ai/api/v1", "openai/gpt-4.1-mini"),
+            "openrouter": ("https://openrouter.ai/api/v1", "openai/gpt-6-luna"),
             "custom": ("https://api.openai.com/v1", "model-name"),
         }
         self.gemini_key = os.environ.get(
@@ -85,8 +85,11 @@ class AIBrain:
 
         # Migrate retired provider aliases in saved settings to current defaults.
         for name, obsolete in {
-            "deepseek": {"deepseek-chat", "deepseek-reasoner"},
+            "openai": {"gpt-4.1-mini", "gpt-4.1-mini-2025-04-14", "gpt-4.1", "gpt-4.1-2025-04-14"},
+            "grok": {"grok-4.1"},
             "anthropic": {"claude-sonnet-4-5"},
+            "deepseek": {"deepseek-chat", "deepseek-reasoner"},
+            "openrouter": {"openai/gpt-4.1-mini", "openai/gpt-4.1-mini-2025-04-14", "openai/gpt-4.1"},
         }.items():
             if self.api_models.get(name) in obsolete:
                 self.api_models[name] = self.api_defaults[name][1]
