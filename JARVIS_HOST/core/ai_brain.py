@@ -39,12 +39,12 @@ class AIBrain:
             return provider_settings.get(field, default) if isinstance(provider_settings, dict) else default
 
         self.api_defaults = {
-            "openai": ("https://api.openai.com/v1", "gpt-4.1-mini"),
-            "grok": ("https://api.x.ai/v1", "grok-4.1"),
+            "openai": ("https://api.openai.com/v1", "gpt-6-luna"),
+            "grok": ("https://api.x.ai/v1", "grok-4.7"),
             "anthropic": ("https://api.anthropic.com/v1", "claude-sonnet-4-6"),
             "deepseek": ("https://api.deepseek.com", "deepseek-flash"),
             "perplexity": ("https://api.perplexity.ai", "sonar"),
-            "openrouter": ("https://openrouter.ai/api/v1", "openai/gpt-4.1-mini"),
+            "openrouter": ("https://openrouter.ai/api/v1", "openai/gpt-6-luna"),
             "custom": ("https://api.openai.com/v1", "model-name"),
         }
         self.gemini_key = os.environ.get(
@@ -85,8 +85,11 @@ class AIBrain:
 
         # Migrate retired provider aliases in saved settings to current defaults.
         for name, obsolete in {
-            "deepseek": {"deepseek-chat", "deepseek-reasoner"},
+            "openai": {"gpt-4.1-mini", "gpt-4.1-mini-2025-04-14", "gpt-4.1", "gpt-4.1-2025-04-14"},
+            "grok": {"grok-4.1"},
             "anthropic": {"claude-sonnet-4-5"},
+            "deepseek": {"deepseek-chat", "deepseek-reasoner"},
+            "openrouter": {"openai/gpt-4.1-mini", "openai/gpt-4.1-mini-2025-04-14", "openai/gpt-4.1"},
         }.items():
             if self.api_models.get(name) in obsolete:
                 self.api_models[name] = self.api_defaults[name][1]
@@ -300,14 +303,27 @@ class AIBrain:
                 timeout=min(self.timeout, 60),
             )
         else:
+            chat_payload = {
+                "model": model,
+                "stream": False,
+                "temperature": 0.2,
+                "messages": [
+                    {"role": "system", "content": "Sen JARVIS'sin. Daima Türkçe yanıt ver; kısa, doğru ve işe yarar ol. Bilmediğin bilgiyi uydurma."},
+                    {"role": "user", "content": user_text},
+                ],
+            }
+            # GPT-6 models reject sampling parameters when reasoning is enabled.
+            # Luna supports reasoning_effort="none", which also permits temperature.
+            model_id = str(model).lower().split("/")[-1]
+            if model_id.startswith("gpt-6"):
+                if model_id in {"gpt-6-luna", "gpt-6-sol", "gpt-6.1-terra"}:
+                    chat_payload["reasoning_effort"] = "none"
+                else:
+                    chat_payload.pop("temperature", None)
             response = self.session.post(
                 base_url + "/chat/completions",
                 headers={"Authorization": "Bearer " + key, "Content-Type": "application/json"},
-                json={"model": model, "stream": False, "temperature": 0.2,
-                      "messages": [
-                          {"role": "system", "content": "Sen JARVIS'sin. Daima Türkçe yanıt ver; kısa, doğru ve işe yarar ol. Bilmediğin bilgiyi uydurma."},
-                          {"role": "user", "content": user_text},
-                      ]},
+                json=chat_payload,
                 timeout=min(self.timeout, 60),
             )
         if not response.ok:

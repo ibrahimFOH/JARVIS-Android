@@ -263,8 +263,33 @@ def test_default_config_path_does_not_depend_on_current_working_directory(tmp_pa
 def test_default_cloud_models_use_current_model_aliases(tmp_path, monkeypatch):
     brain = fresh_brain(tmp_path, monkeypatch)
     assert brain.gemini_model == "gemini-3.8-flash"
+    assert brain.api_defaults["openai"][1] == "gpt-6-luna"
+    assert brain.api_defaults["grok"][1] == "grok-4.7"
     assert brain.api_defaults["anthropic"][1] == "claude-sonnet-4-6"
     assert brain.api_defaults["deepseek"][1] == "deepseek-flash"
+    assert brain.api_defaults["openrouter"][1] == "openai/gpt-6-luna"
+
+
+def test_legacy_cloud_model_aliases_migrate_to_current_defaults(tmp_path, monkeypatch):
+    import json
+
+    settings_path = tmp_path / "ai_settings.json"
+    settings_path.write_text(json.dumps({
+        "provider": "openai",
+        "api_models": {
+            "openai": "gpt-4.1-mini",
+            "grok": "grok-4.1",
+            "openrouter": "openai/gpt-4.1-mini",
+        },
+        "api_keys": {},
+    }), encoding="utf-8")
+    monkeypatch.setattr(AIBrain, "_settings_file", staticmethod(lambda: settings_path))
+
+    brain = AIBrain()
+
+    assert brain.api_models["openai"] == "gpt-6-luna"
+    assert brain.api_models["grok"] == "grok-4.7"
+    assert brain.api_models["openrouter"] == "openai/gpt-6-luna"
 
 def test_dpapi_failure_does_not_fall_back_to_plaintext(monkeypatch):
     original_import = builtins.__import__
@@ -366,3 +391,46 @@ def test_failed_plaintext_migration_preserves_original_credentials(tmp_path, mon
 
     assert settings_path.read_text(encoding="utf-8") == original
     assert legacy_ai["providers"]["openai"]["api_key"] == "legacy-openai-secret"
+
+
+
+def test_gpt6_chat_completions_use_supported_sampling_parameters(tmp_path, monkeypatch):
+    brain = fresh_brain(tmp_path, monkeypatch)
+    brain.api_keys["openai"] = "test-secret"
+
+    class Response:
+        ok = True
+        status_code = 200
+        text = ""
+
+        def json(self):
+            return {"choices": [{"message": {"content": "Yanıt tamam"}}]}
+
+    class Session:
+        def __init__(self):
+            self.calls = []
+
+        def post(self, url, **kwargs):
+            self.calls.append((url, kwargs))
+            return Response()
+
+    session = Session()
+    brain.session = session
+
+    brain.api_models["openai"] = "gpt-6-luna"
+    assert brain._compatible_api("openai", "test prompt") == "Yanıt tamam"
+    luna_payload = session.calls[-1][1]["json"]
+    assert luna_payload["reasoning_effort"] == "none"
+    assert luna_payload["temperature"] == 0.2
+
+    brain.api_models["openai"] = "gpt-6-astra"
+    assert brain._compatible_api("openai", "test prompt") == "Yanıt tamam"
+    astra_payload = session.calls[-1][1]["json"]
+    assert "temperature" not in astra_payload
+    assert "reasoning_effort" not in astra_payload
+
+    brain.api_models["openrouter"] = "openai/gpt-6-luna"
+    brain.api_keys["openrouter"] = "test-secret"
+    assert brain._compatible_api("openrouter", "test prompt") == "Yanıt tamam"
+    router_payload = session.calls[-1][1]["json"]
+    assert router_payload["reasoning_effort"] == "none"
