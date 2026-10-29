@@ -9,11 +9,11 @@ Mimari:
 
 ## Android + Windows ortak çekirdek
 
-1. Windows bilgisayarda `JARVIS_HOST/START_JARVIS_WITH_ANDROID.bat` dosyasını çalıştırın.
-2. İlk çalıştırmada `JARVIS_HOST/config/bridge_token.txt` dosyası otomatik oluşturulur. Token'ı kimseyle paylaşmayın.
-3. Windows bilgisayarının yerel IPv4 adresini öğrenin (`ipconfig`). Telefon ve bilgisayar aynı Wi-Fi/LAN üzerinde olmalı.
-4. APK'de **HOST** düğmesine basın; adres olarak `http://WINDOWS_IP:8765`, token olarak `bridge_token.txt` içeriğini girip bağlantıyı test edin.
-5. Windows Güvenlik Duvarı bağlantıyı engellerse yalnızca özel ağ profili için TCP 8765'e izin verin.
+1. Windows bilgisayarda `StagepulseJARVIS.exe` uygulamasını açın (kaynak kurulumunda `JARVIS_HOST/START_JARVIS_WITH_ANDROID.bat` kullanılabilir).
+2. Masaüstü arayüzündeki **ANDROID HOST** düğmesine basın ve HTTP/özel Wi-Fi güvenlik uyarısını onaylayın.
+3. Gösterilen `http://WINDOWS_IP:8765` adreslerinden uygun olanı Android uygulamasındaki **HOST** alanına girin.
+4. Arayüzdeki **TOKEN'I KOPYALA** düğmesine basıp token'ı Android HOST ayarlarına yapıştırın. Token dosyası Windows kullanıcı profilinde saklanır; kimseyle paylaşmayın.
+5. Gerekirse Windows Güvenlik Duvarı'nda TCP 8765'e yalnızca özel ağ profili için izin verin.
 
 **Ağ güvenliği:** `android_bridge.py` doğrudan çalıştırıldığında yalnızca `127.0.0.1` üzerinde dinler. LAN bağlantısı için yukarıdaki başlatıcı LAN modunu açıkça etkinleştirir. LAN modu HTTP kullandığından yalnızca güvendiğin özel Wi-Fi üzerinde kullan; TCP 8765'i internete yönlendirme ve token'ı paylaşma. Android istemcisi düz HTTP adreslerini özel IPv4 LAN aralıklarıyla sınırlar. Uzaktan erişim gerekiyorsa HTTPS/VPN kullan.
 
