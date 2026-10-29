@@ -63,6 +63,14 @@ def test_only_github_release_assets_are_trusted():
     assert not WindowsUpdateManager._trusted_release_url("https://example.com/release.zip")
     assert not WindowsUpdateManager._trusted_release_url("https://github.com/another-owner/another-repo/releases/download/v2/file.zip")
     assert not WindowsUpdateManager._trusted_release_url("http://github.com/ibrahimFOH/JARVIS-Android/releases/download/v2/file.zip")
+    assert not WindowsUpdateManager._trusted_release_url(
+        "https://github.com:8443/ibrahimFOH/JARVIS-Android/releases/download/v2.2.3/JARVIS-Windows.zip",
+        expected_tag="v2.2.3",
+    )
+    assert not WindowsUpdateManager._trusted_release_url(
+        "https://github.com/ibrahimFOH/JARVIS-Android/releases/download/v2.2.3/../JARVIS-Windows.zip",
+        expected_tag="v2.2.3",
+    )
     assert WindowsUpdateManager._trusted_final_download_url(
         "https://release-assets.githubusercontent.com/signed-asset"
     )
