@@ -310,11 +310,14 @@ def test_legacy_plaintext_api_keys_are_migrated_to_dpapi(tmp_path, monkeypatch):
 
     monkeypatch.setattr(config_module, "get_config", lambda: LegacyConfig())
     monkeypatch.setattr(AIBrain, "_settings_file", staticmethod(lambda: settings_path))
-    monkeypatch.setattr(
-        AIBrain,
-        "_protect_key",
-        staticmethod(lambda secret: {"dpapi": "test-encrypted:" + secret} if secret else {"plain": ""}),
-    )
+    import hashlib
+
+    def fake_protect(secret):
+        if not secret:
+            return {"plain": ""}
+        return {"dpapi": hashlib.sha256(("test-encrypted:" + secret).encode("utf-8")).hexdigest()}
+
+    monkeypatch.setattr(AIBrain, "_protect_key", staticmethod(fake_protect))
 
     brain = AIBrain()
 
@@ -324,9 +327,9 @@ def test_legacy_plaintext_api_keys_are_migrated_to_dpapi(tmp_path, monkeypatch):
     assert "legacy-gemini-secret" not in persisted
     assert "legacy-openai-secret" not in persisted
     saved = json.loads(persisted)
-    assert saved["gemini_api_key"] == {"dpapi": "test-encrypted:legacy-gemini-secret"}
-    assert saved["api_keys"]["openai"] == {"dpapi": "test-encrypted:legacy-openai-secret"}
-    assert legacy_ai["providers"]["openai"]["api_key"] == {"dpapi": "test-encrypted:legacy-openai-secret"}
+    assert saved["gemini_api_key"] == {"dpapi": hashlib.sha256(b"test-encrypted:legacy-gemini-secret").hexdigest()}
+    assert saved["api_keys"]["openai"] == {"dpapi": hashlib.sha256(b"test-encrypted:legacy-openai-secret").hexdigest()}
+    assert legacy_ai["providers"]["openai"]["api_key"] == {"dpapi": hashlib.sha256(b"test-encrypted:legacy-openai-secret").hexdigest()}
 
 
 def test_failed_plaintext_migration_preserves_original_credentials(tmp_path, monkeypatch):
