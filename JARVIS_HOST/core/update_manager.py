@@ -49,14 +49,40 @@ class WindowsUpdateManager:
         return tuple(int(part) for part in match.groups()) if match else (0, 0, 0)
 
     @staticmethod
-    def _trusted_release_url(value):
+    def _trusted_release_url(value, expected_tag=None):
         parsed = urlparse(str(value or ""))
+        asset_prefix = f"/{REPOSITORY}/releases/download/"
         return (
             parsed.scheme == "https"
             and parsed.hostname == "github.com"
-            and parsed.path.startswith(f"/{REPOSITORY}/releases/download/")
+            and parsed.path.startswith(asset_prefix)
             and parsed.username is None
             and parsed.password is None
+            and not parsed.query
+            and not parsed.fragment
+            and (
+                expected_tag is None
+                or parsed.path.startswith(asset_prefix + expected_tag + "/")
+            )
+        )
+
+    @staticmethod
+    def _trusted_final_download_url(value):
+        try:
+            parsed = urlparse(str(value or ""))
+            host = (parsed.hostname or "").lower()
+            port = parsed.port
+        except ValueError:
+            return False
+        return (
+            parsed.scheme == "https"
+            and parsed.username is None
+            and parsed.password is None
+            and port in (None, 443)
+            and (
+                host in {"github.com", "api.github.com"}
+                or host.endswith(".githubusercontent.com")
+            )
         )
 
     def current_version(self):
@@ -112,6 +138,8 @@ class WindowsUpdateManager:
         response.raise_for_status()
         release = response.json()
         tag_name = str(release.get("tag_name", ""))
+        if not re.fullmatch(r"v\d+\.\d+\.\d+", tag_name):
+            raise ValueError("GitHub Release etiketi vMAJOR.MINOR.PATCH biçiminde değil.")
         assets = release.get("assets") or []
         metadata_url = next(
             (
@@ -121,17 +149,26 @@ class WindowsUpdateManager:
             ),
             None,
         )
-        if not self._trusted_release_url(metadata_url):
-            raise ValueError("En son sürüm güvenilir bir update.json dosyası içermiyor.")
+        if not self._trusted_release_url(metadata_url, expected_tag=tag_name):
+            raise ValueError("En son sürüm güvenilir, aynı etikete ait bir update.json içermiyor.")
 
         metadata_response = session.get(metadata_url, timeout=self.timeout)
         metadata_response.raise_for_status()
+        response_url = getattr(metadata_response, "url", None)
+        if response_url and not self._trusted_final_download_url(response_url):
+            raise ValueError("Güncelleme manifesti güvenilir olmayan bir adrese yönlendirildi.")
         metadata = metadata_response.json()
         package_url = metadata.get("windowsUrl")
         package_hash = str(metadata.get("windowsSha256", "")).lower()
         version_name = str(metadata.get("versionName", ""))
-        if not self._trusted_release_url(package_url):
-            raise ValueError("Windows güncelleme paketi geçerli bir GitHub Release adresi değil.")
+        if (
+            metadata.get("tagName") != tag_name
+            or not re.fullmatch(r"\d+\.\d+\.\d+", version_name)
+            or tag_name != "v" + version_name
+        ):
+            raise ValueError("GitHub Release etiketi ile update.json sürüm bilgileri uyuşmuyor.")
+        if not self._trusted_release_url(package_url, expected_tag=tag_name):
+            raise ValueError("Windows güncelleme paketi aynı sürüm etiketine ait geçerli bir GitHub Release adresi değil.")
         if not re.fullmatch(r"[a-f0-9]{64}", package_hash):
             raise ValueError("Windows paketi SHA-256 bilgisi eksik veya hatalı.")
         if not version_name:
@@ -182,6 +219,9 @@ class WindowsUpdateManager:
             headers={"User-Agent": "Stagepulse-JARVIS-Windows-Updater/1.0"},
         ) as response:
             response.raise_for_status()
+            final_url = getattr(response, "url", None)
+            if final_url and not self._trusted_final_download_url(final_url):
+                raise ValueError("Windows paketi güvenilir olmayan bir sunucuya yönlendirildi.")
             length = int(response.headers.get("Content-Length", "0") or 0)
             if length > MAX_PACKAGE_BYTES:
                 raise ValueError("Windows paketi izin verilen boyutu aşıyor.")
