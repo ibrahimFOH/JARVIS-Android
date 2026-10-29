@@ -62,7 +62,7 @@ Android güncellemesinin mevcut kurulumun üzerine yüklenebilmesi için bütün
 4. **TOKEN'I KOPYALA** düğmesiyle erişim token'ını kopyala ve Android HOST ayarlarına yapıştır. Token dosyası EXE modunda `%APPDATA%\\StagepulseJARVIS\\config\\bridge_token.txt` altında saklanır.
 5. Telefon ve bilgisayar aynı yerel ağda olmalı. Gerekirse Windows Güvenlik Duvarı'nda TCP 8765'e yalnızca özel ağdan izin ver.
 
-**Ağ güvenliği:** Köprü doğrudan `python android_bridge.py` ile çalıştırıldığında yalnızca `127.0.0.1` üzerinde dinler. Telefon bağlantısı için yukarıdaki başlatıcı LAN modunu açıkça etkinleştirir. LAN modu HTTP kullandığından yalnızca güvendiğin özel Wi-Fi üzerinde kullan; TCP 8765'i internete yönlendirme, token'ı paylaşma veya halka açık Wi-Fi'de bağlanma. Android istemcisi HTTP adreslerini özel IPv4 LAN aralıklarıyla sınırlar. Uzaktan erişim gerekiyorsa HTTPS/VPN kullan.
+**Ağ güvenliği:** Köprü doğrudan `python android_bridge.py` ile çalıştırıldığında yalnızca `127.0.0.1` üzerinde dinler. Masaüstü arayüzündeki **ANDROID HOST** düğmesi, kullanıcı onayından sonra LAN dinleyicisini açar. LAN modu HTTP kullandığından yalnızca güvendiğin özel Wi-Fi üzerinde kullan; TCP 8765'i internete yönlendirme, token'ı paylaşma veya halka açık Wi-Fi'de bağlanma. Android istemcisi HTTP adreslerini özel IPv4 LAN aralıklarıyla sınırlar. Uzaktan erişim gerekiyorsa HTTPS/VPN kullan.
 
 Köprüyü internete açma ve token'ı repoya yükleme. Token dosyası yerel kalmalıdır.
 
