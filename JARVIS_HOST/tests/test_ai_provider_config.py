@@ -391,3 +391,46 @@ def test_failed_plaintext_migration_preserves_original_credentials(tmp_path, mon
 
     assert settings_path.read_text(encoding="utf-8") == original
     assert legacy_ai["providers"]["openai"]["api_key"] == "legacy-openai-secret"
+
+
+
+def test_gpt6_chat_completions_use_supported_sampling_parameters(tmp_path, monkeypatch):
+    brain = fresh_brain(tmp_path, monkeypatch)
+    brain.api_keys["openai"] = "test-secret"
+
+    class Response:
+        ok = True
+        status_code = 200
+        text = ""
+
+        def json(self):
+            return {"choices": [{"message": {"content": "Yanıt tamam"}}]}
+
+    class Session:
+        def __init__(self):
+            self.calls = []
+
+        def post(self, url, **kwargs):
+            self.calls.append((url, kwargs))
+            return Response()
+
+    session = Session()
+    brain.session = session
+
+    brain.api_models["openai"] = "gpt-6-luna"
+    assert brain._compatible_api("openai", "test prompt") == "Yanıt tamam"
+    luna_payload = session.calls[-1][1]["json"]
+    assert luna_payload["reasoning_effort"] == "none"
+    assert luna_payload["temperature"] == 0.2
+
+    brain.api_models["openai"] = "gpt-6-astra"
+    assert brain._compatible_api("openai", "test prompt") == "Yanıt tamam"
+    astra_payload = session.calls[-1][1]["json"]
+    assert "temperature" not in astra_payload
+    assert "reasoning_effort" not in astra_payload
+
+    brain.api_models["openrouter"] = "openai/gpt-6-luna"
+    brain.api_keys["openrouter"] = "test-secret"
+    assert brain._compatible_api("openrouter", "test prompt") == "Yanıt tamam"
+    router_payload = session.calls[-1][1]["json"]
+    assert router_payload["reasoning_effort"] == "none"
