@@ -18,7 +18,18 @@ sys.path.insert(0, str(ROOT))
 
 HOST = os.environ.get("JARVIS_BRIDGE_HOST", "127.0.0.1")
 PORT = int(os.environ.get("JARVIS_BRIDGE_PORT", "8765"))
-TOKEN_FILE = ROOT / "config" / "bridge_token.txt"
+
+
+def _token_file_path():
+    # A PyInstaller one-file app extracts code into a temporary _MEIPASS folder.
+    # Never keep the pairing token there: it must survive application restarts.
+    if getattr(sys, "frozen", False):
+        app_data = Path(os.environ.get("APPDATA") or (Path.home() / "AppData" / "Roaming"))
+        return app_data / "StagepulseJARVIS" / "config" / "bridge_token.txt"
+    return ROOT / "config" / "bridge_token.txt"
+
+
+TOKEN_FILE = _token_file_path()
 
 
 def load_token():
@@ -120,14 +131,24 @@ class Handler(BaseHTTPRequestHandler):
                                     "response": "Windows JARVIS komutu işlerken hata oluştu."})
 
 
+def create_server(host="127.0.0.1", port=8765, allow_lan_http=False):
+    """Create the bridge server; wildcard/LAN binding must be explicitly enabled."""
+    if host in ("0.0.0.0", "::") and not allow_lan_http:
+        raise RuntimeError(
+            "LAN HTTP is disabled unless the user explicitly enables it on a trusted private Wi-Fi."
+        )
+    return ThreadingHTTPServer((host, int(port)), Handler)
+
+
 if __name__ == "__main__":
     print(f"JARVIS bridge listening on http://{HOST}:{PORT}")
+    allow_lan_http = os.environ.get("JARVIS_BRIDGE_ALLOW_LAN_HTTP", "") == "1"
     if HOST in ("0.0.0.0", "::"):
         print("WARNING: LAN mode uses HTTP. Use only on a trusted private Wi-Fi, never port-forward this port, and rotate the token if the device/network is untrusted.")
-        if os.environ.get("JARVIS_BRIDGE_ALLOW_LAN_HTTP", "") != "1":
+        if not allow_lan_http:
             raise SystemExit("LAN HTTP is disabled unless JARVIS_BRIDGE_ALLOW_LAN_HTTP=1 is explicitly set.")
         print("LAN access requires Windows Firewall permission for this port.")
     try:
-        ThreadingHTTPServer((HOST, PORT), Handler).serve_forever()
+        create_server(HOST, PORT, allow_lan_http=allow_lan_http).serve_forever()
     except KeyboardInterrupt:
         print("\nJARVIS bridge stopped.")

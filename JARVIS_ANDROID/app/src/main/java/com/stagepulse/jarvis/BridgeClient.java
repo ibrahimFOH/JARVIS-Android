@@ -70,46 +70,68 @@ public final class BridgeClient {
         String base = validateBaseUrl(baseUrl);
         URL url = new URL(base + "/api/command");
         HttpURLConnection c = (HttpURLConnection) url.openConnection();
-        c.setRequestMethod("POST");
-        c.setConnectTimeout(4000);
-        c.setReadTimeout(120000);
-        c.setDoOutput(true);
-        c.setRequestProperty("Content-Type", "application/json; charset=utf-8");
-        c.setRequestProperty("Accept", "application/json");
-        c.setRequestProperty("Authorization", "Bearer " + token.trim());
-        JSONObject payload = new JSONObject();
-        payload.put("command", command);
-        byte[] bytes = payload.toString().getBytes(StandardCharsets.UTF_8);
-        c.setFixedLengthStreamingMode(bytes.length);
-        try (OutputStream out = c.getOutputStream()) { out.write(bytes); }
-        int status = c.getResponseCode();
-        InputStream stream = status >= 200 && status < 400 ? c.getInputStream() : c.getErrorStream();
-        StringBuilder body = new StringBuilder();
-        if (stream != null) {
-            try (BufferedReader reader = new BufferedReader(new InputStreamReader(stream, StandardCharsets.UTF_8))) {
-                String line;
-                while ((line = reader.readLine()) != null) body.append(line);
+        try {
+            c.setInstanceFollowRedirects(false);
+            c.setRequestMethod("POST");
+            c.setConnectTimeout(4000);
+            c.setReadTimeout(120000);
+            c.setDoOutput(true);
+            c.setRequestProperty("Content-Type", "application/json; charset=utf-8");
+            c.setRequestProperty("Accept", "application/json");
+            c.setRequestProperty("Authorization", "Bearer " + token.trim());
+
+            JSONObject payload = new JSONObject();
+            payload.put("command", command);
+            byte[] bytes = payload.toString().getBytes(StandardCharsets.UTF_8);
+            c.setFixedLengthStreamingMode(bytes.length);
+            try (OutputStream out = c.getOutputStream()) { out.write(bytes); }
+
+            int status = c.getResponseCode();
+            if (status >= 300 && status < 400) {
+                throw new IOException("Windows bridge yönlendirme yanıtı reddedildi; kimlik doğrulama token'ı başka adrese aktarılmadı.");
             }
+            InputStream stream = status >= 200 && status < 300
+                    ? c.getInputStream() : c.getErrorStream();
+            StringBuilder body = new StringBuilder();
+            if (stream != null) {
+                try (BufferedReader reader = new BufferedReader(
+                        new InputStreamReader(stream, StandardCharsets.UTF_8))) {
+                    String line;
+                    while ((line = reader.readLine()) != null) body.append(line);
+                }
+            }
+            if (status < 200 || status >= 300) {
+                String error = "HTTP " + status;
+                try {
+                    if (body.length() > 0) error = new JSONObject(body.toString()).optString("error", error);
+                } catch (Exception ignored) { }
+                throw new IOException(error);
+            }
+            try {
+                JSONObject json = new JSONObject(body.toString());
+                return new Result(json.optBoolean("success", false),
+                        json.optString("response", "Windows JARVIS yanıt vermedi."),
+                        json.optString("error", ""), json.optBoolean("requires_confirmation", false));
+            } catch (Exception e) {
+                throw new IOException("Windows bridge geçerli JSON yanıtı döndürmedi.", e);
+            }
+        } finally {
+            c.disconnect();
         }
-        c.disconnect();
-        JSONObject json = new JSONObject(body.toString());
-        if (status < 200 || status >= 300) {
-            throw new IOException(json.optString("error", "HTTP " + status));
-        }
-        return new Result(json.optBoolean("success", false),
-                json.optString("response", "Windows JARVIS yanıt vermedi."),
-                json.optString("error", ""), json.optBoolean("requires_confirmation", false));
     }
 
     public static boolean health(String baseUrl, String token) throws Exception {
         String base = validateBaseUrl(baseUrl);
         HttpURLConnection c = (HttpURLConnection) new URL(base + "/api/health").openConnection();
-        c.setRequestMethod("GET");
-        c.setConnectTimeout(2500);
-        c.setReadTimeout(2500);
-        c.setRequestProperty("Authorization", "Bearer " + token.trim());
-        int code = c.getResponseCode();
-        c.disconnect();
-        return code == 200;
+        try {
+            c.setInstanceFollowRedirects(false);
+            c.setRequestMethod("GET");
+            c.setConnectTimeout(2500);
+            c.setReadTimeout(2500);
+            c.setRequestProperty("Authorization", "Bearer " + token.trim());
+            return c.getResponseCode() == 200;
+        } finally {
+            c.disconnect();
+        }
     }
 }

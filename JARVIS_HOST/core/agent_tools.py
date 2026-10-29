@@ -15,9 +15,10 @@ class ToolEngine:
  def git(self,*args):
   r=subprocess.run(["git",*args],cwd=self.repo,text=True,capture_output=True,timeout=60); return {"ok":r.returncode==0,"stdout":r.stdout[-30000:],"stderr":r.stderr[-10000:]}
  def run_safe(self,command,timeout=120):
-  blocked=["format ","diskpart","reg delete","shutdown","del /s","rmdir /s","cipher /w"]
-  if any(x in command.lower() for x in blocked): return {"ok":False,"error":"Komut güvenlik nedeniyle engellendi."}
-  r=subprocess.run(command,cwd=self.repo,shell=True,text=True,capture_output=True,timeout=timeout); return {"ok":r.returncode==0,"code":r.returncode,"stdout":r.stdout[-30000:],"stderr":r.stderr[-15000:]}
+  # This legacy helper accepted arbitrary shell text and relied on a bypassable
+  # substring blocklist. Keep its interface but fail closed until a dedicated,
+  # argument-based command allowlist is implemented.
+  return {"ok":False,"error":"Serbest kabuk komutu çalıştırma devre dışı. Doğrulanmış JARVIS komut entegrasyonlarını kullan."}
  def fetch_text(self,url):
   if not url.lower().startswith(("http://","https://")): return {"ok":False,"error":"Sadece HTTP/HTTPS kullanılabilir."}
   r=requests.get(url,timeout=20,headers={"User-Agent":"JARVIS/1.0"}); return {"ok":r.ok,"status":r.status_code,"content":r.text[:50000]}

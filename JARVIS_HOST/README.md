@@ -58,7 +58,7 @@ Whether you're launching applications, managing windows, capturing screenshots, 
 - ⚡ **Lightning Fast**: Optimized for minimal latency and maximum responsiveness
 - 🎭 **Personality-Driven**: Sophisticated, witty responses that feel human
 - 🔧 **Highly Customizable**: Tailor every aspect to your workflow and preferences
-- 🔒 **Privacy-First**: All processing happens locally on your machine
+- 🔒 **Configurable privacy**: Ollama can run locally, but cloud AI providers, Google speech recognition, web research and update checks use network services. Review provider settings before sending sensitive content.
 
 ---
 
@@ -94,7 +94,7 @@ Whether you're launching applications, managing windows, capturing screenshots, 
 - **Continuous Listening**: Always ready to assist when enabled
 - **Multi-Language Support**: English, Spanish, French, German, and more
 - **Noise Cancellation**: Accurate recognition even in noisy environments
-- **Offline Mode**: Basic commands work without internet connection
+- **Limited Offline Mode**: Some local commands and native TTS can work offline. The default Google speech-recognition engine requires internet, cloud AI providers and web search require network access, and Ollama requires a running local model.
 
 #### Natural Text-to-Speech
 - **Multiple Voices**: Choose from various voice profiles
@@ -827,7 +827,7 @@ Check logs in:
 A: Currently, Jarvis V2 is optimized for Windows 10/11. Linux support is in beta. macOS support is planned for v3.0.
 
 **Q: Can Jarvis access the internet?**  
-A: Jarvis can perform web searches and check for updates, but does not upload data. All processing is local.
+A: JARVIS can run Ollama locally, but selected cloud AI APIs receive prompts, Google speech recognition sends recorded speech to its service, and web research/update checks connect to external services. Do not submit sensitive data unless you trust and intend to use the selected provider.
 
 **Q: How much does it cost?**  
 A: Jarvis V2 is completely free and open-source under the MIT License.

@@ -278,3 +278,91 @@ def test_dpapi_failure_does_not_fall_back_to_plaintext(monkeypatch):
     with pytest.raises(RuntimeError, match="şifrelenemedi"):
         AIBrain._protect_key("test-secret")
 
+
+
+
+def test_legacy_plaintext_api_keys_are_migrated_to_dpapi(tmp_path, monkeypatch):
+    import json
+    import utils.config_manager as config_module
+
+    settings_path = tmp_path / "ai_settings.json"
+    settings_path.write_text(json.dumps({
+        "provider": "openai",
+        "gemini_api_key": "legacy-gemini-secret",
+        "api_keys": {},
+    }), encoding="utf-8")
+
+    legacy_ai = {
+        "provider": "openai",
+        "providers": {
+            "openai": {"api_key": "legacy-openai-secret", "model": "legacy-model"}
+        },
+    }
+
+    class LegacyConfig:
+        def get(self, key, default=None):
+            return legacy_ai if key == "ai" else default
+
+        def set(self, key_path, value, save=True):
+            assert key_path == "ai.providers"
+            legacy_ai["providers"] = value
+            return True
+
+    monkeypatch.setattr(config_module, "get_config", lambda: LegacyConfig())
+    monkeypatch.setattr(AIBrain, "_settings_file", staticmethod(lambda: settings_path))
+    import hashlib
+
+    def fake_protect(secret):
+        if not secret:
+            return {"plain": ""}
+        return {"dpapi": hashlib.sha256(("test-encrypted:" + secret).encode("utf-8")).hexdigest()}
+
+    monkeypatch.setattr(AIBrain, "_protect_key", staticmethod(fake_protect))
+
+    brain = AIBrain()
+
+    persisted = settings_path.read_text(encoding="utf-8")
+    assert brain.gemini_key == "legacy-gemini-secret"
+    assert brain.api_keys["openai"] == "legacy-openai-secret"
+    assert "legacy-gemini-secret" not in persisted
+    assert "legacy-openai-secret" not in persisted
+    saved = json.loads(persisted)
+    assert saved["gemini_api_key"] == {"dpapi": hashlib.sha256(b"test-encrypted:legacy-gemini-secret").hexdigest()}
+    assert saved["api_keys"]["openai"] == {"dpapi": hashlib.sha256(b"test-encrypted:legacy-openai-secret").hexdigest()}
+    assert legacy_ai["providers"]["openai"]["api_key"] == {"dpapi": hashlib.sha256(b"test-encrypted:legacy-openai-secret").hexdigest()}
+
+
+def test_failed_plaintext_migration_preserves_original_credentials(tmp_path, monkeypatch):
+    import json
+    import utils.config_manager as config_module
+
+    settings_path = tmp_path / "ai_settings.json"
+    original = json.dumps({
+        "provider": "openai",
+        "gemini_api_key": "legacy-gemini-secret",
+        "api_keys": {},
+    })
+    settings_path.write_text(original, encoding="utf-8")
+    legacy_ai = {
+        "provider": "openai",
+        "providers": {"openai": {"api_key": "legacy-openai-secret"}},
+    }
+
+    class LegacyConfig:
+        def get(self, key, default=None):
+            return legacy_ai if key == "ai" else default
+
+        def set(self, key_path, value, save=True):
+            raise AssertionError("legacy config must not be changed if encryption failed")
+
+    def encryption_failure(_secret):
+        raise RuntimeError("DPAPI unavailable in test")
+
+    monkeypatch.setattr(config_module, "get_config", lambda: LegacyConfig())
+    monkeypatch.setattr(AIBrain, "_settings_file", staticmethod(lambda: settings_path))
+    monkeypatch.setattr(AIBrain, "_protect_key", staticmethod(encryption_failure))
+
+    AIBrain()
+
+    assert settings_path.read_text(encoding="utf-8") == original
+    assert legacy_ai["providers"]["openai"]["api_key"] == "legacy-openai-secret"

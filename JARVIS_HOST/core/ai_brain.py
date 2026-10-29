@@ -3,9 +3,13 @@ import json
 import os
 import re
 import html
+import logging
+import copy
 import requests
 from pathlib import Path
 from urllib.parse import quote
+
+logger = logging.getLogger(__name__)
 
 class AIBrain:
     def __init__(self):
@@ -17,9 +21,11 @@ class AIBrain:
         self.settings_path = self._settings_file()
         saved = self._read_settings()
         legacy_ai = {}
+        legacy_config_manager = None
         try:
             from utils.config_manager import get_config
-            legacy_ai = get_config().get("ai", {}) or {}
+            legacy_config_manager = get_config()
+            legacy_ai = legacy_config_manager.get("ai", {}) or {}
         except Exception:
             pass
         if not isinstance(legacy_ai, dict):
@@ -99,6 +105,10 @@ class AIBrain:
         if self.provider not in ("auto", "gemini", "groq", "ollama", *self.api_defaults.keys()):
             self.provider = "ollama"
 
+        # Older releases stored provider API keys as cleartext in ai_settings.json
+        # and config.json. Migrate those values to DPAPI before retaining them.
+        self._migrate_plaintext_credentials(saved, legacy_ai, legacy_config_manager)
+
     @staticmethod
     def _settings_file():
         if os.name == "nt":
@@ -160,6 +170,78 @@ class AIBrain:
                 return ""
         return str(value.get("plain", ""))
 
+    @staticmethod
+    def _is_plaintext_credential(value):
+        if isinstance(value, str):
+            return bool(value.strip())
+        return isinstance(value, dict) and bool(str(value.get("plain", "")).strip())
+
+    def _migrate_plaintext_credentials(self, saved, legacy_ai, legacy_config_manager):
+        saved_plaintext = any(
+            self._is_plaintext_credential(saved.get(key))
+            for key in ("gemini_api_key", "groq_api_key")
+        )
+        saved_keys = saved.get("api_keys", {})
+        if isinstance(saved_keys, dict):
+            saved_plaintext = saved_plaintext or any(
+                self._is_plaintext_credential(value) for value in saved_keys.values()
+            )
+
+        legacy = legacy_ai if isinstance(legacy_ai, dict) else {}
+        legacy_providers = legacy.get("providers", {})
+        if not isinstance(legacy_providers, dict):
+            legacy_providers = {}
+        legacy_plaintext = any(
+            isinstance(provider, dict) and self._is_plaintext_credential(provider.get("api_key"))
+            for provider in legacy_providers.values()
+        )
+        if not saved_plaintext and not legacy_plaintext:
+            return
+
+        try:
+            # Prepare migrated legacy values before writing anything. If DPAPI
+            # is unavailable, leave both original files untouched.
+            migrated_providers = copy.deepcopy(legacy_providers)
+            for name, settings in migrated_providers.items():
+                if not isinstance(settings, dict):
+                    continue
+                raw = settings.get("api_key")
+                if self._is_plaintext_credential(raw):
+                    secret = self._unprotect_key(raw)
+                    settings["api_key"] = self._protect_key(secret) if secret else {"plain": ""}
+            self._persist_settings()
+        except Exception as exc:
+            logger.warning("Eski API anahtarı şifrelenemedi; kaynak yapılandırma korunuyor: %s", exc)
+            return
+
+        if legacy_plaintext and legacy_config_manager is not None:
+            try:
+                # Keep the same keys available to this version, but only as
+                # DPAPI envelopes, so an interrupted migration won't lose them.
+                saved_ok = legacy_config_manager.set("ai.providers", migrated_providers)
+                if saved_ok is False:
+                    logger.warning("API anahtarları ai_settings.json dosyasına taşındı ancak eski config.json temizlenemedi.")
+            except Exception as exc:
+                logger.warning("Eski config.json içindeki API anahtarları şifrelenemedi: %s", exc)
+
+    def _persist_settings(self):
+        payload = {
+            "provider": self.provider,
+            "gemini_api_key": self._protect_key(self.gemini_key),
+            "gemini_model": self.gemini_model,
+            "groq_api_key": self._protect_key(self.groq_key),
+            "groq_model": self.groq_model,
+            "ollama_host": self.host,
+            "ollama_model": self.model,
+            "api_keys": {k: self._protect_key(v) for k, v in self.api_keys.items()},
+            "api_models": self.api_models,
+            "api_base_urls": self.api_base_urls,
+        }
+        self.settings_path.parent.mkdir(parents=True, exist_ok=True)
+        tmp = self.settings_path.with_suffix(".tmp")
+        tmp.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+        os.replace(str(tmp), str(self.settings_path))
+
     def configure(self, provider=None, gemini_key=None, gemini_model=None,
                   ollama_host=None, ollama_model=None,
                   groq_key=None, groq_model=None, api_keys=None, api_models=None,
@@ -197,22 +279,7 @@ class AIBrain:
                 name = str(key).lower()
                 if name in self.api_defaults and str(value).strip():
                     self.api_base_urls[name] = str(value).strip().rstrip("/")
-        payload = {
-            "provider": self.provider,
-            "gemini_api_key": self._protect_key(self.gemini_key),
-            "gemini_model": self.gemini_model,
-            "groq_api_key": self._protect_key(self.groq_key),
-            "groq_model": self.groq_model,
-            "ollama_host": self.host,
-            "ollama_model": self.model,
-            "api_keys": {k: self._protect_key(v) for k, v in self.api_keys.items()},
-            "api_models": self.api_models,
-            "api_base_urls": self.api_base_urls,
-        }
-        self.settings_path.parent.mkdir(parents=True, exist_ok=True)
-        tmp = self.settings_path.with_suffix(".tmp")
-        tmp.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
-        os.replace(str(tmp), str(self.settings_path))
+        self._persist_settings()
 
     def _compatible_api(self, provider, prompt, context=""):
         key = self.api_keys.get(provider, "")
