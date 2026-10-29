@@ -19,8 +19,7 @@ Mimari:
 
 Android komutları bağlandığında Windows hostuna gönderilir; böylece komutlar aynı Python komut işleyicisini ve AI yapılandırmasını kullanır. Host ayarı boş bırakılırsa Android yerel komutlarına döner. Köprü token doğrulaması kullanır; bu servis internete/port yönlendirmesiyle dış ağa açılmamalıdır.
 
-Android gereksinimi: Android Studio.
-Host gereksinimi: Mevcut Python/venv + Ollama `qwen3:0.6b`.
+Android derlemek için Android Studio/Gradle gerekir. Windows EXE'yi çalıştırmak için Python kurulumu gerekmez. Kaynak kodundan çalıştırmak için Python 3.11 x64 ve proje gereksinimleri gerekir. Yerel AI kullanımı için ayrıca Ollama servisi ve `qwen3:0.6b` modeli kurulmalıdır.
 
 
 ## Windows tek dosya EXE
