@@ -1122,7 +1122,7 @@ class JarvisGUI:
         )
         token_entry.pack(fill="x", padx=22)
         token_entry.insert(0, token)
-        token_entry.configure(state="readonly")
+        token_entry.configure(state="disabled")
 
         button_row = ctk.CTkFrame(window, fg_color="transparent")
         button_row.pack(fill="x", padx=22, pady=14)
