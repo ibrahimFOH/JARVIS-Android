@@ -109,6 +109,18 @@ jobs:
           }
           for label, snippet in bridge_checks.items():
               assert snippet in bridge, "Missing Android bridge security behavior: " + label
+
+          updater = Path("JARVIS_ANDROID/app/src/main/java/com/stagepulse/jarvis/UpdateManager.java").read_text(encoding="utf-8")
+          updater_checks = {
+              "manifest tag matches the current release": '!tagName.equals(json.optString("tagName", ""))',
+              "APK asset is bound to the release tag": "isTrustedReleaseAsset(apkUrl, tagName)",
+              "manifest URL is bound to the release tag": "isTrustedReleaseAsset(metadataUrl, tagName)",
+              "redirect target is validated": "validateFinalUrl(connection.getURL())",
+              "download redirect host allowlist": 'host.endsWith(".githubusercontent.com")',
+          }
+          for label, snippet in updater_checks.items():
+              assert snippet in updater, "Missing Android updater security behavior: " + label
+
           permission = "if(granted && resume){"
           assert permission in source and "private boolean pendingListenPermission = false;" in source, "Missing voice permission resume state"
           for label, snippet in checks.items():
