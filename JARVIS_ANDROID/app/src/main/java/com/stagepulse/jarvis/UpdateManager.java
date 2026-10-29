@@ -42,11 +42,12 @@ public final class UpdateManager {
             notes = json.optString("notes", "Stagepulse JARVIS güncellemesi.");
             this.tagName = tagName;
 
-            URL apk = new URL(apkUrl);
-            if (!"https".equalsIgnoreCase(apk.getProtocol())
-                    || !"github.com".equalsIgnoreCase(apk.getHost())
-                    || !apk.getPath().startsWith("/ibrahimFOH/JARVIS-Android/releases/download/")) {
-                throw new SecurityException("APK adresi güvenilir bir GitHub Release adresi değil.");
+            if (!tagName.matches("v\\d+\\.\\d+\\.\\d+") || !tagName.equals("v" + versionName)
+                    || !tagName.equals(json.optString("tagName", ""))) {
+                throw new SecurityException("GitHub Release etiketi ile update.json sürüm bilgileri uyuşmuyor.");
+            }
+            if (!isTrustedReleaseAsset(apkUrl, tagName)) {
+                throw new SecurityException("APK adresi bu sürümün güvenilir GitHub Release adresi değil.");
             }
             if (!sha256.matches("[a-f0-9]{64}")) {
                 throw new IllegalArgumentException("Güncelleme SHA-256 değeri geçersiz.");
@@ -60,6 +61,9 @@ public final class UpdateManager {
     public UpdateInfo checkLatest(int installedVersionCode) throws Exception {
         JSONObject release = getJson(RELEASE_API);
         String tagName = release.optString("tag_name", "");
+        if (!tagName.matches("v\\d+\\.\\d+\\.\\d+")) {
+            throw new SecurityException("GitHub Release etiketi vMAJOR.MINOR.PATCH biçiminde değil.");
+        }
         JSONArray assets = release.optJSONArray("assets");
         if (assets == null) throw new IllegalStateException("Release dosyaları bulunamadı.");
 
@@ -74,11 +78,8 @@ public final class UpdateManager {
         if (metadataUrl == null || metadataUrl.trim().isEmpty()) {
             throw new IllegalStateException("Son yayın update.json içermiyor.");
         }
-        URL metadata = new URL(metadataUrl);
-        if (!"https".equalsIgnoreCase(metadata.getProtocol())
-                || !"github.com".equalsIgnoreCase(metadata.getHost())
-                || !metadata.getPath().startsWith("/ibrahimFOH/JARVIS-Android/releases/download/")) {
-            throw new SecurityException("Güncelleme bilgisi beklenmeyen kaynaktan geliyor.");
+        if (!isTrustedReleaseAsset(metadataUrl, tagName)) {
+            throw new SecurityException("Güncelleme bilgisi bu sürümün beklenen GitHub Release adresinden gelmiyor.");
         }
 
         UpdateInfo info = new UpdateInfo(getJson(metadataUrl), tagName);
@@ -96,6 +97,7 @@ public final class UpdateManager {
             if (status < 200 || status >= 300) {
                 throw new IllegalStateException("APK indirme isteği HTTP " + status + " döndürdü.");
             }
+            validateFinalUrl(connection.getURL());
             long expectedLength = connection.getContentLengthLong();
             if (expectedLength > MAX_APK_BYTES) {
                 throw new IllegalStateException("APK beklenenden büyük; indirme durduruldu.");
@@ -145,6 +147,7 @@ public final class UpdateManager {
             if (status < 200 || status >= 300) {
                 throw new IllegalStateException("Güncelleme sunucusu HTTP " + status + " döndürdü.");
             }
+            validateFinalUrl(connection.getURL());
             StringBuilder body = new StringBuilder();
             try (BufferedReader reader = new BufferedReader(
                     new InputStreamReader(connection.getInputStream(), StandardCharsets.UTF_8))) {
@@ -154,6 +157,36 @@ public final class UpdateManager {
             return new JSONObject(body.toString());
         } finally {
             connection.disconnect();
+        }
+    }
+
+    private static boolean isTrustedReleaseAsset(String address, String tagName) throws Exception {
+        URL url = new URL(address);
+        String prefix = "/ibrahimFOH/JARVIS-Android/releases/download/" + tagName + "/";
+        String path = url.getPath();
+        String assetName = path.startsWith(prefix) ? path.substring(prefix.length()) : "";
+        return "https".equalsIgnoreCase(url.getProtocol())
+                && "github.com".equalsIgnoreCase(url.getHost())
+                && url.getUserInfo() == null
+                && (url.getPort() == -1 || url.getPort() == 443)
+                && url.getQuery() == null
+                && url.getRef() == null
+                && !assetName.isEmpty()
+                && !assetName.contains("/")
+                && !assetName.contains("..")
+                && !assetName.contains("%");
+    }
+
+    private static void validateFinalUrl(URL url) throws Exception {
+        String host = url.getHost().toLowerCase(Locale.ROOT);
+        boolean trustedHost = "github.com".equals(host)
+                || "api.github.com".equals(host)
+                || host.endsWith(".githubusercontent.com");
+        if (!"https".equalsIgnoreCase(url.getProtocol())
+                || url.getUserInfo() != null
+                || (url.getPort() != -1 && url.getPort() != 443)
+                || !trustedHost) {
+            throw new SecurityException("GitHub güncellemesi güvenilir olmayan bir adrese yönlendirildi.");
         }
     }
 
