@@ -101,6 +101,10 @@ jobs:
               "keyboard send action": 'command.setImeOptions(EditorInfo.IME_ACTION_SEND)',
               "empty input feedback": 'Önce gönderilecek metni yaz.',
               "button re-enabled after response": 'if(textSendButton!=null)textSendButton.setEnabled(true);',
+              "PDF open button": 'openPdf.setOnClickListener(v->openPdf())',
+              "chat PDF export button": 'savePdf.setOnClickListener(v->exportChatPdf())',
+              "clear chat button": 'clear.setOnClickListener(v->{',
+              "system TTS used directly without Piper startup": 'initSystemTtsFallback();',
           }
           bridge = Path("JARVIS_ANDROID/app/src/main/java/com/stagepulse/jarvis/BridgeClient.java").read_text(encoding="utf-8")
           bridge_checks = {
@@ -128,7 +132,16 @@ jobs:
           assert permission in source and "private boolean pendingListenPermission = false;" in source, "Missing voice permission resume state"
           for label, snippet in checks.items():
               assert snippet in source, "Missing Android text-send behavior: " + label
-          print("Android text-send button and handlers: PASS")
+          for label, snippet in {
+              "PDF opener": "private void openPdf()",
+              "chat PDF writer": "private void writeChatPdf(Uri destination)",
+              "fixed-height input row": "new LinearLayout.LayoutParams(0,54,1f)",
+              "scrollable bottom action bar": "HorizontalScrollView actionScroller",
+              "system TTS startup without Piper": "initSystemTtsFallback();",
+          }.items():
+              assert snippet in source, "Missing Android UI/voice behavior: " + label
+          assert "Piper başlatılamadı" not in source, "Legacy Piper startup error still appears in the Android UI"
+          print("Android text-send, bottom controls, PDF, and system TTS checks: PASS")
           PY
 
       - name: Build debug APK
