@@ -134,3 +134,4 @@ public final class BridgeClient {
             c.disconnect();
         }
     }
+}
