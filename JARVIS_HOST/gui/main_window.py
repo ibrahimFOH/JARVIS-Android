@@ -37,6 +37,9 @@ class JarvisGUI:
         self._pulse = 0.0
         self._voice_busy = False
         self.update_manager = WindowsUpdateManager()
+        self._android_bridge_server = None
+        self._android_bridge_thread = None
+        self._android_bridge_button = None
 
         ctk.set_appearance_mode("dark")
         ctk.set_default_color_theme("dark-blue")
@@ -98,6 +101,15 @@ class JarvisGUI:
             font=("Consolas", 9, "bold"),
             command=self._open_ai_settings
         ).grid(row=1, column=1, sticky="e", padx=(0, 18), pady=(0, 2))
+
+        self._android_bridge_button = ctk.CTkButton(
+            top, text="ANDROID HOST", width=130, height=28,
+            fg_color="#11100A", hover_color="#28210D",
+            border_width=1, border_color=GOLD2, text_color=GOLD,
+            font=("Consolas", 9, "bold"),
+            command=self._toggle_android_bridge
+        )
+        self._android_bridge_button.grid(row=0, column=1, sticky="e", padx=(0, 18))
 
         left = ctk.CTkFrame(
             self.root, fg_color=PANEL, corner_radius=2,
@@ -1012,12 +1024,158 @@ class JarvisGUI:
             font=("Consolas", 10, "bold"), command=submit
         ).pack(fill="x", padx=22, pady=(0, 20))
 
+    def _toggle_android_bridge(self):
+        if self._android_bridge_server is not None:
+            if not messagebox.askyesno("ANDROID HOST", "Windows ve Android arasındaki köprü durdurulsun mu?"):
+                return
+            self._stop_android_bridge()
+            return
+
+        accepted = messagebox.askyesno(
+            "ANDROID HOST / AĞ GÜVENLİĞİ",
+            "Telefonun bu bilgisayardaki JARVIS komutlarını çalıştırabilmesi için LAN köprüsü açılacak.\n\n"
+            "Bağlantı HTTP kullanır. Yalnızca güvendiğin özel Wi-Fi ağında kullan; "
+            "TCP 8765 portunu internete yönlendirme. Devam edilsin mi?"
+        )
+        if not accepted:
+            return
+
+        server = None
+        try:
+            from android_bridge import TOKEN, TOKEN_FILE, create_server
+
+            server = create_server("0.0.0.0", 8765, allow_lan_http=True)
+            thread = threading.Thread(
+                target=server.serve_forever, daemon=True, name="JARVIS-Android-Bridge"
+            )
+            thread.start()
+            self._android_bridge_server = server
+            self._android_bridge_thread = thread
+            self._android_bridge_button.configure(text="STOP ANDROID")
+            self._activity("ANDROID HOST LISTENING")
+            self._show_android_bridge_connection(TOKEN, TOKEN_FILE)
+        except Exception as exc:
+            if server is not None:
+                try:
+                    server.server_close()
+                except Exception:
+                    pass
+            self._android_bridge_server = None
+            self._android_bridge_thread = None
+            if self._android_bridge_button is not None:
+                self._android_bridge_button.configure(text="ANDROID HOST")
+            logger.error("Android host köprüsü başlatılamadı: " + str(exc))
+            messagebox.showerror(
+                "ANDROID HOST",
+                "Android köprüsü başlatılamadı. TCP 8765 portu dolu olabilir.\n\n" + str(exc)
+            )
+
+    @staticmethod
+    def _local_android_ipv4_addresses():
+        import ipaddress
+        import socket
+        try:
+            import psutil
+            addresses = []
+            for adapter_addresses in psutil.net_if_addrs().values():
+                for address in adapter_addresses:
+                    if address.family != socket.AF_INET:
+                        continue
+                    try:
+                        ip = ipaddress.ip_address(address.address)
+                    except ValueError:
+                        continue
+                    if ip.is_private and not ip.is_loopback and not ip.is_link_local:
+                        addresses.append(str(ip))
+            return sorted(set(addresses))
+        except Exception:
+            return []
+
+    def _show_android_bridge_connection(self, token, token_file):
+        addresses = self._local_android_ipv4_addresses()
+        hosts = [f"http://{address}:8765" for address in addresses]
+        window = ctk.CTkToplevel(self.root)
+        window.title("ANDROID HOST CONNECTION")
+        window.geometry("600x360")
+        window.minsize(520, 320)
+        window.configure(fg_color=BG)
+        window.transient(self.root)
+        window.grab_set()
+
+        ctk.CTkLabel(
+            window, text="ANDROID HOST AKTİF", text_color=GOLD,
+            font=("Consolas", 16, "bold")
+        ).pack(anchor="w", padx=22, pady=(20, 8))
+        host_text = "\n".join(hosts) if hosts else "IP adresi bulunamadı. Windows'ta ipconfig komutunu çalıştır."
+        ctk.CTkLabel(
+            window, text="Android HOST alanına bu adreslerden birini gir:\n" + host_text,
+            text_color=WHITE, justify="left", font=("Consolas", 11)
+        ).pack(anchor="w", padx=22, pady=(0, 12))
+
+        ctk.CTkLabel(
+            window, text="ERİŞİM TOKEN'I", text_color=GOLD2,
+            font=("Consolas", 10, "bold")
+        ).pack(anchor="w", padx=22, pady=(0, 4))
+        token_entry = ctk.CTkEntry(
+            window, height=36, fg_color="#090B0D", border_color=GOLD2,
+            text_color=WHITE, font=("Consolas", 10)
+        )
+        token_entry.pack(fill="x", padx=22)
+        token_entry.insert(0, token)
+        token_entry.configure(state="readonly")
+
+        button_row = ctk.CTkFrame(window, fg_color="transparent")
+        button_row.pack(fill="x", padx=22, pady=14)
+        ctk.CTkButton(
+            button_row, text="TOKEN'I KOPYALA", width=150, height=34,
+            fg_color=GOLD2, hover_color=GOLD, text_color="#050505",
+            command=lambda: self._copy_android_bridge_token(token)
+        ).pack(side="left")
+        ctk.CTkButton(
+            button_row, text="KAPAT", width=90, height=34,
+            fg_color="#11100A", hover_color="#28210D", border_width=1,
+            border_color=GOLD2, text_color=GOLD,
+            command=window.destroy
+        ).pack(side="right")
+        ctk.CTkLabel(
+            window, text="Token dosyası: " + str(token_file),
+            text_color=MUTED, justify="left", wraplength=550,
+            font=("Consolas", 8)
+        ).pack(anchor="w", padx=22, pady=(0, 12))
+
+    def _copy_android_bridge_token(self, token):
+        self.root.clipboard_clear()
+        self.root.clipboard_append(token)
+        self._activity("ANDROID TOKEN COPIED")
+        messagebox.showinfo("ANDROID HOST", "Erişim token'ı panoya kopyalandı. Bunu paylaşma.")
+
+    def _stop_android_bridge(self):
+        server = self._android_bridge_server
+        self._android_bridge_server = None
+        self._android_bridge_thread = None
+        if server is not None:
+            try:
+                server.shutdown()
+            except Exception:
+                pass
+            try:
+                server.server_close()
+            except Exception as exc:
+                logger.warning("Android host socket kapatılamadı: " + str(exc))
+        if self._android_bridge_button is not None:
+            try:
+                self._android_bridge_button.configure(text="ANDROID HOST")
+            except Exception:
+                pass
+        self._activity("ANDROID HOST STOPPED")
+
     def run(self):
         self.root.protocol("WM_DELETE_WINDOW", self._on_closing)
         self.root.mainloop()
 
     def _on_closing(self):
         self._running = False
+        self._stop_android_bridge()
         self.jarvis.stop()
         self.root.destroy()
 
