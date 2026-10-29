@@ -15,7 +15,7 @@ Mimari:
 4. Arayüzdeki **TOKEN'I KOPYALA** düğmesine basıp token'ı Android HOST ayarlarına yapıştırın. Token dosyası Windows kullanıcı profilinde saklanır; kimseyle paylaşmayın.
 5. Gerekirse Windows Güvenlik Duvarı'nda TCP 8765'e yalnızca özel ağ profili için izin verin.
 
-**Ağ güvenliği:** `android_bridge.py` doğrudan çalıştırıldığında yalnızca `127.0.0.1` üzerinde dinler. LAN bağlantısı için yukarıdaki başlatıcı LAN modunu açıkça etkinleştirir. LAN modu HTTP kullandığından yalnızca güvendiğin özel Wi-Fi üzerinde kullan; TCP 8765'i internete yönlendirme ve token'ı paylaşma. Android istemcisi düz HTTP adreslerini özel IPv4 LAN aralıklarıyla sınırlar. Uzaktan erişim gerekiyorsa HTTPS/VPN kullan.
+**Ağ güvenliği:** `android_bridge.py` doğrudan çalıştırıldığında yalnızca `127.0.0.1` üzerinde dinler. Masaüstündeki **ANDROID HOST** düğmesi, kullanıcı onayından sonra LAN dinleyicisini açar. LAN modu HTTP kullandığından yalnızca güvendiğin özel Wi-Fi üzerinde kullan; TCP 8765'i internete yönlendirme ve token'ı paylaşma. Android istemcisi düz HTTP adreslerini özel IPv4 LAN aralıklarıyla sınırlar. Uzaktan erişim gerekiyorsa HTTPS/VPN kullan.
 
 Android komutları bağlandığında Windows hostuna gönderilir; böylece komutlar aynı Python komut işleyicisini ve AI yapılandırmasını kullanır. Host ayarı boş bırakılırsa Android yerel komutlarına döner. Köprü token doğrulaması kullanır; bu servis internete/port yönlendirmesiyle dış ağa açılmamalıdır.
 
