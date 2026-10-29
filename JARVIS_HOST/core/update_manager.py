@@ -55,6 +55,7 @@ class WindowsUpdateManager:
         return (
             parsed.scheme == "https"
             and parsed.hostname == "github.com"
+            and parsed.port in (None, 443)
             and parsed.path.startswith(asset_prefix)
             and parsed.username is None
             and parsed.password is None
@@ -62,7 +63,13 @@ class WindowsUpdateManager:
             and not parsed.fragment
             and (
                 expected_tag is None
-                or parsed.path.startswith(asset_prefix + expected_tag + "/")
+                or (
+                    parsed.path.startswith(asset_prefix + expected_tag + "/")
+                    and "/" not in parsed.path[len(asset_prefix + expected_tag + "/"):]
+                    and "\\" not in parsed.path
+                    and "%" not in parsed.path
+                    and parsed.path[len(asset_prefix + expected_tag + "/"):] not in ("", ".", "..")
+                )
             )
         )
 
