@@ -7,7 +7,7 @@ import os
 import psutil
 import subprocess
 import time
-from typing import List, Optional, Dict
+from typing import List, Optional, Dict, Any
 from pathlib import Path
 from utils.logger import get_logger
 from utils.config_manager import get_config
@@ -23,82 +23,68 @@ class ApplicationManager:
     def __init__(self):
         self.common_apps = config.get('applications.common_apps', {})
     
-    def launch(self, app_name: str) -> Dict[str, any]:
-        """
-        Launch an application
-        Returns dict with success status and message
-        """
+    def launch(self, app_name: str) -> Dict[str, Any]:
+        """Launch a resolved application without evaluating user text as a shell command."""
         try:
-            logger.info(f"Attempting to launch: {app_name}")
-            
-            # Check common apps first
-            executable = self._resolve_app_name(app_name)
-            
-            if not executable:
-                # Try to find it using Windows search
-                executable = find_executable(app_name)
-            
-            normalized_name = normalize_app_name(app_name).lower()
+            logger.info("Attempting to launch: %s", app_name)
 
-            # Only known Windows URI schemes are passed to ShellExecute. Do not
-            # interpolate arbitrary user/AI text into cmd.exe or another shell.
+            executable = self._resolve_app_name(app_name)
+            if not executable:
+                executable = find_executable(app_name)
+
+            normalized_name = normalize_app_name(app_name).lower()
             windows_apps = {
-                'camera': 'microsoft.windows.camera:',
-                'calculator': 'calculator:',
-                'calc': 'calculator:',
-                'settings': 'ms-settings:',
-                'store': 'ms-windows-store:',
-                'mail': 'outlookmail:',
-                'calendar': 'outlookcal:',
-                'photos': 'ms-photos:',
-                'maps': 'bingmaps:',
-                'weather': 'bingweather:',
-                'chrome': 'chrome',
-                'firefox': 'firefox',
-                'edge': 'msedge',
-                'notepad': 'notepad',
-                'wordpad': 'write',
-                'paint': 'mspaint',
-                'explorer': 'explorer',
-                'cmd': 'cmd',
-                'powershell': 'powershell',
+                "camera": "microsoft.windows.camera:",
+                "calculator": "calculator:",
+                "calc": "calculator:",
+                "settings": "ms-settings:",
+                "store": "ms-windows-store:",
+                "mail": "outlookmail:",
+                "calendar": "outlookcal:",
+                "photos": "ms-photos:",
+                "maps": "bingmaps:",
+                "weather": "bingweather:",
+                "chrome": "chrome",
+                "firefox": "firefox",
+                "edge": "msedge",
+                "notepad": "notepad",
+                "wordpad": "write",
+                "paint": "mspaint",
+                "explorer": "explorer",
+                "cmd": "cmd",
+                "powershell": "powershell",
             }
             protocol_targets = {
-                'microsoft.windows.camera:', 'calculator:', 'ms-settings:',
-                'ms-windows-store:', 'outlookmail:', 'outlookcal:',
-                'ms-photos:', 'bingmaps:', 'bingweather:',
+                "microsoft.windows.camera:", "calculator:", "ms-settings:",
+                "ms-windows-store:", "outlookmail:", "outlookcal:",
+                "ms-photos:", "bingmaps:", "bingweather:",
             }
 
-            try:
-                if not executable:
-                    app_to_launch = windows_apps.get(normalized_name)
-                    if not app_to_launch:
-                        return {
-                            'success': False,
-                            'message': (
-                                f"Could not locate '{app_name}'. Unknown application names "
-                                "are not executed as shell commands."
-                            )
-                        }
-                    self._launch_target(app_to_launch, protocol_targets)
-                else:
-                    self._launch_target(str(executable), protocol_targets)
+            if executable:
+                target = str(executable)
+            else:
+                target = windows_apps.get(normalized_name)
+                if not target:
+                    return {
+                        "success": False,
+                        "message": (
+                            f"Could not locate '{app_name}'. Unknown application names "
+                            "are not executed as shell commands."
+                        ),
+                    }
 
-                time.sleep(0.5)
-            
-            logger.info(f"Successfully launched: {app_name}")
+            self._launch_target(target, protocol_targets)
+            time.sleep(0.5)
+            logger.info("Successfully launched: %s", app_name)
+            return {"success": True, "message": f"{app_name} launched successfully"}
+
+        except Exception as exc:
+            logger.error("Error launching %s: %s", app_name, exc)
             return {
-                'success': True,
-                'message': f"{app_name} launched successfully"
+                "success": False,
+                "message": f"Error launching application: {exc}",
             }
-            
-        except Exception as e:
-            logger.error(f"Error launching {app_name}: {e}")
-            return {
-                'success': False,
-                'message': f"Error launching application: {str(e)}"
-            }
-    
+
     @staticmethod
     def _launch_target(target: str, protocol_targets=None) -> None:
         """Launch one resolved target without evaluating a shell command."""
