@@ -98,7 +98,7 @@ jobs:
           checks = {
               "visible Turkish send button": 'textSendButton=button("GÖNDER")',
               "button sends typed text": 'textSendButton.setOnClickListener(v->sendCommand(command.getText().toString()))',
-              "keyboard send action": 'command.setImeOptions(EditorInfo.IME_ACTION_SEND)',
+              "keyboard send action": 'command.setImeOptions(EditorInfo.IME_ACTION_SEND|EditorInfo.IME_FLAG_NO_EXTRACT_UI)',
               "empty input feedback": 'Önce gönderilecek metni yaz.',
               "button re-enabled after response": 'if(textSendButton!=null)textSendButton.setEnabled(true);',
               "PDF open button": 'openPdf.setOnClickListener(v->openPdf())',
