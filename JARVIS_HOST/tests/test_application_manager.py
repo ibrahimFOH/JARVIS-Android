@@ -25,7 +25,7 @@ def test_resolved_executable_uses_argument_list_without_shell(monkeypatch):
     calls = []
     monkeypatch.setattr(
         app_module.ApplicationManager, "_resolve_app_name",
-        lambda _self, _name: r"C:\\Program Files\\Test App\\test.exe",
+        lambda _self, _name: r"C:\Program Files\Test App\test.exe",
     )
     monkeypatch.setattr(app_module, "find_executable", lambda _name: None)
     monkeypatch.setattr(app_module.time, "sleep", lambda _seconds: None)
@@ -37,7 +37,7 @@ def test_resolved_executable_uses_argument_list_without_shell(monkeypatch):
     result = make_manager().launch("Test App")
 
     assert result["success"] is True
-    assert calls == [([r"C:\\Program Files\\Test App\\test.exe"], {"shell": False})]
+    assert calls == [([r"C:\Program Files\Test App\test.exe"], {"shell": False})]
 
 
 def test_known_windows_protocol_uses_shell_execute_not_cmd(monkeypatch):
