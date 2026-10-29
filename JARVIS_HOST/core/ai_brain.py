@@ -303,14 +303,27 @@ class AIBrain:
                 timeout=min(self.timeout, 60),
             )
         else:
+            chat_payload = {
+                "model": model,
+                "stream": False,
+                "temperature": 0.2,
+                "messages": [
+                    {"role": "system", "content": "Sen JARVIS'sin. Daima Türkçe yanıt ver; kısa, doğru ve işe yarar ol. Bilmediğin bilgiyi uydurma."},
+                    {"role": "user", "content": user_text},
+                ],
+            }
+            # GPT-6 models reject sampling parameters when reasoning is enabled.
+            # Luna supports reasoning_effort="none", which also permits temperature.
+            model_id = str(model).lower().split("/")[-1]
+            if model_id.startswith("gpt-6"):
+                if model_id in {"gpt-6-luna", "gpt-6-sol", "gpt-6.1-terra"}:
+                    chat_payload["reasoning_effort"] = "none"
+                else:
+                    chat_payload.pop("temperature", None)
             response = self.session.post(
                 base_url + "/chat/completions",
                 headers={"Authorization": "Bearer " + key, "Content-Type": "application/json"},
-                json={"model": model, "stream": False, "temperature": 0.2,
-                      "messages": [
-                          {"role": "system", "content": "Sen JARVIS'sin. Daima Türkçe yanıt ver; kısa, doğru ve işe yarar ol. Bilmediğin bilgiyi uydurma."},
-                          {"role": "user", "content": user_text},
-                      ]},
+                json=chat_payload,
                 timeout=min(self.timeout, 60),
             )
         if not response.ok:
