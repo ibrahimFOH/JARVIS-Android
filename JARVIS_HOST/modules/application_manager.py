@@ -3,10 +3,11 @@ Application Manager for Jarvis V2
 Handles launching, closing, and managing applications
 """
 
+import os
 import psutil
 import subprocess
 import time
-from typing import List, Optional, Dict
+from typing import List, Optional, Dict, Any
 from pathlib import Path
 from utils.logger import get_logger
 from utils.config_manager import get_config
@@ -22,99 +23,92 @@ class ApplicationManager:
     def __init__(self):
         self.common_apps = config.get('applications.common_apps', {})
     
-    def launch(self, app_name: str) -> Dict[str, any]:
-        """
-        Launch an application
-        Returns dict with success status and message
-        """
+    def launch(self, app_name: str) -> Dict[str, Any]:
+        """Launch a resolved application without evaluating user text as a shell command."""
         try:
-            logger.info(f"Attempting to launch: {app_name}")
-            
-            # Check common apps first
+            logger.info("Attempting to launch: %s", app_name)
+
             executable = self._resolve_app_name(app_name)
-            
             if not executable:
-                # Try to find it using Windows search
                 executable = find_executable(app_name)
-            
-            # If still not found, try using Windows start command with app name
-            if not executable:
-                # Try launching directly with start command (works for UWP apps and installed apps)
-                try:
-                    # Normalize app name for Windows start command
-                    normalized_name = normalize_app_name(app_name).lower()
-                    
-                    # Map common names to Windows protocol/package names
-                    windows_apps = {
-                        'camera': 'microsoft.windows.camera:',
-                        'calculator': 'calculator:',
-                        'calc': 'calculator:',
-                        'settings': 'ms-settings:',
-                        'store': 'ms-windows-store:',
-                        'mail': 'outlookmail:',
-                        'calendar': 'outlookcal:',
-                        'photos': 'ms-photos:',
-                        'maps': 'bingmaps:',
-                        'weather': 'bingweather:',
-                        'chrome': 'chrome',
-                        'firefox': 'firefox',
-                        'edge': 'msedge',
-                        'notepad': 'notepad',
-                        'wordpad': 'write',
-                        'paint': 'mspaint',
-                        'explorer': 'explorer',
-                        'cmd': 'cmd',
-                        'powershell': 'powershell',
-                    }
-                    
-                    # Check if it's a known Windows app
-                    if normalized_name in windows_apps:
-                        app_to_launch = windows_apps[normalized_name]
-                        subprocess.Popen(f'start {app_to_launch}', shell=True)
-                        time.sleep(0.5)
-                        logger.info(f"Successfully launched: {app_name}")
-                        return {
-                            'success': True,
-                            'message': f"{app_name} launched successfully"
-                        }
-                    
-                    # Try launching with 'start' command anyway
-                    subprocess.Popen(f'start {app_name}', shell=True)
-                    time.sleep(0.5)
-                    logger.info(f"Successfully launched: {app_name}")
-                    return {
-                        'success': True,
-                        'message': f"{app_name} launched successfully"
-                    }
-                    
-                except Exception as launch_error:
-                    logger.error(f"Failed to launch {app_name}: {launch_error}")
-                    return {
-                        'success': False,
-                        'message': f"Could not locate '{app_name}'. Please check if it's installed."
-                    }
-            
-            # Launch the application using the found executable
-            if executable.endswith('.exe'):
-                subprocess.Popen(executable, shell=True)
+
+            normalized_name = normalize_app_name(app_name).lower()
+            windows_apps = {
+                "camera": "microsoft.windows.camera:",
+                "calculator": "calculator:",
+                "calc": "calculator:",
+                "settings": "ms-settings:",
+                "store": "ms-windows-store:",
+                "mail": "outlookmail:",
+                "calendar": "outlookcal:",
+                "photos": "ms-photos:",
+                "maps": "bingmaps:",
+                "weather": "bingweather:",
+                "chrome": "chrome",
+                "firefox": "firefox",
+                "edge": "msedge",
+                "notepad": "notepad",
+                "wordpad": "write",
+                "paint": "mspaint",
+                "explorer": "explorer",
+                "cmd": "cmd",
+                "powershell": "powershell",
+            }
+            protocol_targets = {
+                "microsoft.windows.camera:", "calculator:", "ms-settings:",
+                "ms-windows-store:", "outlookmail:", "outlookcal:",
+                "ms-photos:", "bingmaps:", "bingweather:",
+            }
+
+            if executable:
+                target = str(executable)
             else:
-                subprocess.Popen(['start', executable], shell=True)
-            
-            time.sleep(0.5)  # Give it a moment to start
-            
-            logger.info(f"Successfully launched: {app_name}")
+                target = windows_apps.get(normalized_name)
+                if not target:
+                    return {
+                        "success": False,
+                        "message": (
+                            f"Could not locate '{app_name}'. Unknown application names "
+                            "are not executed as shell commands."
+                        ),
+                    }
+
+            self._launch_target(target, protocol_targets)
+            time.sleep(0.5)
+            logger.info("Successfully launched: %s", app_name)
+            return {"success": True, "message": f"{app_name} launched successfully"}
+
+        except Exception as exc:
+            logger.error("Error launching %s: %s", app_name, exc)
             return {
-                'success': True,
-                'message': f"{app_name} launched successfully"
+                "success": False,
+                "message": f"Error launching application: {exc}",
             }
-            
-        except Exception as e:
-            logger.error(f"Error launching {app_name}: {e}")
-            return {
-                'success': False,
-                'message': f"Error launching application: {str(e)}"
-            }
-    
+
+    @staticmethod
+    def _launch_target(target: str, protocol_targets=None) -> None:
+        """Launch one resolved target without evaluating a shell command."""
+        target = str(target or "").strip()
+        if not target:
+            raise ValueError("Uygulama hedefi boş.")
+        protocols = protocol_targets or set()
+        if target.lower() in protocols:
+            startfile = getattr(os, "startfile", None)
+            if startfile is None:
+                raise OSError("Windows uygulama protokolü yalnızca Windows'ta açılabilir.")
+            startfile(target)
+            return
+
+        suffix = Path(target).suffix.lower()
+        if suffix == ".exe" or (not suffix and "/" not in target and "\\" not in target):
+            subprocess.Popen([target], shell=False)
+            return
+
+        startfile = getattr(os, "startfile", None)
+        if startfile is None:
+            raise OSError("Bu uygulama türü için Windows ShellExecute gerekir.")
+        startfile(target)
+
     def close(self, app_name: str) -> Dict[str, any]:
         """
         Close an application
