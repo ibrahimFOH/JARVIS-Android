@@ -1,3 +1,5 @@
-Set sh=CreateObject("WScript.Shell")
-sh.CurrentDirectory="C:\Jarvis\J.A.R.V.I.S"
-sh.Run """C:\Jarvis\J.A.R.V.I.S\JARVIS_Baslat.bat""",0,False
+Set fso = CreateObject("Scripting.FileSystemObject")
+Set sh = CreateObject("WScript.Shell")
+root = fso.GetParentFolderName(WScript.ScriptFullName)
+sh.CurrentDirectory = root
+sh.Run """" & root & "\JARVIS_Baslat.bat""", 0, False
