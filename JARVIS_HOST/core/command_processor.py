@@ -246,7 +246,7 @@ class CommandProcessor:
             if RepositoryManager.is_command(command):
                 if not hasattr(self, "_repository_manager"):
                     self._repository_manager = RepositoryManager()
-                routed = self._repository_manager.handle_command(command)
+                routed = self._repository_manager.handle_command(command, confirmed=confirmed)
                 if routed is not None:
                     return routed
             if PhoneManager.is_command(command):
