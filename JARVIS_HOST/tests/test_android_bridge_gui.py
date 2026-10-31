@@ -6,7 +6,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def test_desktop_gui_exposes_android_host_control():
     source = (ROOT / "gui" / "main_window.py").read_text(encoding="utf-8")
-    assert 'text="ANDROID HOST"' in source
+    assert 'text="ANDROID BAĞLANTISI"' in source
     assert "def _toggle_android_bridge(self):" in source
     assert "allow_lan_http=True" in source
     assert "Windows ve Android arasındaki köprü durdurulsun mu?" in source
@@ -23,3 +23,13 @@ def test_bridge_wildcard_bind_requires_explicit_opt_in():
     source = (ROOT / "android_bridge.py").read_text(encoding="utf-8")
     assert 'if host in ("0.0.0.0", "::") and not allow_lan_http:' in source
     assert 'os.environ.get("JARVIS_BRIDGE_ALLOW_LAN_HTTP", "") == "1"' in source
+
+
+def test_desktop_ui_is_turkish_and_does_not_show_activity_panel():
+    source = (ROOT / "gui" / "main_window.py").read_text(encoding="utf-8")
+    assert 'text="Sürekli dinle"' in source
+    assert 'text="ÇALIŞTIR"' in source
+    assert '"GEÇERLİ GÖREV"' in source
+    assert '"ACTIVITY"' not in source
+    assert "self.activity =" not in source
+    assert 'logger.info("JARVIS etkinliği: "' in source
