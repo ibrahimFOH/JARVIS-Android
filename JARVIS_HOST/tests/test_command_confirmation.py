@@ -79,3 +79,26 @@ def test_file_deletion_requires_explicit_confirmation(monkeypatch):
 
     assert completed["success"] is True
     assert processor.deleted == [r"C:\Users\Test\Documents\sample.txt"]
+
+
+def test_repository_push_requires_confirmation(monkeypatch):
+    from core.agent_tools import RepositoryManager
+
+    manager = RepositoryManager.__new__(RepositoryManager)
+    pushed = []
+    monkeypatch.setattr(
+        manager,
+        "_push",
+        lambda: pushed.append(True) or {"success": True, "response": "Gönderildi."},
+    )
+
+    pending = manager.handle_command("git push")
+
+    assert pending["requires_confirmation"] is True
+    assert pending["pending_command"] == "git push"
+    assert pushed == []
+
+    completed = manager.handle_command("git push", confirmed=True)
+
+    assert completed["success"] is True
+    assert pushed == [True]
