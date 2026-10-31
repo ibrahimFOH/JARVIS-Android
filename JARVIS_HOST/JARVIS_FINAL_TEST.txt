@@ -1,25 +1,45 @@
-JARVIS SON TEST KAYDI
-Rapor tarihi: 31.10.2026
-Güncel sürüm: 2.2.5
-Kaynak depo: https://github.com/ibrahimFOH/JARVIS-Android
-Son kaynak dalı: main
+JARVIS SON DOĞRULAMA RAPORU
+Tarih: 31.10.2026
+Sürüm: 2.2.5
+Depo: https://github.com/ibrahimFOH/JARVIS-Android
+Doğrulanan kaynak commit: aa251c7428c1610bb621af145f42ec1050b16b48
 
-Bu dosyanın eski 28.09.2026 kaydı geçersizdir. Eski kayıtta yer alan
-"CommandProcessor has no attribute process_command" uyarısı, hızlı Türkçe
-komut yamasının yanlış sınıf metodunu çağırmasından kaynaklanıyordu.
-31.10.2026 tarihinde yama CommandProcessor.process() giriş noktasına bağlandı
-ve regresyon testi eklendi.
+WINDOWS
+- GitHub Actions: 41202972400
+- Sonuç: BAŞARILI
+- Python regresyon testleri: 59 geçti, 0 başarısız.
+- Python sözdizimi kontrolü: başarılı.
+- Uzman çalışma alanının masaüstü arayüzüne bağlanma denetimi: başarılı.
+- Tek dosyalı StagepulseJARVIS.exe üretildi.
+- EXE boyutu: 107.474.282 bayt.
+- Artifact: 13043108906
+- Çıktı SHA-256: 607ae570b1c401965b439cacf06f02cfe7006aeba54c0e7b1875585fe9da5291
 
-Bu revizyonda ayrıca:
-- Windows/Android sürüm numaraları 2.2.5 olarak eşitlendi.
-- Windows başlatıcılarındaki C:\Jarvis\J.A.R.V.I.S sabit yolları kaldırıldı.
-- Windows kurulum betiği Python 3.11 x64 ve kendi proje klasörünü kullanacak şekilde düzeltildi.
-- JARVIS masaüstü arayüzü Türkçeleştirildi; sağ Etkinlik paneli kaldırıldı.
-- Windows ve Android kurulum/başlangıç belgeleri Türkçeleştirildi.
+ANDROID
+- GitHub Actions: 41202972465
+- Sonuç: BAŞARILI
+- Python sözdizimi ve web/güncelleme yardımcıları denetimi: başarılı.
+- Android görünür yazılı komut düğmesi, Türkçe arayüz, köprü güvenliği ve güncelleme güvenliği denetimleri: başarılı.
+- Debug APK üretildi.
+- Artifact: 13043054100
+- Artifact SHA-256 (GitHub arşivi): b9b18bb681f481336585e4ad166c5c7382b8d44129e26e63e7161c592d3ac18e
+- APK SHA-256: be16230081edeb22325f28ee0511d307f4aeda2002665afab3368d1ba1fad8c4
 
-Son kaynak değişiklikleri için GitHub Actions iş akışlarının tamamlanması gerekir.
-CI sonucu ve artifact bağlantıları şu adresten doğrulanır:
+DÜZELTİLENLER
+- Hızlı Türkçe komut yaması artık mevcut olmayan process_command yerine CommandProcessor.process() giriş noktasını kullanıyor.
+- Hızlı komut için regresyon testi eklendi.
+- Windows/Android ortak sürümü 2.2.5 olarak eşitlendi.
+- Windows başlangıç betiklerindeki sabit C:\Jarvis\J.A.R.V.I.S yolları kaldırıldı.
+- Windows kurulum betiği Python 3.11 x64 ve göreli proje yolu kullanıyor.
+- Masaüstü Etkinlik paneli kaldırıldı; arayüz etiketleri Türkçeleştirildi.
+- Android durum/bağlantı etiketleri ve kurulum belgeleri Türkçeleştirildi.
+
+SINIRLAR
+- Android çıktısı Debug APK'dır; kalıcı anahtarla imzalanmış Release APK değildir.
+- Gerçek Android telefon/tablet üzerinde mikrofon, hoparlör, dosya seçici ve ekran yönü testi yapılmadı.
+- Gerçek Windows bilgisayarda kurulum ve ilk açılış testi yapılmadı.
+- Konuşma tanıma hizmetinin çevrimdışı çalışacağı garanti edilmez.
+- GitHub Actions derleme/testi fiziksel cihaz testinin yerini tutmaz.
+
+Güncel CI sonuçları:
 https://github.com/ibrahimFOH/JARVIS-Android/actions
-
-CI başarıları gerçek mikrofon/hoparlör, gerçek Android telefon, Windows kurulumu,
-Android release imzası veya çevrimdışı tam yapay zekâ testi yerine geçmez.

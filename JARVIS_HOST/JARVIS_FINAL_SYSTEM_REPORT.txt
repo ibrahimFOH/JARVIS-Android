@@ -2,21 +2,44 @@
   "rapor_tarihi": "2026-10-31",
   "surum": "2.2.5",
   "depo": "ibrahimFOH/JARVIS-Android",
-  "dal": "main",
-  "kaynak_dogrulama": {
-    "hizli_turkce_komut_yamasi": "CommandProcessor.process() metoduna bağlandı",
-    "regresyon_testi": "eklendi",
-    "masaustu_arayuzu": "Türkçeleştirildi; Etkinlik paneli kaldırıldı",
-    "android_arayuzu": "Türkçe etiket denetimleri eklendi",
-    "baslaticilar": "Sabit C:\\\\Jarvis yolu kaldırıldı",
-    "windows_kurulum": "Python 3.11 x64 ve göreli proje yolu"
+  "dogrulanan_kaynak_commit": "aa251c7428c1610bb621af145f42ec1050b16b48",
+  "windows": {
+    "actions_run": 41202972400,
+    "sonuc": "success",
+    "python_regresyon_testleri": {
+      "gecen": 59,
+      "kalan": 0
+    },
+    "python_sozdizimi": "success",
+    "uzman_alanı_arayuz_denetimi": "success",
+    "exe": "StagepulseJARVIS.exe",
+    "boyut_bayt": 107474282,
+    "artifact_id": 13043108906,
+    "sha256": "607ae570b1c401965b439cacf06f02cfe7006aeba54c0e7b1875585fe9da5291"
   },
-  "ci_durumu": "Bu rapor yazılırken son kaynak değişikliklerinin GitHub Actions doğrulaması beklenmektedir.",
-  "dagitim_sinirlari": [
-    "Gerçek mikrofon ve hoparlör testi yapılmadı.",
-    "Gerçek Android telefon testi yapılmadı.",
-    "Android çıktısı Debug APK'dır; kalıcı imzalı Release APK değildir.",
-    "Android ses tanıma servisi internet bağlantısına ihtiyaç duyabilir.",
-    "Android/Windows CI başarısı fiziksel cihaz testinin yerine geçmez."
-  ]
+  "android": {
+    "actions_run": 41202972465,
+    "sonuc": "success",
+    "kaynak_sozdizimi": "success",
+    "turkce_arayuz_komut_gonderme_kopru_ve_guncelleme_denetimleri": "success",
+    "apk": "app-debug.apk",
+    "artifact_id": 13043054100,
+    "artifact_sha256": "b9b18bb681f481336585e4ad166c5c7382b8d44129e26e63e7161c592d3ac18e",
+    "apk_sha256": "be16230081edeb22325f28ee0511d307f4aeda2002665afab3368d1ba1fad8c4"
+  },
+  "duzeltmeler": [
+    "CommandProcessor.process() giriş noktasına bağlanan hızlı Türkçe komut yaması",
+    "Hızlı komut regresyon testi",
+    "Windows ve Android ortak sürüm 2.2.5",
+    "Sabit Windows C sürücüsü yolları kaldırıldı",
+    "Python 3.11 x64 kullanan taşınabilir Windows kurulum betiği",
+    "Masaüstü arayüzünde Türkçeleştirme ve Etkinlik panelinin kaldırılması",
+    "Android bağlantı/durum metinlerinin Türkçeleştirilmesi"
+  ],
+  "fiziksel_testler": {
+    "windows_kurulum": "yapılmadı",
+    "android_telefon_mikrofon_hoparlor_dosya_secici_ekran_yonü": "yapılmadı",
+    "android_release_imzalama": "yapılmadı",
+    "cevrimdisi_asr": "garanti edilmez"
+  }
 }
