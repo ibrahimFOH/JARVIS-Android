@@ -141,6 +141,17 @@ jobs:
           }.items():
               assert snippet in source, "Missing Android UI/voice behavior: " + label
           assert "Piper başlatılamadı" not in source, "Legacy Piper startup error still appears in the Android UI"
+
+          for label, snippet in {
+              "Turkish Android strapline": "GELİŞMİŞ YAPAY ZEKÂ SİSTEMİ",
+              "Turkish online status": "● ÇEVRİMİÇİ",
+              "Turkish bridge token hint": "Windows JARVIS bağlantı erişim anahtarı",
+              "Turkish bridge connected status": "● WINDOWS BAĞLI",
+              "Turkish specialist dialog": "STAGEPULSE UZMANLARI",
+          }.items():
+              assert snippet in source, "Missing Turkish Android UI text: " + label
+          for legacy in ("JUST A RATHER VERY INTELLIGENT SYSTEM", "WINDOWS LINKED", "HOST OFFLINE", "STAGEPULSE AGENTS"):
+              assert legacy not in source, "Legacy English Android UI text remains: " + legacy
           print("Android text-send, bottom controls, PDF, and system TTS checks: PASS")
           PY
 

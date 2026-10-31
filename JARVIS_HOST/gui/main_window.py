@@ -45,7 +45,7 @@ class JarvisGUI:
         ctk.set_default_color_theme("dark-blue")
 
         self.root = ctk.CTk()
-        self.root.title("J.A.R.V.I.S. // STAGEPULSE AI")
+        self.root.title("J.A.R.V.I.S. // STAGEPULSE YAPAY ZEKÂ")
         self.root.geometry("1280x760")
         self.root.minsize(1050, 680)
         self.root.configure(fg_color=BG)
@@ -79,7 +79,7 @@ class JarvisGUI:
 
         ctk.CTkLabel(
             top,
-            text="JUST A RATHER VERY INTELLIGENT SYSTEM   //   STAGEPULSE",
+            text="GELİŞMİŞ YAPAY ZEKÂ SİSTEMİ   //   STAGEPULSE",
             text_color=MUTED, font=("Consolas", 10)
         ).grid(row=1, column=0, sticky="w")
 
@@ -692,7 +692,7 @@ class JarvisGUI:
             )
             self._append_to_chat("YOU", "PDF analizi: " + Path(filename).name, "gold")
             self.task.configure(text="PDF analiz ediliyor: " + Path(filename).name[:60])
-            self.phase.configure(text="PROCESSING PDF")
+            self.phase.configure(text="PDF İŞLENİYOR")
             self.status.configure(text="● İŞLENİYOR", text_color=GOLD)
             self.jarvis.process_command(prompt, speak_response=self.voice_var.get())
         except Exception as exc:
@@ -753,7 +753,7 @@ class JarvisGUI:
         """Configure optional cloud AI providers without replacing Turkish/local defaults."""
         brain = self.jarvis.command_processor.ai_brain
         win = ctk.CTkToplevel(self.root)
-        win.title("STAGEPULSE // AI PROVIDER")
+        win.title("STAGEPULSE // YAPAY ZEKÂ SAĞLAYICISI")
         win.geometry("650x850")
         win.minsize(590, 650)
         win.configure(fg_color=BG)
@@ -1092,12 +1092,12 @@ class JarvisGUI:
         window.grab_set()
 
         ctk.CTkLabel(
-            window, text="ANDROID HOST AKTİF", text_color=GOLD,
+            window, text="ANDROID BAĞLANTISI ETKİN", text_color=GOLD,
             font=("Consolas", 16, "bold")
         ).pack(anchor="w", padx=22, pady=(20, 8))
         host_text = "\n".join(hosts) if hosts else "IP adresi bulunamadı. Windows'ta ipconfig komutunu çalıştır."
         ctk.CTkLabel(
-            window, text="Android HOST alanına bu adreslerden birini gir:\n" + host_text,
+            window, text="Android uygulamasındaki Bilgisayar alanına bu adreslerden birini gir:\n" + host_text,
             text_color=WHITE, justify="left", font=("Consolas", 11)
         ).pack(anchor="w", padx=22, pady=(0, 12))
 

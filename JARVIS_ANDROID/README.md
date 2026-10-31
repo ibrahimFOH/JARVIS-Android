@@ -15,7 +15,7 @@ Bağımsız Android JARVIS uygulaması. Bu proje, Windows Asistan 0.1.5 EXE'sini
 
 - Android uygulaması açılışta sürüm kontrolü yapar; gereksiz istekleri azaltmak için otomatik denetim 12 saatte bir yapılır. Arayüzdeki **GÜNCELLE** düğmesi denetimi elle başlatır.
 - Yeni Android APK'sı yalnızca bu depodaki en son GitHub Release içinden alınır. İndirmeden önce HTTPS kaynağı, indirildikten sonra SHA-256 özeti doğrulanır. Android güvenlik gereği kurulum onayı ister; sessiz kurulum yapılmaz.
-- Windows masaüstü JARVIS arayüzü de 12 saatte bir güncelleme kontrol eder; **UPDATE** düğmesi elle kontrol sağlar. Yeni ZIP'in SHA-256 değeri doğrulanır. Güncelleme mevcut klasörde uygulanır; `config/config.json` ve `config/bridge_token.txt` korunur. Eski EXE ve sürüm bilgisi, geri dönüş için yan `StagepulseJARVIS.rollback-*` klasöründe saklanır. Yönetici izni gereken kurulum konumlarında Windows UAC onayı gerekebilir.
+- Windows masaüstü JARVIS arayüzü de 12 saatte bir güncelleme kontrol eder; **GÜNCELLE** düğmesi elle kontrol sağlar. Yeni ZIP'in SHA-256 değeri doğrulanır. Güncelleme mevcut klasörde uygulanır; `config/config.json` ve `config/bridge_token.txt` korunur. Eski EXE ve sürüm bilgisi, geri dönüş için yan `StagepulseJARVIS.rollback-*` klasöründe saklanır. Yönetici izni gereken kurulum konumlarında Windows UAC onayı gerekebilir.
 - Windows otomatik değiştirme yalnızca yayınlanmış PyInstaller `JARVIS.exe` paketi içinde çalışır. Kaynak kodu/CLI ile çalıştırılan sürüm kendisini dosya üzerine yazarak güncellemez.
 - Tek bir GitHub Release, hem `JARVIS-Android-release.apk` hem `JARVIS-Windows.zip` dosyalarını ve ortak `update.json` sürüm manifestini içerir. Release iş akışı yalnızca sürüm etiketi gönderildiğinde çalışır; etiket adı `JARVIS_HOST/VERSION` ve Android `versionName` ile eşleşmelidir.
 
@@ -62,7 +62,7 @@ Android güncellemesinin mevcut kurulumun üzerine yüklenebilmesi için bütün
 4. **TOKEN'I KOPYALA** düğmesiyle erişim token'ını kopyala ve Android HOST ayarlarına yapıştır. Token dosyası EXE modunda `%APPDATA%\\StagepulseJARVIS\\config\\bridge_token.txt` altında saklanır.
 5. Telefon ve bilgisayar aynı yerel ağda olmalı. Gerekirse Windows Güvenlik Duvarı'nda TCP 8765'e yalnızca özel ağdan izin ver.
 
-**Ağ güvenliği:** Köprü doğrudan `python android_bridge.py` ile çalıştırıldığında yalnızca `127.0.0.1` üzerinde dinler. Masaüstü arayüzündeki **ANDROID HOST** düğmesi, kullanıcı onayından sonra LAN dinleyicisini açar. LAN modu HTTP kullandığından yalnızca güvendiğin özel Wi-Fi üzerinde kullan; TCP 8765'i internete yönlendirme, token'ı paylaşma veya halka açık Wi-Fi'de bağlanma. Android istemcisi HTTP adreslerini özel IPv4 LAN aralıklarıyla sınırlar. Uzaktan erişim gerekiyorsa HTTPS/VPN kullan.
+**Ağ güvenliği:** Köprü doğrudan `python android_bridge.py` ile çalıştırıldığında yalnızca `127.0.0.1` üzerinde dinler. Masaüstü arayüzündeki **ANDROID BAĞLANTISI** düğmesi, kullanıcı onayından sonra LAN dinleyicisini açar. LAN modu HTTP kullandığından yalnızca güvendiğin özel Wi-Fi üzerinde kullan; TCP 8765'i internete yönlendirme, token'ı paylaşma veya halka açık Wi-Fi'de bağlanma. Android istemcisi HTTP adreslerini özel IPv4 LAN aralıklarıyla sınırlar. Uzaktan erişim gerekiyorsa HTTPS/VPN kullan.
 
 Köprüyü internete açma ve token'ı repoya yükleme. Token dosyası yerel kalmalıdır.
 

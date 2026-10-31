@@ -87,9 +87,9 @@ public class MainActivity extends Activity {
         TextView title=tv("J.A.R.V.I.S.",25,gold());
         title.setTypeface(null,1);
         top.addView(title,new LinearLayout.LayoutParams(-1,-2));
-        top.addView(tv("JUST A RATHER VERY INTELLIGENT SYSTEM   //   STAGEPULSE",10,muted()),
+        top.addView(tv("GELİŞMİŞ YAPAY ZEKÂ SİSTEMİ   //   STAGEPULSE",10,muted()),
                 new LinearLayout.LayoutParams(-1,-2));
-        status=tv("● ONLINE",11,gold());
+        status=tv("● ÇEVRİMİÇİ",11,gold());
         status.setTypeface(null,1);
         top.addView(status,new LinearLayout.LayoutParams(-1,-2));
         root.addView(top,new LinearLayout.LayoutParams(-1,-2));
@@ -514,7 +514,7 @@ public class MainActivity extends Activity {
         address.setText(bridgePrefs.getString("url", ""));
         EditText token = new EditText(this);
         token.setSingleLine(true);
-        token.setHint("Windows JARVIS bridge token");
+        token.setHint("Windows JARVIS bağlantı erişim anahtarı");
         token.setInputType(129);
         token.setText(bridgePrefs.getString("token", ""));
         box.addView(address);
@@ -531,19 +531,19 @@ public class MainActivity extends Activity {
                     append("JARVIS", "Ortak Windows çekirdeği kapalı. Yerel Android komutları kullanılacak.");
                     return;
                 }
-                status.setText("● HOST TEST");
+                status.setText("● BAĞLANTI TESTİ");
                 io.submit(() -> {
                     try {
                         boolean ok = BridgeClient.health(url, secret);
                         runOnUiThread(() -> {
-                            status.setText(ok ? "● WINDOWS LINKED" : "● HOST ERROR");
+                            status.setText(ok ? "● WINDOWS BAĞLI" : "● BAĞLANTI HATASI");
                             append("JARVIS", ok
                                 ? "Windows JARVIS ortak çekirdeğine bağlandım. Android ve EXE aynı host komut motorunu kullanacak."
                                 : "Windows JARVIS köprüsü doğrulanamadı.");
                         });
                     } catch (Exception e) {
                         runOnUiThread(() -> {
-                            status.setText("● HOST OFFLINE");
+                            status.setText("● WINDOWS ÇEVRİMDIŞI");
                             append("JARVIS", "Windows bağlantısı kurulamadı. IP, token, aynı Wi-Fi ağı ve Windows Güvenlik Duvarı'nı kontrol et.");
                         });
                     }
@@ -558,7 +558,7 @@ public class MainActivity extends Activity {
         String[] names=new String[list.size()];
         for(int i=0;i<list.size();i++) names[i]=list.get(i).name;
         new AlertDialog.Builder(this)
-                .setTitle("STAGEPULSE AGENTS")
+                .setTitle("STAGEPULSE UZMANLARI")
                 .setItems(names,(d,which)->activateAgent(list.get(which),null))
                 .setNegativeButton("KAPAT",null)
                 .show();
@@ -601,18 +601,18 @@ public class MainActivity extends Activity {
                 systemTtsReady = languageResult != android.speech.tts.TextToSpeech.LANG_MISSING_DATA
                         && languageResult != android.speech.tts.TextToSpeech.LANG_NOT_SUPPORTED;
                 if (systemTtsReady) {
-                    status.setText("● ONLINE · SYSTEM TTS");
+                    status.setText("● ÇEVRİMİÇİ · SİSTEM SESİ");
                     status.setTextColor(gold());
                     append("JARVIS","Android sistem Türkçe ses motoru hazır.");
                     speak("PATRON, JARVIS hazır. Türkçe ses motoru aktif.");
                 } else {
-                    status.setText("● VOICE ERROR");
+                    status.setText("● SES HATASI");
                     status.setTextColor(0xFFFF5555);
                     append("JARVIS","Bu cihazın sistem TTS motorunda Türkçe dil verisi bulunamadı. Ayarlardan Türkçe ses verisini yükleyin.");
                 }
             } else {
                 systemTtsReady = false;
-                status.setText("● VOICE ERROR");
+                status.setText("● SES HATASI");
                 status.setTextColor(0xFFFF5555);
                 append("JARVIS","Android sistem ses motoru başlatılamadı. Ayarlardan Türkçe konuşma sesini yükleyin.");
             }
@@ -719,7 +719,7 @@ public class MainActivity extends Activity {
     private void statusPost(String text){runOnUiThread(()->status.setText(text));}
 
     private void refreshVoiceStatus(){
-        status.setText(systemTtsReady?"● ONLINE · SYSTEM TTS":"● VOICE ERROR");
+        status.setText(systemTtsReady?"● ÇEVRİMİÇİ · SİSTEM SESİ":"● SES HATASI");
         status.setTextColor(systemTtsReady?gold():0xFFFF5555);
     }
 

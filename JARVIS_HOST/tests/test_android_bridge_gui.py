@@ -33,3 +33,11 @@ def test_desktop_ui_is_turkish_and_does_not_show_activity_panel():
     assert '"ACTIVITY"' not in source
     assert "self.activity =" not in source
     assert 'logger.info("JARVIS etkinliği: "' in source
+
+
+def test_remaining_desktop_ui_labels_are_turkish():
+    source = (ROOT / "gui" / "main_window.py").read_text(encoding="utf-8")
+    assert "GELİŞMİŞ YAPAY ZEKÂ SİSTEMİ" in source
+    assert "PDF İŞLENİYOR" in source
+    assert "YAPAY ZEKÂ SAĞLAYICISI" in source
+    assert "Android uygulamasındaki Bilgisayar alanına" in source

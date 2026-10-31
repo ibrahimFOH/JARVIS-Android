@@ -1,8 +1,25 @@
-code=0
-stdout=JARVIS fast patch uyarısı: type object 'CommandProcessor' has no attribute 'process_command'
-Ben JARVIS. Ollama ile çalışan, Türkçe sesli komut, web erişimi ve sistem araçları bulunan masaüstü asistanınım.
-Komutları anlayabilir, Ollama ile cevap üretebilir, webden bilgi arayabilir ve bağlı sistem araçlarını güvenli şekilde kullanabilirim.
+JARVIS SON TEST KAYDI
+Rapor tarihi: 31.10.2026
+Güncel sürüm: 2.2.5
+Kaynak depo: https://github.com/ibrahimFOH/JARVIS-Android
+Son kaynak dalı: main
 
-stderr=08:24:04 | INFO | Configuration loaded from config\config.json
+Bu dosyanın eski 28.09.2026 kaydı geçersizdir. Eski kayıtta yer alan
+"CommandProcessor has no attribute process_command" uyarısı, hızlı Türkçe
+komut yamasının yanlış sınıf metodunu çağırmasından kaynaklanıyordu.
+31.10.2026 tarihinde yama CommandProcessor.process() giriş noktasına bağlandı
+ve regresyon testi eklendi.
 
-time=2026-09-28 08:24:05
+Bu revizyonda ayrıca:
+- Windows/Android sürüm numaraları 2.2.5 olarak eşitlendi.
+- Windows başlatıcılarındaki C:\Jarvis\J.A.R.V.I.S sabit yolları kaldırıldı.
+- Windows kurulum betiği Python 3.11 x64 ve kendi proje klasörünü kullanacak şekilde düzeltildi.
+- JARVIS masaüstü arayüzü Türkçeleştirildi; sağ Etkinlik paneli kaldırıldı.
+- Windows ve Android kurulum/başlangıç belgeleri Türkçeleştirildi.
+
+Son kaynak değişiklikleri için GitHub Actions iş akışlarının tamamlanması gerekir.
+CI sonucu ve artifact bağlantıları şu adresten doğrulanır:
+https://github.com/ibrahimFOH/JARVIS-Android/actions
+
+CI başarıları gerçek mikrofon/hoparlör, gerçek Android telefon, Windows kurulumu,
+Android release imzası veya çevrimdışı tam yapay zekâ testi yerine geçmez.
