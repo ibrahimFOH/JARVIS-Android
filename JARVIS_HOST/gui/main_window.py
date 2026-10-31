@@ -89,13 +89,13 @@ class JarvisGUI:
         self.clock.grid(row=0, column=2, sticky="e")
 
         self.status = ctk.CTkLabel(
-            top, text="● ONLINE", text_color=GOLD,
+            top, text="● ÇEVRİMİÇİ", text_color=GOLD,
             font=("Consolas", 10, "bold")
         )
         self.status.grid(row=1, column=2, sticky="e")
 
         ctk.CTkButton(
-            top, text="AI PROVIDER", width=125, height=28,
+            top, text="YAPAY ZEKÂ", width=125, height=28,
             fg_color="#11100A", hover_color="#28210D",
             border_width=1, border_color=GOLD2, text_color=GOLD,
             font=("Consolas", 9, "bold"),
@@ -103,7 +103,7 @@ class JarvisGUI:
         ).grid(row=1, column=1, sticky="e", padx=(0, 18), pady=(0, 2))
 
         self._android_bridge_button = ctk.CTkButton(
-            top, text="ANDROID HOST", width=130, height=28,
+            top, text="ANDROID BAĞLANTISI", width=130, height=28,
             fg_color="#11100A", hover_color="#28210D",
             border_width=1, border_color=GOLD2, text_color=GOLD,
             font=("Consolas", 9, "bold"),
@@ -118,24 +118,24 @@ class JarvisGUI:
         left.grid(row=1, column=0, sticky="ns", padx=(18, 7), pady=5)
 
         self._telemetry_widgets = {}
-        self._section(left, "SYSTEMS")
+        self._section(left, "SİSTEMLER")
         selected_provider = self.jarvis.command_processor.ai_brain.provider.upper()
-        self._telemetry(left, "AI CORE", selected_provider, GREEN)
-        self._telemetry(left, "LOCAL CORE", "OLLAMA", GREEN)
-        self._telemetry(left, "VOICE", "READY", GREEN)
-        self._telemetry(left, "NETWORK", "ONLINE", GREEN)
+        self._telemetry(left, "YAPAY ZEKÂ ÇEKİRDEĞİ", selected_provider, GREEN)
+        self._telemetry(left, "YEREL ÇEKİRDEK", "OLLAMA", GREEN)
+        self._telemetry(left, "SES", "READY", GREEN)
+        self._telemetry(left, "AĞ", "ONLINE", GREEN)
 
-        self._section(left, "AUDIO")
-        self._meter(left, "MIC INPUT")
-        self._meter(left, "TTS OUTPUT")
-        self._meter(left, "SIGNAL")
+        self._section(left, "SES")
+        self._meter(left, "MİKROFON GİRİŞİ")
+        self._meter(left, "SESLENDİRME ÇIKIŞI")
+        self._meter(left, "SİNYAL")
 
-        self._section(left, "CONTROL")
+        self._section(left, "DENETİM")
         self.voice_var = ctk.BooleanVar(
             value=config.get("voice.enabled", True)
         )
         ctk.CTkSwitch(
-            left, text="Voice", variable=self.voice_var,
+            left, text="Sesli kontrol", variable=self.voice_var,
             command=self._toggle_voice,
             progress_color=GOLD2, button_color=GOLD,
             button_hover_color=WHITE, text_color=WHITE
@@ -145,7 +145,7 @@ class JarvisGUI:
             value=config.get("voice.continuous_listening", True)
         )
         ctk.CTkSwitch(
-            left, text="Always listen", variable=self.always_listening_var,
+            left, text="Sürekli dinle", variable=self.always_listening_var,
             command=self._toggle_continuous_listening,
             progress_color=GOLD2, button_color=GOLD,
             button_hover_color=WHITE, text_color=WHITE
@@ -154,7 +154,7 @@ class JarvisGUI:
         if self.jarvis.wake_word_detector:
             self.wake_word_var = ctk.BooleanVar(value=False)
             ctk.CTkSwitch(
-                left, text="Wake word", variable=self.wake_word_var,
+                left, text="Uyandırma sözcüğü", variable=self.wake_word_var,
                 command=self._toggle_wake_word,
                 progress_color=GOLD2, button_color=GOLD,
                 text_color=WHITE
@@ -177,28 +177,21 @@ class JarvisGUI:
         )
         right.grid(row=1, column=2, sticky="ns", padx=(7, 18), pady=5)
 
-        self._section(right, "JARVIS STATUS")
+        self._section(right, "JARVIS DURUMU")
         self.phase = ctk.CTkLabel(
-            right, text="IDLE", text_color=GOLD,
+            right, text="BEKLEMEDE", text_color=GOLD,
             font=("Consolas", 18, "bold")
         )
         self.phase.pack(anchor="w", padx=12, pady=(2, 12))
 
-        self._section(right, "CURRENT TASK")
+        self._section(right, "GEÇERLİ GÖREV")
         self.task = ctk.CTkLabel(
-            right, text="Waiting for command...", text_color=WHITE,
+            right, text="Komut bekleniyor...", text_color=WHITE,
             justify="left", wraplength=180, font=("Consolas", 10)
         )
         self.task.pack(anchor="w", padx=12, pady=(2, 16))
 
-        self._section(right, "ACTIVITY")
-        self.activity = ctk.CTkTextbox(
-            right, width=190, height=245,
-            fg_color="#030405", text_color=MUTED,
-            border_width=0, font=("Consolas", 9)
-        )
-        self.activity.pack(fill="both", expand=True, padx=8, pady=5)
-        self.activity.configure(state="disabled")
+
 
         bottom = ctk.CTkFrame(self.root, fg_color=BG, corner_radius=0)
         bottom.grid(row=2, column=0, columnspan=3, sticky="ew",
@@ -206,7 +199,7 @@ class JarvisGUI:
         bottom.grid_columnconfigure(0, weight=1)
 
         self.command_entry = ctk.CTkEntry(
-            bottom, placeholder_text="COMMAND // Türkçe komut gir...",
+            bottom, placeholder_text="KOMUT // Türkçe komut gir...",
             height=44, fg_color="#090B0D",
             border_color=GOLD2, border_width=1,
             text_color=WHITE, placeholder_text_color=MUTED,
@@ -216,14 +209,14 @@ class JarvisGUI:
         self.command_entry.bind("<Return>", self._on_enter_pressed)
 
         ctk.CTkButton(
-            bottom, text="EXECUTE", width=105, height=44,
+            bottom, text="ÇALIŞTIR", width=105, height=44,
             fg_color=GOLD2, hover_color=GOLD, text_color="#050505",
             font=("Consolas", 10, "bold"),
             command=self._on_send_clicked
         ).grid(row=0, column=1, padx=4)
 
         self.voice_button = ctk.CTkButton(
-            bottom, text="◉ VOICE", width=105, height=44,
+            bottom, text="◉ SES", width=105, height=44,
             fg_color="#0A0D10", hover_color="#171B20",
             border_width=1, border_color=GOLD, text_color=GOLD,
             font=("Consolas", 10, "bold"),
@@ -240,14 +233,14 @@ class JarvisGUI:
         ).grid(row=0, column=3, padx=(4, 0))
 
         ctk.CTkButton(
-            bottom, text="CLEAR", width=80, height=44,
+            bottom, text="TEMİZLE", width=80, height=44,
             fg_color="#090B0D", hover_color="#15181C",
             border_width=1, border_color="#34383D",
             text_color=MUTED, command=self._clear_chat
         ).grid(row=0, column=4, padx=(4, 0))
 
         ctk.CTkButton(
-            bottom, text="UPDATE", width=90, height=44,
+            bottom, text="GÜNCELLE", width=90, height=44,
             fg_color="#090B0D", hover_color="#171B20",
             border_width=1, border_color=GOLD, text_color=GOLD,
             command=lambda: self._check_for_updates(manual=True)
@@ -396,20 +389,20 @@ class JarvisGUI:
             fill=GOLD, font=("Consolas", 13, "bold")
         )
         self.hud.create_text(
-            cx, cy + base*.58, text="SYSTEM CORE // ONLINE",
+            cx, cy + base*.58, text="SİSTEM ÇEKİRDEĞİ // ÇEVRİMİÇİ",
             fill=MUTED, font=("Consolas", 8)
         )
 
         self.hud.create_text(
-            38, 34, text="STAGEPULSE / AI CONTROL",
+            38, 34, text="STAGEPULSE / YAPAY ZEKÂ DENETİMİ",
             fill=GOLD2, anchor="w", font=("Consolas", 8)
         )
         self.hud.create_text(
-            38, h-34, text="VOICE // AI // SYSTEM // WEB",
+            38, h-34, text="SES // YAPAY ZEKÂ // SİSTEM // WEB",
             fill=MUTED, anchor="w", font=("Consolas", 8)
         )
         self.hud.create_text(
-            w-38, 34, text="SECURE LINK",
+            w-38, 34, text="GÜVENLİ BAĞLANTI",
             fill=GREEN, anchor="e", font=("Consolas", 8)
         )
 
@@ -479,8 +472,8 @@ class JarvisGUI:
             self._activity("UPDATE DEFERRED")
             return
 
-        self.status.configure(text="● DOWNLOADING UPDATE", text_color=GOLD)
-        self.phase.configure(text="UPDATING")
+        self.status.configure(text="● GÜNCELLEME İNİYOR", text_color=GOLD)
+        self.phase.configure(text="GÜNCELLENİYOR")
         self._activity("UPDATE DOWNLOAD STARTED")
 
         def worker():
@@ -493,7 +486,7 @@ class JarvisGUI:
                     "Güncelleme Başarısız", "JARVIS güncellenemedi. Mevcut kurulum korundu.\n" + str(error)
                 ))
                 self.root.after(0, lambda: self.status.configure(
-                    text="● UPDATE FAILED", text_color=RED
+                    text="● GÜNCELLEME BAŞARISIZ", text_color=RED
                 ))
                 self.root.after(0, lambda: self._activity("UPDATE FAILED"))
 
@@ -511,8 +504,8 @@ class JarvisGUI:
         self.command_entry.delete(0, "end")
         self._append_to_chat("YOU", command, "gold")
         self.task.configure(text=command[:90])
-        self.phase.configure(text="PROCESSING")
-        self.status.configure(text="● PROCESSING", text_color=GOLD)
+        self.phase.configure(text="İŞLENİYOR")
+        self.status.configure(text="● İŞLENİYOR", text_color=GOLD)
         self._activity("CMD > " + command[:46])
         self.jarvis.process_command(
             command, speak_response=self.voice_var.get()
@@ -523,10 +516,10 @@ class JarvisGUI:
             return
         self._voice_busy = True
         self.voice_button.configure(
-            text="◉ LISTENING", fg_color="#38240A", text_color=GOLD
+            text="◉ DİNLİYOR", fg_color="#38240A", text_color=GOLD
         )
-        self.phase.configure(text="LISTENING")
-        self.status.configure(text="● LISTENING", text_color=GOLD)
+        self.phase.configure(text="DİNLİYOR")
+        self.status.configure(text="● DİNLİYOR", text_color=GOLD)
         self._activity("VOICE INPUT ACTIVE")
 
         def worker():
@@ -553,10 +546,10 @@ class JarvisGUI:
     def _voice_finished(self):
         self._voice_busy = False
         self.voice_button.configure(
-            text="◉ VOICE", fg_color="#0A0D10", text_color=GOLD
+            text="◉ SES", fg_color="#0A0D10", text_color=GOLD
         )
-        self.phase.configure(text="IDLE")
-        self.status.configure(text="● ONLINE", text_color=GREEN)
+        self.phase.configure(text="BEKLEMEDE")
+        self.status.configure(text="● ÇEVRİMİÇİ", text_color=GREEN)
 
     def _on_command(self, command):
         pass
@@ -567,10 +560,10 @@ class JarvisGUI:
         self._append_to_chat(
             "JARVIS", response, "green" if success else "red"
         )
-        self.task.configure(text="Ready")
-        self.phase.configure(text="IDLE")
+        self.task.configure(text="Hazır")
+        self.phase.configure(text="BEKLEMEDE")
         self.status.configure(
-            text="● ONLINE" if success else "● ERROR",
+            text="● ÇEVRİMİÇİ" if success else "● HATA",
             text_color=GREEN if success else RED
         )
         self._activity(
@@ -585,12 +578,8 @@ class JarvisGUI:
         self.chat_display.see("end")
 
     def _activity(self, text):
-        self.activity.configure(state="normal")
-        self.activity.insert(
-            "end", time.strftime("%H:%M:%S ") + text + "\n"
-        )
-        self.activity.see("end")
-        self.activity.configure(state="disabled")
+        # Etkinlik paneli kaldırıldı; ayrıntılar yalnızca yerel günlükte tutulur.
+        logger.info("JARVIS etkinliği: " + str(text))
 
     def _toggle_wake_word(self):
         if self.wake_word_var.get():
@@ -618,8 +607,8 @@ class JarvisGUI:
         if enabled:
             started = self.jarvis.start_listening()
             if started:
-                self.status.configure(text="● ALWAYS LISTENING", text_color=GOLD)
-                self.phase.configure(text="LISTENING")
+                self.status.configure(text="● SÜREKLİ DİNLİYOR", text_color=GOLD)
+                self.phase.configure(text="DİNLİYOR")
                 self._activity("CONTINUOUS LISTENING STARTED")
             else:
                 self.always_listening_var.set(False)
@@ -630,8 +619,8 @@ class JarvisGUI:
                 )
         else:
             self.jarvis.stop_listening()
-            self.status.configure(text="● ONLINE", text_color=GREEN)
-            self.phase.configure(text="IDLE")
+            self.status.configure(text="● ÇEVRİMİÇİ", text_color=GREEN)
+            self.phase.configure(text="BEKLEMEDE")
             self._activity("CONTINUOUS LISTENING STOPPED")
 
     def _start_continuous_listening(self):
@@ -704,7 +693,7 @@ class JarvisGUI:
             self._append_to_chat("YOU", "PDF analizi: " + Path(filename).name, "gold")
             self.task.configure(text="PDF analiz ediliyor: " + Path(filename).name[:60])
             self.phase.configure(text="PROCESSING PDF")
-            self.status.configure(text="● PROCESSING", text_color=GOLD)
+            self.status.configure(text="● İŞLENİYOR", text_color=GOLD)
             self.jarvis.process_command(prompt, speak_response=self.voice_var.get())
         except Exception as exc:
             logger.error("PDF analizi başarısız")
@@ -859,7 +848,7 @@ class JarvisGUI:
                 api_models={key: entry.get() for key, entry in model_entries.items()},
                 api_base_urls={key: entry.get() for key, entry in url_entries.items()},
             )
-            label = getattr(self, "_telemetry_widgets", {}).get("AI CORE")
+            label = getattr(self, "_telemetry_widgets", {}).get("YAPAY ZEKÂ ÇEKİRDEĞİ")
             if label is not None:
                 label.configure(text=brain.provider.upper())
             self._activity("AI PROVIDER CONFIGURED: " + brain.provider.upper())
@@ -1026,7 +1015,7 @@ class JarvisGUI:
 
     def _toggle_android_bridge(self):
         if self._android_bridge_server is not None:
-            if not messagebox.askyesno("ANDROID HOST", "Windows ve Android arasındaki köprü durdurulsun mu?"):
+            if not messagebox.askyesno("ANDROID BAĞLANTISI", "Windows ve Android arasındaki köprü durdurulsun mu?"):
                 return
             self._stop_android_bridge()
             return
@@ -1051,7 +1040,7 @@ class JarvisGUI:
             thread.start()
             self._android_bridge_server = server
             self._android_bridge_thread = thread
-            self._android_bridge_button.configure(text="STOP ANDROID")
+            self._android_bridge_button.configure(text="BAĞLANTIYI DURDUR")
             self._activity("ANDROID HOST LISTENING")
             self._show_android_bridge_connection(TOKEN, TOKEN_FILE)
         except Exception as exc:
@@ -1063,10 +1052,10 @@ class JarvisGUI:
             self._android_bridge_server = None
             self._android_bridge_thread = None
             if self._android_bridge_button is not None:
-                self._android_bridge_button.configure(text="ANDROID HOST")
+                self._android_bridge_button.configure(text="ANDROID BAĞLANTISI")
             logger.error("Android host köprüsü başlatılamadı: " + str(exc))
             messagebox.showerror(
-                "ANDROID HOST",
+                "ANDROID BAĞLANTISI",
                 "Android köprüsü başlatılamadı. TCP 8765 portu dolu olabilir.\n\n" + str(exc)
             )
 
@@ -1095,7 +1084,7 @@ class JarvisGUI:
         addresses = self._local_android_ipv4_addresses()
         hosts = [f"http://{address}:8765" for address in addresses]
         window = ctk.CTkToplevel(self.root)
-        window.title("ANDROID HOST CONNECTION")
+        window.title("ANDROID BAĞLANTISI")
         window.geometry("600x360")
         window.minsize(520, 320)
         window.configure(fg_color=BG)
@@ -1147,7 +1136,7 @@ class JarvisGUI:
         self.root.clipboard_clear()
         self.root.clipboard_append(token)
         self._activity("ANDROID TOKEN COPIED")
-        messagebox.showinfo("ANDROID HOST", "Erişim token'ı panoya kopyalandı. Bunu paylaşma.")
+        messagebox.showinfo("ANDROID BAĞLANTISI", "Erişim token'ı panoya kopyalandı. Bunu paylaşma.")
 
     def _stop_android_bridge(self):
         server = self._android_bridge_server
@@ -1164,7 +1153,7 @@ class JarvisGUI:
                 logger.warning("Android host socket kapatılamadı: " + str(exc))
         if self._android_bridge_button is not None:
             try:
-                self._android_bridge_button.configure(text="ANDROID HOST")
+                self._android_bridge_button.configure(text="ANDROID BAĞLANTISI")
             except Exception:
                 pass
         self._activity("ANDROID HOST STOPPED")
@@ -1192,17 +1181,17 @@ def _render_response_safe(self, result):
     self._append_to_chat("JARVIS", response, "green" if success else "red")
 
     if hasattr(self, "task"):
-        self.task.configure(text="Ready")
+        self.task.configure(text="Hazır")
     if hasattr(self, "phase"):
-        self.phase.configure(text="IDLE")
+        self.phase.configure(text="BEKLEMEDE")
     if hasattr(self, "status"):
         listening = bool(getattr(self, "always_listening_var", None) and self.always_listening_var.get())
         self.status.configure(
-            text=("● ALWAYS LISTENING" if listening else "● ONLINE") if success else "● ERROR",
+            text=("● SÜREKLİ DİNLİYOR" if listening else "● ÇEVRİMİÇİ") if success else "● HATA",
             text_color=GOLD if listening and success else (GREEN if success else RED)
         )
     if hasattr(self, "phase") and getattr(self, "always_listening_var", None) is not None and self.always_listening_var.get() and success:
-        self.phase.configure(text="LISTENING")
+        self.phase.configure(text="DİNLİYOR")
     if hasattr(self, "_activity"):
         self._activity(
             ("OK  " if success else "ERR ") +
@@ -1231,12 +1220,12 @@ def _jarvis_gui_voice(self):
     self._voice_busy = True
     try:
         self.voice_button.configure(
-            text="◉ LISTENING",
+            text="◉ DİNLİYOR",
             fg_color="#38240A",
             text_color=GOLD
         )
-        self.phase.configure(text="LISTENING")
-        self.status.configure(text="● LISTENING", text_color=GOLD)
+        self.phase.configure(text="DİNLİYOR")
+        self.status.configure(text="● DİNLİYOR", text_color=GOLD)
         self._activity("VOICE INPUT ACTIVE")
     except Exception:
         pass
@@ -1281,12 +1270,12 @@ def _voice_finished_safe(self):
     self._voice_busy = False
     try:
         self.voice_button.configure(
-            text="◉ VOICE",
+            text="◉ SES",
             fg_color="#0A0D10",
             text_color=GOLD
         )
-        self.phase.configure(text="IDLE")
-        self.status.configure(text="● ONLINE", text_color=GREEN)
+        self.phase.configure(text="BEKLEMEDE")
+        self.status.configure(text="● ÇEVRİMİÇİ", text_color=GREEN)
     except Exception:
         pass
 
@@ -1306,13 +1295,13 @@ def _resume_continuous_listening_after_voice(self):
         if started:
             self.always_listening_var.set(True)
             config.set("voice.continuous_listening", True, save=True)
-            self.status.configure(text="● ALWAYS LISTENING", text_color=GOLD)
-            self.phase.configure(text="LISTENING")
+            self.status.configure(text="● SÜREKLİ DİNLİYOR", text_color=GOLD)
+            self.phase.configure(text="DİNLİYOR")
             self._activity("CONTINUOUS LISTENING RESUMED")
         else:
             self.always_listening_var.set(False)
             config.set("voice.continuous_listening", False, save=True)
-            self.status.configure(text="● ERROR", text_color=RED)
+            self.status.configure(text="● HATA", text_color=RED)
             self._activity("CONTINUOUS LISTENING RESUME FAILED")
     except Exception as exc:
         logger.error("Sürekli dinleme yeniden başlatılamadı: " + str(exc))
