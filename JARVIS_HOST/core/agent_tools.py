@@ -213,30 +213,78 @@ class RepositoryManager:
             return self._run("push", timeout=180)
         return self._run("push", "--set-upstream", "origin", "HEAD", timeout=180)
 
-    def handle_command(self, command):
+    @staticmethod
+    def _confirmation_result(command, reason, confirmed):
+        if confirmed:
+            return None
+        return {
+            "success": False,
+            "response": reason,
+            "intent": "repository_operation",
+            "requires_confirmation": True,
+            "pending_command": command,
+        }
+
+    def handle_command(self, command, confirmed=False):
         text = str(command or "").strip()
         low = text.lower().strip()
         bind_match = re.match(r"^(?:(?:git\s+)?repo|depo|depoyu|github deposunu)\s+(?:bağla|bagla|bağlan|baglan)\s*(.*)$", text, re.IGNORECASE)
         if bind_match:
             target = bind_match.group(1).strip()
+            if target and self._validate_remote(target)[0]:
+                pending = self._confirmation_result(
+                    text, "GitHub deposu internetten klonlanacak ve yerel dosyalar oluşturulacak.", confirmed
+                )
+                if pending:
+                    return pending
             return self.bind(target) if target else {
                 "success": False,
                 "response": "Klasör veya URL belirt. Örnek: repo bağla C:\\Stagepulse\\Proje ya da repo bağla https://github.com/kullanici/depo.git",
             }
         clone_match = re.match(r"^(?:repo|depo)\s+klonla\s+(.+)$", text, re.IGNORECASE)
         if clone_match:
+            pending = self._confirmation_result(
+                text, "Uzak Git deposu bilgisayarınıza klonlanacak ve yeni bir klasör oluşturulacak.", confirmed
+            )
+            if pending:
+                return pending
             return self.bind(clone_match.group(1))
         if low in ("değişiklikleri ekle", "degisiklikleri ekle", "git add .", "git ekle hepsi", "git ekle tümü", "git ekle tumu"):
+            pending = self._confirmation_result(
+                text, "Bağlı depodaki tüm değişiklikler Git staging alanına eklenecek.", confirmed
+            )
+            if pending:
+                return pending
             return self._add(".")
         add_match = re.match(r"^(?:git\s+add|git\s+ekle|repo\s+ekle)\s+(.+)$", text, re.IGNORECASE)
         if add_match:
+            pending = self._confirmation_result(
+                text, "Belirtilen dosyalar Git staging alanına eklenecek.", confirmed
+            )
+            if pending:
+                return pending
             return self._add(add_match.group(1))
         commit_match = re.match(r"^git\s+commit\s*(.*)$", text, re.IGNORECASE)
         if commit_match:
+            pending = self._confirmation_result(
+                text, "Staged değişiklikler yerel Git geçmişine kalıcı bir commit olarak kaydedilecek.", confirmed
+            )
+            if pending:
+                return pending
             return self._commit(commit_match.group(1))
         if low in ("git push", "git gönder", "git gonder", "repo gönder", "repo gonder", "değişiklikleri gönder", "degisiklikleri gonder"):
+            pending = self._confirmation_result(
+                text, "Yerel commit'ler uzak Git deposuna gönderilecek.", confirmed
+            )
+            if pending:
+                return pending
             return self._push()
         if low in ("git pull", "git çek", "git cek", "repo güncelle", "repo guncelle"):
+            pending = self._confirmation_result(
+                text, "Uzak Git değişiklikleri bilgisayarınızdaki çalışma klasörüne alınacak.", confirmed
+            )
+            if pending:
+                return pending
             return self._pull()
         if low in ("git status", "git durum", "git durumu", "repo", "repo durum", "repo durumu", "depo", "depo durumu", "git"):
             root, error = self._root()
