@@ -555,8 +555,39 @@ class JarvisGUI:
         pass
 
     def _on_response(self, result):
-        response = result.get("response", "")
-        success = result.get("success", False)
+        # Tk widgets and confirmation dialogs must only be touched on the UI thread.
+        try:
+            self.root.after(0, lambda payload=dict(result or {}): self._handle_response(payload))
+        except Exception as exc:
+            logger.warning("JARVIS yanıtı arayüze aktarılamadı: " + str(exc))
+
+    def _handle_response(self, result):
+        response = str(result.get("response", "") or "")
+        if result.get("requires_confirmation"):
+            pending = str(result.get("pending_command", "") or "").strip()
+            if not pending:
+                self._append_to_chat("SYSTEM", "Güvenlik denetimi onay bekliyor ancak komut bağlamı eksik.", "red")
+                return
+            approved = messagebox.askyesno(
+                "JARVIS işlem onayı",
+                response + "\n\nBu işlemi bilgisayarda uygulamak istiyor musunuz?",
+                parent=self.root,
+            )
+            if approved:
+                self._append_to_chat("SYSTEM", "İşlem açık onayınızla yürütülüyor.", "yellow")
+                self.jarvis.process_command(
+                    pending,
+                    speak_response=self.voice_var.get(),
+                    confirmed=True,
+                )
+            else:
+                self._append_to_chat("SYSTEM", "İşlem iptal edildi. Bilgisayarda değişiklik yapılmadı.", "yellow")
+                self.task.configure(text="Hazır")
+                self.phase.configure(text="BEKLEMEDE")
+                self.status.configure(text="● İŞLEM İPTAL", text_color=GOLD)
+            return
+
+        success = bool(result.get("success", False))
         self._append_to_chat(
             "JARVIS", response, "green" if success else "red"
         )
@@ -568,7 +599,7 @@ class JarvisGUI:
         )
         self._activity(
             ("OK  " if success else "ERR ") +
-            response.replace("\n", " ")[:55]
+            response.replace("\\n", " ")[:55]
         )
 
     def _append_to_chat(self, sender, message, color="white"):
