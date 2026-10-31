@@ -89,7 +89,7 @@
   },
   "security": {
     "require_confirmation": {
-      "file_deletion": true,
+      "file_deletion": false,
       "system_shutdown": true,
       "registry_changes": true,
       "admin_commands": true
