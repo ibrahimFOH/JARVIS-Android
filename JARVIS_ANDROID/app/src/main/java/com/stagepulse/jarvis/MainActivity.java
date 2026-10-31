@@ -687,7 +687,12 @@ public class MainActivity extends Activity {
                 if (!hostUrl.isEmpty() && !hostToken.isEmpty()) {
                     statusPost("● WINDOWS JARVIS");
                     BridgeClient.Result remote = BridgeClient.command(hostUrl, hostToken, cmd);
-                    a = remote.response;
+                    if (remote.requiresConfirmation) {
+                        runOnUiThread(() -> confirmWindowsAction(hostUrl, hostToken, cmd, remote.response));
+                        a = "Windows bilgisayarda bu işlem için açık onay bekleniyor.";
+                    } else {
+                        a = remote.response;
+                    }
                 } else {
                 AgencyAgent requested=detectAgent(cmd);
                 if(requested!=null && (cmd.toLowerCase(new Locale("tr","TR")).contains("aktif") || cmd.toLowerCase(new Locale("tr","TR")).contains("agent") || cmd.toLowerCase(new Locale("tr","TR")).contains("mühendis") || cmd.toLowerCase(new Locale("tr","TR")).contains("uzman"))){
@@ -714,6 +719,33 @@ public class MainActivity extends Activity {
                 speak(answer);
             });
         });
+    }
+
+    private void confirmWindowsAction(String hostUrl, String hostToken, String cmd, String warning) {
+        new AlertDialog.Builder(this)
+            .setTitle("WINDOWS BİLGİSAYAR İŞLEM ONAYI")
+            .setMessage((warning == null || warning.trim().isEmpty()
+                ? "Bu işlem bilgisayarınızda değişiklik yapacak."
+                : warning) + "\n\nİşlemi şimdi uygulamak için açıkça onay verin.")
+            .setNegativeButton("İPTAL", (dialog, which) -> {
+                append("JARVIS", "İşlem iptal edildi. Windows bilgisayarında değişiklik yapılmadı.");
+            })
+            .setPositiveButton("ONAYLA VE UYGULA", (dialog, which) -> {
+                statusPost("● ONAYLANAN İŞLEM");
+                io.submit(() -> {
+                    try {
+                        BridgeClient.Result applied = BridgeClient.command(hostUrl, hostToken, cmd, true);
+                        runOnUiThread(() -> {
+                            append("JARVIS", applied.response);
+                            speak(applied.response);
+                            refreshVoiceStatus();
+                        });
+                    } catch (Exception e) {
+                        runOnUiThread(() -> append("JARVIS", "Onaylanan işlem tamamlanamadı: " + e.getClass().getSimpleName()));
+                    }
+                });
+            })
+            .show();
     }
 
     private void statusPost(String text){runOnUiThread(()->status.setText(text));}
