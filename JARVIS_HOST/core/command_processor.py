@@ -236,7 +236,7 @@ class CommandProcessor:
             return self.ai_brain.ask(prompt)
         return self.ai_brain.ask(prompt, memory_context=facts)
 
-    def process(self, command: str) -> Dict[str, Any]:
+    def process(self, command: str, confirmed: bool = False) -> Dict[str, Any]:
         logger.command(command)
 
         # Explicit OS integrations run before generic intent/LLM routing so that
@@ -335,6 +335,25 @@ class CommandProcessor:
         confidence = intent_result['confidence']
         parameters = intent_result['parameters']
         logger.debug(f"Intent: {intent}, Confidence: {confidence:.2f}, Params: {parameters}")
+
+        if intent != 'unknown' and confidence >= 0.3:
+            is_valid, validation_error, warning = self.validator.validate(intent, parameters)
+            if not is_valid:
+                return {
+                    'success': False,
+                    'response': validation_error or 'Bu işlem güvenlik denetiminden geçmedi.',
+                    'intent': intent,
+                }
+
+            confirmation_required = self.validator.requires_confirmation(intent) or bool(warning)
+            if confirmation_required and not confirmed:
+                return {
+                    'success': False,
+                    'response': warning or 'Bu işlem bilgisayarınızda değişiklik yapacak. Devam etmek için onay verin.',
+                    'intent': intent,
+                    'requires_confirmation': True,
+                    'pending_command': command,
+                }
 
         if intent == 'unknown' or confidence < 0.3:
             try:
