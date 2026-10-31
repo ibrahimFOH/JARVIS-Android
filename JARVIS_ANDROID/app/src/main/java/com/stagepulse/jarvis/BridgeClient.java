@@ -67,6 +67,10 @@ public final class BridgeClient {
     }
 
     public static Result command(String baseUrl, String token, String command) throws Exception {
+        return command(baseUrl, token, command, false);
+    }
+
+    public static Result command(String baseUrl, String token, String command, boolean confirmed) throws Exception {
         String base = validateBaseUrl(baseUrl);
         URL url = new URL(base + "/api/command");
         HttpURLConnection c = (HttpURLConnection) url.openConnection();
@@ -82,6 +86,7 @@ public final class BridgeClient {
 
             JSONObject payload = new JSONObject();
             payload.put("command", command);
+            payload.put("confirmed", confirmed);
             byte[] bytes = payload.toString().getBytes(StandardCharsets.UTF_8);
             c.setFixedLengthStreamingMode(bytes.length);
             try (OutputStream out = c.getOutputStream()) { out.write(bytes); }
