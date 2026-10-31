@@ -92,7 +92,7 @@ class Jarvis:
             except Exception as exc:
                 logger.warning("Yanıt arayüz bildirimi başarısız: " + str(exc))
 
-    def process_command(self, command: str, speak_response: bool = True) -> dict:
+    def process_command(self, command: str, speak_response: bool = True, confirmed: bool = False) -> dict:
         """Run typed commands in a worker thread and wait for speech before releasing it."""
         command = str(command or "").strip()
         if not command:
@@ -104,7 +104,7 @@ class Jarvis:
         def worker():
             with self._command_lock:
                 try:
-                    result = self.command_processor.process(command)
+                    result = self.command_processor.process(command, confirmed=confirmed)
                     if not isinstance(result, dict):
                         result = {"success": False, "response": "Komut motoru geçerli yanıt döndürmedi."}
                     if speak_response and not result.get("requires_confirmation"):
