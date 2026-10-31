@@ -5,7 +5,7 @@ Bağımsız Android JARVIS uygulaması. Bu proje, Windows Asistan 0.1.5 EXE'sini
 ## Güncel doğrulama
 
 - Package/application ID: `com.stagepulse.jarvis`
-- Sürüm: `2.2.4` (versionCode 224)
+- Sürüm: `2.2.5` (versionCode 225)
 - minSdk 26 (Android 8.0), targetSdk 35
 - ABI: `arm64-v8a`, `armeabi-v7a`
 - Güncel CI/derleme geçmişi: [GitHub Actions](https://github.com/ibrahimFOH/JARVIS-Android/actions)
@@ -13,7 +13,7 @@ Bağımsız Android JARVIS uygulaması. Bu proje, Windows Asistan 0.1.5 EXE'sini
 
 ## Otomatik güncelleme
 
-- Android uygulaması açılışta sürüm kontrolü yapar; gereksiz istekleri azaltmak için otomatik denetim 12 saatte bir yapılır. Arayüzdeki **UPDATE** düğmesi denetimi elle başlatır.
+- Android uygulaması açılışta sürüm kontrolü yapar; gereksiz istekleri azaltmak için otomatik denetim 12 saatte bir yapılır. Arayüzdeki **GÜNCELLE** düğmesi denetimi elle başlatır.
 - Yeni Android APK'sı yalnızca bu depodaki en son GitHub Release içinden alınır. İndirmeden önce HTTPS kaynağı, indirildikten sonra SHA-256 özeti doğrulanır. Android güvenlik gereği kurulum onayı ister; sessiz kurulum yapılmaz.
 - Windows masaüstü JARVIS arayüzü de 12 saatte bir güncelleme kontrol eder; **UPDATE** düğmesi elle kontrol sağlar. Yeni ZIP'in SHA-256 değeri doğrulanır. Güncelleme mevcut klasörde uygulanır; `config/config.json` ve `config/bridge_token.txt` korunur. Eski EXE ve sürüm bilgisi, geri dönüş için yan `StagepulseJARVIS.rollback-*` klasöründe saklanır. Yönetici izni gereken kurulum konumlarında Windows UAC onayı gerekebilir.
 - Windows otomatik değiştirme yalnızca yayınlanmış PyInstaller `JARVIS.exe` paketi içinde çalışır. Kaynak kodu/CLI ile çalıştırılan sürüm kendisini dosya üzerine yazarak güncellemez.
@@ -57,7 +57,7 @@ Android güncellemesinin mevcut kurulumun üzerine yüklenebilmesi için bütün
 ## Windows host bağlantısı
 
 1. Windows'ta `StagepulseJARVIS.exe` uygulamasını aç (kaynak kodundan çalıştırıyorsan `JARVIS_HOST/START_JARVIS_WITH_ANDROID.bat` kullanabilirsin).
-2. Masaüstündeki **ANDROID HOST** düğmesine basıp HTTP/özel Wi-Fi uyarısını onayla.
+2. Masaüstündeki **ANDROID BAĞLANTISI** düğmesine basıp HTTP/özel Wi-Fi uyarısını onayla.
 3. Gösterilen `http://WINDOWS_IP:8765` adreslerinden uygun olanı Android uygulamasındaki **HOST** alanına gir.
 4. **TOKEN'I KOPYALA** düğmesiyle erişim token'ını kopyala ve Android HOST ayarlarına yapıştır. Token dosyası EXE modunda `%APPDATA%\\StagepulseJARVIS\\config\\bridge_token.txt` altında saklanır.
 5. Telefon ve bilgisayar aynı yerel ağda olmalı. Gerekirse Windows Güvenlik Duvarı'nda TCP 8765'e yalnızca özel ağdan izin ver.
@@ -69,3 +69,11 @@ Köprüyü internete açma ve token'ı repoya yükleme. Token dosyası yerel kal
 ## Build
 
 Android Studio veya [GitHub Actions](https://github.com/ibrahimFOH/JARVIS-Android/actions) üzerinden build edilebilir. Android build'i için internet bağlantısı gerekir; Gradle görevi Piper ses modeli ve eSpeak varlıklarını indirir. GitHub Actions'tan kurulum dosyası almak için başarılı build çalışmasının sayfasındaki `JARVIS-Android-PIPER-debug` artifact'ini indir.
+
+
+## Android 2.2.5 arayüz değişiklikleri
+
+- Metin alanı ve **GÖNDER** düğmesi yatay ve dikey ekranlarda görünür kalır.
+- Alt işlem çubuğu yatay kaydırılabilir; Ses, Uzmanlar, Bilgisayar, Güncelle, Ara, PDF Aç, Sohbet PDF ve Temizle işlemlerini içerir.
+- Android sistem Türkçe TTS motoru doğrudan başlatılır. Cihazda Türkçe ses verisinin bulunması gerekir.
+- Gerçek cihaz mikrofonu, ses çıkışı, PDF seçici, ekran yönü ve çevrimdışı davranışlar ayrıca denenmelidir.
