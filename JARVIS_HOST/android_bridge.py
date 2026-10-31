@@ -113,8 +113,9 @@ class Handler(BaseHTTPRequestHandler):
 
             # Serialize LAN commands with desktop and microphone commands. Without
             # this lock, concurrent requests could mutate desktop state at once.
+            confirmed = data.get("confirmed", False) is True
             with jarvis._command_lock:
-                result = jarvis.command_processor.process(command)
+                result = jarvis.command_processor.process(command, confirmed=confirmed)
             if not isinstance(result, dict):
                 result = {"success": False, "response": "JARVIS geçerli bir yanıt döndürmedi."}
             response = {
