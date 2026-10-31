@@ -89,13 +89,13 @@
   },
   "security": {
     "require_confirmation": {
-      "file_deletion": false,
+      "file_deletion": true,
       "system_shutdown": true,
       "registry_changes": true,
       "admin_commands": true
     },
     "allowed_operations": {
-      "file_deletion": true,
+      "file_deletion": false,
       "system_changes": false,
       "registry_access": false,
       "network_operations": true
