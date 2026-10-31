@@ -434,3 +434,16 @@ def test_gpt6_chat_completions_use_supported_sampling_parameters(tmp_path, monke
     assert brain._compatible_api("openrouter", "test prompt") == "Yanıt tamam"
     router_payload = session.calls[-1][1]["json"]
     assert router_payload["reasoning_effort"] == "none"
+
+
+def test_fast_turkish_responses_use_command_processors_real_process_method():
+    from core.command_processor import CommandProcessor
+
+    assert callable(CommandProcessor.process)
+    assert not hasattr(CommandProcessor, "process_command")
+    result = CommandProcessor.process(None, "merhaba")
+
+    assert result["success"] is True
+    assert result["intent"] == "greeting"
+    assert result["fast_local"] is True
+    assert "Hazırım" in result["response"]
