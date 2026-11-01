@@ -343,6 +343,7 @@ class CommandProcessor:
                     'success': False,
                     'response': validation_error or 'Bu işlem güvenlik denetiminden geçmedi.',
                     'intent': intent,
+                    'requires_confirmation': False,
                 }
 
             confirmation_required = self.validator.requires_confirmation(intent) or bool(warning)
