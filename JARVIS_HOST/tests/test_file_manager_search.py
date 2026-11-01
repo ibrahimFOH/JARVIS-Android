@@ -9,6 +9,7 @@ def _manager(tmp_path):
     manager.max_results = 20
     manager.search_timeout = 5
     manager.search_all_fixed_drives = False
+    manager._system_under_pressure = lambda: False
     manager.excluded_directories = {
         "appdata", "windows", "program files", ".git", "node_modules"
     }
@@ -68,11 +69,7 @@ def test_search_reports_invalid_empty_query_without_walking(tmp_path):
 
 def test_local_search_pauses_immediately_when_pc_is_under_pressure(tmp_path, monkeypatch):
     manager = _manager(tmp_path)
-    monkeypatch.setattr(
-        FileManager,
-        "_system_under_pressure",
-        staticmethod(lambda: True),
-    )
+    manager._system_under_pressure = lambda: True
     (tmp_path / "Elif_Kir_Bahcesi.pdf").write_bytes(b"pdf")
 
     result = manager.find_files("Elif Kir Bahcesi", location=str(tmp_path))
