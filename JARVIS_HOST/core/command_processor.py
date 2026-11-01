@@ -858,6 +858,11 @@ class CommandProcessor:
                 response = f"Bilgisayarda {result['count']} eşleşen dosya bulundu:\n{file_list}"
                 if result.get('truncated'):
                     response += "\nİlk sonuç sınırına ulaşıldı; daha fazla eşleşme olabilir."
+            elif result.get('paused_for_resources'):
+                response = (
+                    "Bilgisayar kaynak kullanımı yüksek olduğu için yerel dosya araması duraklatıldı. "
+                    "Dosyanın bulunmadığı sonucu çıkarılamaz; indirme yapılmadı."
+                )
             elif result.get('timed_out'):
                 response = (
                     f"'{query}' için yerel arama zaman sınırına ulaştı. "
@@ -865,7 +870,9 @@ class CommandProcessor:
                 )
             else:
                 response = f"Bilgisayarda '{query}' ile eşleşen mevcut dosya bulunamadı."
-            if result.get('timed_out') and files:
+            if result.get('paused_for_resources') and files:
+                response += "\nBilgisayar yükü yükseldiği için tarama duraklatıldı; mevcut sonuçlar eksik olabilir."
+            elif result.get('timed_out') and files:
                 response += "\nArama süresi dolduğu için tüm diskler taranamadı; sonuç eksik olabilir."
         else:
             response = "Yerel dosya araması başarısız: " + str(
@@ -877,7 +884,7 @@ class CommandProcessor:
             'response': response,
             'intent': 'find_files',
             'data': files if result['success'] else [],
-            'search_incomplete': bool(result.get('timed_out') or result.get('truncated')),
+            'search_incomplete': bool(result.get('timed_out') or result.get('truncated') or result.get('paused_for_resources')),
         }
 
     def _execute_create_folder(self, params: Dict) -> Dict:
