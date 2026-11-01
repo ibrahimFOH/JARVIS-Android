@@ -376,6 +376,22 @@ class CommandProcessor:
         if software_result is not None:
             return software_result
 
+        try:
+            from core.engineering_task_runtime import EngineeringTaskRuntime
+            task_runtime = EngineeringTaskRuntime(
+                self.ai_brain, self.file_manager, self.memory
+            )
+            task_result = task_runtime.execute(command)
+            if task_result is not None:
+                return task_result
+        except Exception as exc:
+            logger.error("Mühendislik görev motoru başarısız: " + str(exc))
+            return {
+                "success": False,
+                "response": "Mühendislik görevi güvenli şekilde tamamlanamadı: " + str(exc),
+                "intent": "engineering_task",
+            }
+
         # Explicit OS integrations run before generic intent/LLM routing so that
         # Git operations and dialer requests execute rather than merely being described.
         try:
