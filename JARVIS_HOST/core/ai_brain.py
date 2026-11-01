@@ -357,6 +357,82 @@ class AIBrain:
             raise RuntimeError("Gemini metin yanıtı döndürmedi.")
         return answer.strip()
 
+    def ask_with_images(self, prompt, image_paths, max_output_tokens=1200):
+        """Analyze local image files only through a confirmed, free Gemini tier."""
+        if self.provider not in ("auto", "gemini"):
+            raise RuntimeError(
+                "Görsel analizi için yalnızca ücretsiz katmanı onaylanmış Gemini bağlantısı kullanılabilir."
+            )
+        if not self.gemini_free_confirmed:
+            raise RuntimeError(
+                "Görsel Gemini'ye gönderilmedi. Önce Gemini Free Tier ve faturalandırmanın kapalı olduğunu onayla."
+            )
+        if self.gemini_model != self.FREE_MODELS["gemini"] or not self.gemini_key:
+            raise RuntimeError("Görsel analizi için izinli Gemini modeli ve API anahtarı gerekli.")
+
+        if isinstance(image_paths, (str, os.PathLike)):
+            image_paths = [image_paths]
+        image_paths = list(image_paths or [])
+        if not image_paths or len(image_paths) > 5:
+            raise ValueError("En fazla 5 görsel aynı istekte analiz edilebilir.")
+
+        parts = [{"text": str(prompt or "")}]
+        total_bytes = 0
+        allowed_mimes = {"image/jpeg", "image/png", "image/webp"}
+        for raw_path in image_paths:
+            path = Path(raw_path).expanduser().resolve()
+            if not path.is_file():
+                raise FileNotFoundError("Görsel bulunamadı: " + str(path))
+            mime_type, _encoding = mimetypes.guess_type(str(path))
+            if mime_type not in allowed_mimes:
+                raise ValueError("Yalnızca JPEG, PNG veya WebP görselleri destekleniyor: " + path.name)
+            size = path.stat().st_size
+            if size <= 0 or size > 8 * 1024 * 1024:
+                raise ValueError("Her görsel 8 MB sınırında ve boş olmayan bir dosya olmalı: " + path.name)
+            total_bytes += size
+            if total_bytes > 15 * 1024 * 1024:
+                raise ValueError("Görsellerin toplam boyutu 15 MB sınırını aşıyor.")
+            with path.open("rb") as image_file:
+                encoded = base64.b64encode(image_file.read()).decode("ascii")
+            parts.append({"inline_data": {"mime_type": mime_type, "data": encoded}})
+
+        url = (
+            "https://generativelanguage.googleapis.com/v1beta/models/"
+            + self.gemini_model + ":generateContent"
+        )
+        response = self.session.post(
+            url,
+            params={"key": self.gemini_key},
+            json={
+                "systemInstruction": {
+                    "parts": [{
+                        "text": (
+                            "Sen JARVIS'sin. Görselde ölçü, çizim, yazı veya ekipman görünmüyorsa "
+                            "uydurma. Okunamayan değerleri bilinmiyor olarak işaretle. Daima Türkçe yanıt ver."
+                        )
+                    }]
+                },
+                "contents": [{"role": "user", "parts": parts}],
+                "generationConfig": {
+                    "temperature": 0.1,
+                    "maxOutputTokens": self._output_token_limit(max_output_tokens, 1200),
+                },
+            },
+            timeout=min(self.timeout, 60),
+        )
+        if not response.ok:
+            raise RuntimeError(
+                "Gemini görsel API HTTP {}: {}".format(response.status_code, response.text[:300])
+            )
+        candidates = response.json().get("candidates") or []
+        response_parts = ((candidates[0].get("content") or {}).get("parts") or []) if candidates else []
+        answer = " ".join(
+            str(part.get("text", "")) for part in response_parts if isinstance(part, dict)
+        ).strip()
+        if not answer:
+            raise RuntimeError("Gemini görsel analizi boş yanıt döndürdü.")
+        return answer
+
     def test_provider(self, provider=None):
         target = (provider or self.provider).strip().lower()
         if target not in self.FREE_PROVIDERS:
