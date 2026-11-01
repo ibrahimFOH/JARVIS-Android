@@ -309,8 +309,68 @@ class CommandProcessor:
             return self.ai_brain.ask(prompt)
         return self.ai_brain.ask(prompt, memory_context=facts)
 
+    def _translate_qt_catalog_command(self, command: str):
+        """Translate an existing Qt .ts catalog into a separate Turkish catalog."""
+        normalized = _normalize_direct_command(command)
+        if not any(term in normalized for term in ("turkceye cevir", "turkcelestir", "arayuzunu turkce yap")):
+            return None
+
+        original = str(command or "")
+        match = re.search(
+            r'(?i)([A-Za-z]:\\[^\r\n"]+?\.ts|"(?:[^"]+\\)?[^"]+\.ts")',
+            original,
+        )
+        if not match:
+            return {
+                "success": False,
+                "response": "Türkçeye çevrilecek Qt .ts dosyasının tam yolunu belirt.",
+                "intent": "translate_qt_catalog",
+            }
+
+        raw_path = match.group(1).strip('"')
+        source = Path(raw_path).expanduser()
+        if source.suffix.lower() != ".ts":
+            return {
+                "success": False,
+                "response": "Bu çeviri hizmeti şu anda Qt Linguist .ts kataloglarını kabul ediyor.",
+                "intent": "translate_qt_catalog",
+            }
+
+        target_name = re.sub(r'_[a-z]{2}_[A-Z]{2}(?=\.ts$)', '_tr_TR', source.name)
+        if target_name == source.name:
+            target_name = source.stem + "_tr_TR.ts"
+        destination = source.with_name(target_name)
+
+        try:
+            from core.translation_manager import TurkishTranslationManager
+            result = TurkishTranslationManager(self.ai_brain).translate_qt_ts(source, destination)
+            return {
+                "success": True,
+                "response": (
+                    "Türkçe çeviri dosyası oluşturuldu ve XML yapısı doğrulandı.\n"
+                    f"Kaynak: {result['source']}\n"
+                    f"Çıktı: {result['destination']}\n"
+                    f"Çevrilen kayıt: {result['translated_entries']}\n"
+                    f"Korunan kayıt: {result['preserved_entries']}\n"
+                    "Orijinal dosya değiştirilmedi. Uygulamada etkinleştirme/derleme ayrıca doğrulanmalı."
+                ),
+                "intent": "translate_qt_catalog",
+                "data": result,
+            }
+        except Exception as exc:
+            logger.warning("Türkçe katalog çevirisi tamamlanamadı: " + str(exc))
+            return {
+                "success": False,
+                "response": "Türkçe katalog çevirisi tamamlanamadı: " + str(exc),
+                "intent": "translate_qt_catalog",
+            }
+
     def process(self, command: str, confirmed: bool = False) -> Dict[str, Any]:
         logger.command(command)
+
+        translation_result = self._translate_qt_catalog_command(command)
+        if translation_result is not None:
+            return translation_result
 
         software_result = _stagepulse_software_research_command(command)
         if software_result is not None:
