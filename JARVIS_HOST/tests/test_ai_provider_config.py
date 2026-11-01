@@ -35,13 +35,16 @@ def test_free_provider_settings_persist_and_reload(tmp_path, monkeypatch):
         groq_key="not-a-real-secret",
         groq_model="openai/gpt-oss-20b",
         free_cloud_enabled=True,
+        groq_free_plan_confirmed=True,
     )
     saved = (tmp_path / "ai_settings.json").read_text(encoding="utf-8")
     assert '"provider": "groq"' in saved
     assert '"free_cloud_enabled": true' in saved
+    assert '"groq_free_plan_confirmed": true' in saved
     reloaded = fresh_brain(tmp_path, monkeypatch)
     assert reloaded.provider == "groq"
     assert reloaded.free_cloud_enabled is True
+    assert reloaded.groq_free_plan_confirmed is True
     assert reloaded.groq_key == "not-a-real-secret"
 
 
@@ -88,6 +91,7 @@ def test_auto_provider_connection_check_accepts_a_real_response(tmp_path, monkey
 def test_groq_missing_key_reports_failure_without_network(tmp_path, monkeypatch):
     brain = fresh_brain(tmp_path, monkeypatch)
     brain.free_cloud_enabled = True
+    brain.groq_free_plan_confirmed = True
     calls = []
     monkeypatch.setattr(brain.session, "post", lambda *args, **kwargs: calls.append(args))
     result = brain.test_provider("groq")
@@ -165,6 +169,7 @@ def test_auto_provider_uses_only_explicitly_enabled_free_groq_fallback(tmp_path,
     brain.provider = "auto"
     brain.groq_key = "test-key"
     brain.free_cloud_enabled = True
+    brain.groq_free_plan_confirmed = True
     monkeypatch.setattr(
         brain,
         "_ollama",
@@ -645,6 +650,7 @@ def test_rejected_free_model_configuration_is_transactional(tmp_path, monkeypatc
             provider="gemini",
             free_cloud_enabled=True,
             gemini_model="paid-or-unknown-model",
+            gemini_free_tier_confirmed=True,
             groq_key="must-not-be-applied",
         )
 
@@ -742,4 +748,32 @@ def test_local_image_analysis_rejects_remote_ollama_host(tmp_path, monkeypatch):
     result = brain.analyze_local_images([image_path], "Krokini incele")
 
     assert "yerel adres değil" in result.lower()
+    assert calls == []
+
+
+
+def test_cloud_provider_requires_explicit_free_plan_attestation(tmp_path, monkeypatch):
+    brain = fresh_brain(tmp_path, monkeypatch)
+    calls = []
+
+    class Session:
+        def post(self, *args, **kwargs):
+            calls.append((args, kwargs))
+            raise AssertionError("Onay verilmeden ücretli olabilecek API çağrısı yapılamaz")
+
+    brain.session = Session()
+    brain.free_cloud_enabled = True
+    result = brain.test_provider("groq")
+    assert result["success"] is False
+    assert "Free Plan onayı yok" in result["message"]
+    assert calls == []
+
+    with pytest.raises(ValueError, match="Free Plan"):
+        brain.configure(
+            provider="groq",
+            free_cloud_enabled=True,
+            groq_key="test-key",
+        )
+    assert brain.provider == "ollama"
+    assert brain.groq_free_plan_confirmed is False
     assert calls == []
