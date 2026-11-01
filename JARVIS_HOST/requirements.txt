@@ -10,7 +10,7 @@ pvporcupine>=3.0.0  # Wake word detection
 # Desktop Automation
 pyautogui>=0.9.54
 pygetwindow>=0.0.9
-psutil>=5.9.6
+psutil>=7.2.2
 pywin32>=306  # Windows API access
 pillow>=10.0.0
 
