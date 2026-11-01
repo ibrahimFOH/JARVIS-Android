@@ -79,7 +79,7 @@ class RepositoryManager:
         normalized = unicodedata.normalize("NFKD", text)
         normalized = "".join(ch for ch in normalized if not unicodedata.combining(ch))
         return (
-            bool(re.match(r"^(?:git|repo|depo|github)\\b", text))
+            bool(re.match(r"^(?:git|repo|depo|github)\b", text))
             or text.startswith(("değişiklikleri ekle", "degisiklikleri ekle"))
             or any(term in normalized for term in (
                 "stagepulse icin github", "stagepulse icin acik kaynak",
@@ -441,7 +441,7 @@ class RepositoryManager:
             }
 
         inspect_match = re.match(
-            r"^(?:github|repo|depo)\\s+(?:incele|analiz et)\\s+([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)$",
+            r"^(?:github|repo|depo)\s+(?:incele|analiz et)\s+([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)$",
             text, re.IGNORECASE,
         )
         if inspect_match:
