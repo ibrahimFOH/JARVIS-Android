@@ -601,7 +601,7 @@ class RepositoryManager:
                     spdx = str(license_data.get("spdx_id", "")).upper() or "BELİRSİZ"
                     eligible = spdx in self.ALLOWED_LICENSES
                     lines.append(
-                        ("AÇIK LİSANS" if eligible else "LİSANS DOĞRULANMADI") +
+                        ("AÇIK LİSANS / TEKNİK İNCELEME GEREKLİ" if eligible else "LİSANS DOĞRULANMADI") +
                         f' | {item.get("full_name", "")} | {spdx} | {item.get("stargazers_count", 0)} yıldız | ' +
                         str(item.get("html_url", "")) + "\n" + str(item.get("description") or "Açıklama yok")
                     )
