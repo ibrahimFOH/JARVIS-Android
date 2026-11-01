@@ -76,6 +76,8 @@ class AIBrain:
             self.groq_model = "openai/gpt-oss-20b"
         # Bulut servisleri varsayılan olarak kapalıdır; kullanıcı ayrıca etkinleştirir.
         self.free_cloud_enabled = bool(saved.get("free_cloud_enabled", False))
+        self.gemini_free_tier_confirmed = bool(saved.get("gemini_free_tier_confirmed", False))
+        self.groq_free_plan_confirmed = bool(saved.get("groq_free_plan_confirmed", False))
         self.host = os.environ.get("OLLAMA_HOST", saved.get("ollama_host", legacy_ai.get("ollama_url", self.host))).rstrip("/")
         self.model = os.environ.get("OLLAMA_MODEL", saved.get("ollama_model", legacy_ai.get("ollama_model", self.model)))
         self.api_keys = {
@@ -250,6 +252,8 @@ class AIBrain:
         payload = {
             "provider": self.provider,
             "free_cloud_enabled": self.free_cloud_enabled,
+            "gemini_free_tier_confirmed": self.gemini_free_tier_confirmed,
+            "groq_free_plan_confirmed": self.groq_free_plan_confirmed,
             "gemini_api_key": self._protect_key(self.gemini_key),
             "gemini_model": self.gemini_model,
             "groq_api_key": self._protect_key(self.groq_key),
@@ -268,17 +272,29 @@ class AIBrain:
     def configure(self, provider=None, gemini_key=None, gemini_model=None,
                   ollama_host=None, ollama_model=None,
                   groq_key=None, groq_model=None, api_keys=None, api_models=None,
-                  api_base_urls=None, free_cloud_enabled=None):
+                  api_base_urls=None, free_cloud_enabled=None,
+                  gemini_free_tier_confirmed=None, groq_free_plan_confirmed=None):
         # Validate the entire requested configuration before mutating live state.
-        # A rejected paid provider must not leave a cloud-enabled partial state.
         new_cloud_enabled = (
             self.free_cloud_enabled if free_cloud_enabled is None else bool(free_cloud_enabled)
+        )
+        new_gemini_confirmed = (
+            self.gemini_free_tier_confirmed
+            if gemini_free_tier_confirmed is None else bool(gemini_free_tier_confirmed)
+        )
+        new_groq_confirmed = (
+            self.groq_free_plan_confirmed
+            if groq_free_plan_confirmed is None else bool(groq_free_plan_confirmed)
         )
         new_provider = self.provider if provider is None else str(provider).strip().lower()
         if new_provider not in FREE_PROVIDERS:
             raise ValueError("Ücretli veya doğrulanmamış API sağlayıcıları devre dışı.")
         if new_provider in FREE_CLOUD_PROVIDERS and not new_cloud_enabled:
-            raise ValueError("Gemini/Groq kullanımı için ücretsiz bulut erişimini ayrıca etkinleştir.")
+            raise ValueError("Ücretsiz bulut erişimini ayrıca etkinleştir.")
+        if new_provider == "gemini" and not new_gemini_confirmed:
+            raise ValueError("Gemini hesabının Free Tier olduğuna ve faturalamanın etkin olmadığına dair onay gerekli.")
+        if new_provider == "groq" and not new_groq_confirmed:
+            raise ValueError("Groq hesabının Free Plan olduğuna ve Developer planına yükseltilmediğine dair onay gerekli.")
 
         new_gemini_model = self.gemini_model
         if gemini_model and gemini_model.strip():
@@ -301,6 +317,8 @@ class AIBrain:
 
         # All checks passed. Commit the new in-memory configuration together.
         self.free_cloud_enabled = new_cloud_enabled
+        self.gemini_free_tier_confirmed = new_gemini_confirmed
+        self.groq_free_plan_confirmed = new_groq_confirmed
         self.provider = new_provider
         self.gemini_model = new_gemini_model
         self.groq_model = new_groq_model
@@ -378,8 +396,8 @@ class AIBrain:
         return str(answer).strip()
 
     def _gemini_api(self, prompt, context=""):
-        if not self.free_cloud_enabled:
-            raise RuntimeError("Bulut AI kapalı; Gemini isteği gönderilmedi.")
+        if not self.free_cloud_enabled or not self.gemini_free_tier_confirmed:
+            raise RuntimeError("Gemini Free Tier/faturalamasız proje onayı yok; istek gönderilmedi.")
         if self.gemini_model not in FREE_GEMINI_MODELS:
             raise RuntimeError("Gemini modeli ücretsiz izin listesinde değil; istek gönderilmedi.")
         if not self.gemini_key:
@@ -413,6 +431,10 @@ class AIBrain:
             return {"success": False, "message": "Ücretli veya doğrulanmamış API sağlayıcısı engellendi; ağ isteği gönderilmedi."}
         if target in FREE_CLOUD_PROVIDERS and not self.free_cloud_enabled:
             return {"success": False, "message": "Ücretsiz bulut erişimi kapalı; ağ isteği gönderilmedi."}
+        if target == "gemini" and not self.gemini_free_tier_confirmed:
+            return {"success": False, "message": "Gemini Free Tier/faturalamasız proje onayı yok; ağ isteği gönderilmedi."}
+        if target == "groq" and not self.groq_free_plan_confirmed:
+            return {"success": False, "message": "Groq Free Plan onayı yok; ağ isteği gönderilmedi."}
         if target == "gemini" and self.gemini_model not in FREE_GEMINI_MODELS:
             return {"success": False, "message": "Gemini modeli ücretsiz izin listesinde değil; ağ isteği gönderilmedi."}
         if target == "groq" and self.groq_model not in FREE_GROQ_MODELS:
@@ -593,6 +615,10 @@ profil bilgilerini gereksiz yere yanıta kopyalama."""
             return "Ücretli veya doğrulanmamış API sağlayıcısı engellendi; hiçbir API isteği gönderilmedi."
         if allow_cloud and self.provider in FREE_CLOUD_PROVIDERS and not self.free_cloud_enabled:
             return "Bulut AI kapalı; ücretsiz bulut erişimini ayarlardan etkinleştir. Hiçbir bulut isteği gönderilmedi."
+        if allow_cloud and self.provider == "gemini" and not self.gemini_free_tier_confirmed:
+            return "Gemini Free Tier ve faturalamasız proje onayı yok; API isteği gönderilmedi."
+        if allow_cloud and self.provider == "groq" and not self.groq_free_plan_confirmed:
+            return "Groq Free Plan onayı yok; API isteği gönderilmedi."
         instant = self._instant(prompt)
         if instant and not memory_context:
             return instant
@@ -606,9 +632,9 @@ profil bilgilerini gereksiz yere yanıta kopyalama."""
             )
         available = []
         if allow_cloud and self.free_cloud_enabled:
-            if self.groq_key and self.groq_model in FREE_GROQ_MODELS:
+            if self.groq_free_plan_confirmed and self.groq_key and self.groq_model in FREE_GROQ_MODELS:
                 available.append("groq")
-            if self.gemini_key and self.gemini_model in FREE_GEMINI_MODELS:
+            if self.gemini_free_tier_confirmed and self.gemini_key and self.gemini_model in FREE_GEMINI_MODELS:
                 available.append("gemini")
         # A named provider is an explicit user choice. Do not silently transmit
         # prompts to another service or incur cloud charges when it fails. "auto"
@@ -639,8 +665,8 @@ profil bilgilerini gereksiz yere yanıta kopyalama."""
         return "Yapay zekâ yanıtı alınamadı. Denenen sağlayıcılar: " + " | ".join(errors)
 
     def _compatible_groq(self, prompt, context=""):
-        if not self.free_cloud_enabled:
-            raise RuntimeError("Bulut AI kapalı; Groq isteği gönderilmedi.")
+        if not self.free_cloud_enabled or not self.groq_free_plan_confirmed:
+            raise RuntimeError("Groq Free Plan onayı yok; istek gönderilmedi.")
         if self.groq_model not in FREE_GROQ_MODELS:
             raise RuntimeError("Groq modeli ücretsiz izin listesinde değil; istek gönderilmedi.")
         user_text = prompt + (("\n\nWEB VERİSİ:\n" + context) if context else "")
