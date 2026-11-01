@@ -933,22 +933,26 @@ class JarvisGUI:
             font=("Consolas", 9)
         ).pack(anchor="w", padx=20, pady=(8, 5))
 
-        free_tier_var = ctk.BooleanVar(value=brain.free_tier_confirmed)
+        gemini_free_var = ctk.BooleanVar(value=brain.gemini_free_confirmed)
+        groq_free_var = ctk.BooleanVar(value=brain.groq_free_confirmed)
         ctk.CTkCheckBox(
             content,
-            text="Onaylıyorum: Gemini ücretsiz katmanında, Groq hesabım Free Plan'da ve hiçbirinde faturalandırma etkin değil.",
-            variable=free_tier_var,
-            text_color=WHITE,
-            fg_color=GOLD2,
-            hover_color=GOLD,
-            border_color=GOLD2,
-            font=("Consolas", 9),
-            wraplength=535
-        ).pack(anchor="w", padx=20, pady=(8, 8))
+            text="Gemini: Ücretsiz katman kullanıyorum ve Google Cloud faturalandırması kapalı.",
+            variable=gemini_free_var,
+            text_color=WHITE, fg_color=GOLD2, hover_color=GOLD,
+            border_color=GOLD2, font=("Consolas", 9), wraplength=535
+        ).pack(anchor="w", padx=20, pady=(8, 3))
+        ctk.CTkCheckBox(
+            content,
+            text="Groq: Hesabım Free Plan'da; ücretli Developer planı etkin değil.",
+            variable=groq_free_var,
+            text_color=WHITE, fg_color=GOLD2, hover_color=GOLD,
+            border_color=GOLD2, font=("Consolas", 9), wraplength=535
+        ).pack(anchor="w", padx=20, pady=(3, 8))
 
         ctk.CTkLabel(
             content,
-            text="ÖNEMLİ: JARVIS ödeme planını sağlayıcı hesabından okuyamaz. Bu onay yalnızca gerçekten ücretsiz ve faturalandırmasız hesap kullandığında verilmelidir. Onay yoksa bulut API isteği gönderilmez. Gemini ücretsiz katmanı ve Groq Free Plan kotaları dolarsa otomatik ücretli plana geçilmez; istek durur. Ollama yerel çalışır ve API ücreti oluşturmaz. API anahtarları Windows DPAPI ile şifrelenir; DPAPI başarısızsa düz metin kaydedilmez. Ücretli OpenAI, Grok/xAI, Anthropic, DeepSeek, Perplexity, OpenRouter ve özel API uç noktaları kapalıdır.",
+            text="ÖNEMLİ: JARVIS ödeme planını sağlayıcı hesabından doğrulayamaz. Yalnızca gerçekten ücretsiz ve faturalandırmasız hesaplarda ilgili onayı ver. Onay yoksa o sağlayıcıya istek gönderilmez. Ücretsiz kota dolarsa ücretli plana geçilmez; istek durur. Ollama yerel çalışır ve API ücreti oluşturmaz. API anahtarları Windows DPAPI ile şifrelenir; DPAPI başarısızsa düz metin kaydedilmez. OpenAI, Grok/xAI, Anthropic, DeepSeek, Perplexity, OpenRouter ve özel API uç noktaları kapalıdır.",
             text_color=MUTED, wraplength=550, justify="left",
             font=("Consolas", 9)
         ).pack(anchor="w", padx=20, pady=(5, 12))
@@ -960,7 +964,8 @@ class JarvisGUI:
                 ollama_host=ollama_host.get(),
                 ollama_model=ollama_model.get(),
                 groq_key=groq_key.get(),
-                free_tier_confirmed=free_tier_var.get(),
+                gemini_free_confirmed=gemini_free_var.get(),
+                groq_free_confirmed=groq_free_var.get(),
             )
             label = getattr(self, "_telemetry_widgets", {}).get("YAPAY ZEKÂ ÇEKİRDEĞİ")
             if label is not None:
