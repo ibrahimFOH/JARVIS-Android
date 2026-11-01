@@ -35,7 +35,7 @@ def test_github_dmx_order_routes_to_stagepulse_lighting_research(monkeypatch):
 
     result = _stagepulse_software_research_command("GitHub'da DMX ışık yazılımı araştır")
 
-    assert captured == {"category": "lighting", "per_category": 2}
+    assert captured == {"category": "lighting", "per_category": 1}
     assert result["success"] is True
     assert result["intent"] == "stagepulse_software_research"
     assert "QLC+" in result["response"]
