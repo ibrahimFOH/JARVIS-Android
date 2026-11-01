@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import os,sys,subprocess
+import base64
 from pathlib import Path
 import requests
 class ToolEngine:
@@ -37,9 +38,18 @@ from urllib.parse import urlsplit
 
 
 class RepositoryManager:
-    """Small, safe Git command layer scoped to one user-selected repository."""
+    """Git operations and read-only GitHub research scoped to Stagepulse."""
 
-    def __init__(self, settings_path=None):
+    ALLOWED_LICENSES = frozenset({"MIT", "Apache-2.0", "BSD-2-Clause", "BSD-3-Clause", "MPL-2.0", "GPL-3.0"})
+    STAGEPULSE_SEARCH_AREAS = (
+        ("Ses ölçüm ve analiz", "live sound measurement software RTA SPL impulse response phase coherence"),
+        ("PA tasarımı ve kapsama", "loudspeaker system design simulator coverage prediction open source"),
+        ("Stage plot ve teknik doküman", "live sound stage plot generator input list technical rider"),
+        ("Ağ ses ve Dante", "audio network monitoring routing Dante AES67 open source"),
+        ("Sahne ışığı ve DMX", "DMX lighting control software live event open source"),
+    )
+
+    def __init__(self, settings_path=None, ai_brain=None):
         if settings_path:
             self.settings_path = Path(settings_path)
         else:
@@ -48,6 +58,7 @@ class RepositoryManager:
         saved = self._read_settings()
         configured = os.environ.get("JARVIS_REPOSITORY") or saved.get("repo_path", "")
         self.repo_path = Path(configured).expanduser() if configured else None
+        self.ai_brain = ai_brain
 
     def _read_settings(self):
         try:
@@ -65,8 +76,16 @@ class RepositoryManager:
     @staticmethod
     def is_command(command):
         text = str(command or "").strip().lower()
-        return bool(re.match(r"^(?:git|repo|depo)\b", text)) or text.startswith(
-            ("değişiklikleri ekle", "degisiklikleri ekle")
+        normalized = unicodedata.normalize("NFKD", text)
+        normalized = "".join(ch for ch in normalized if not unicodedata.combining(ch))
+        return (
+            bool(re.match(r"^(?:git|repo|depo|github)\\b", text))
+            or text.startswith(("değişiklikleri ekle", "degisiklikleri ekle"))
+            or any(term in normalized for term in (
+                "stagepulse icin github", "stagepulse icin acik kaynak",
+                "stagepulse araclarini tara", "stagepulse araclarini arastir",
+                "github repolarini tara", "github repolarini arastir",
+            ))
         )
 
     @staticmethod
@@ -85,6 +104,175 @@ class RepositoryManager:
             return {"ok": False, "code": 127, "stdout": "", "stderr": "Git bulunamadı. Git for Windows kurulumunu kontrol et."}
         except subprocess.TimeoutExpired:
             return {"ok": False, "code": 124, "stdout": "", "stderr": "Git işlemi zaman aşımına uğradı."}
+
+    @staticmethod
+    def _github_json(path):
+        response = requests.get(
+            "https://api.github.com" + path,
+            headers={
+                "Accept": "application/vnd.github+json",
+                "X-GitHub-Api-Version": "2022-11-28",
+                "User-Agent": "Stagepulse-JARVIS",
+            },
+            timeout=18,
+        )
+        if response.status_code in (403, 429):
+            raise RuntimeError("GitHub ücretsiz API sınırına ulaşıldı. Ücretli API kullanılmayacak.")
+        response.raise_for_status()
+        return response.json()
+
+    @staticmethod
+    def _safe_repository_name(value):
+        name = str(value or "").strip()
+        if not re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", name):
+            raise ValueError("Depo adı owner/repo biçiminde olmalı.")
+        return name
+
+    def _search_github_repositories(self, query, per_page=3):
+        prepared = requests.Request(
+            "GET", "https://api.github.com/search/repositories",
+            params={
+                "q": query + " archived:false fork:false",
+                "sort": "stars", "order": "desc",
+                "per_page": max(1, min(int(per_page), 5)),
+            },
+        ).prepare()
+        path = prepared.url.replace("https://api.github.com", "")
+        data = self._github_json(path)
+        return data.get("items", []) if isinstance(data, dict) else []
+
+    def search_stagepulse_repositories(self):
+        """Find public GitHub projects relevant to published Stagepulse services."""
+        candidates = {}
+        failures = []
+        for area, query in self.STAGEPULSE_SEARCH_AREAS:
+            try:
+                for item in self._search_github_repositories(query, per_page=3):
+                    if not isinstance(item, dict) or item.get("archived") or item.get("fork"):
+                        continue
+                    full_name = str(item.get("full_name", "")).strip()
+                    if not full_name:
+                        continue
+                    license_data = item.get("license") or {}
+                    spdx = str(license_data.get("spdx_id", "")).upper()
+                    allowed = spdx in self.ALLOWED_LICENSES
+                    candidate = candidates.setdefault(full_name, {
+                        "name": full_name,
+                        "description": str(item.get("description") or "Açıklama yok"),
+                        "url": str(item.get("html_url") or ""),
+                        "license": spdx or "BELİRSİZ",
+                        "language": str(item.get("language") or "Belirtilmemiş"),
+                        "stars": int(item.get("stargazers_count") or 0),
+                        "updated": str(item.get("pushed_at") or ""),
+                        "areas": [],
+                        "install_recommended": allowed,
+                        "reason": (
+                            "Açık lisans bulundu; teknik ve güvenlik incelemesi gerekli."
+                            if allowed else "Lisans yok veya izin listesinde değil; kurulum önerilmez."
+                        ),
+                    })
+                    if area not in candidate["areas"]:
+                        candidate["areas"].append(area)
+                    candidate["install_recommended"] = candidate["install_recommended"] and allowed
+            except Exception as exc:
+                failures.append(area + ": " + str(exc))
+        ordered = sorted(
+            candidates.values(),
+            key=lambda item: (item["install_recommended"], item["stars"], item["updated"]),
+            reverse=True,
+        )
+        return {
+            "success": bool(ordered),
+            "repositories": ordered[:15],
+            "failures": failures,
+            "message": (
+                "GitHub taraması tamamlandı. Lisans ve güvenlik incelemesi olmadan hiçbir depo kurulmayacak."
+                if ordered else "Uygun GitHub deposu bulunamadı veya ücretsiz GitHub API erişimi kullanılamıyor."
+            ),
+        }
+
+    def inspect_github_repository(self, repository):
+        """Read repository metadata and README without cloning or executing code."""
+        full_name = self._safe_repository_name(repository)
+        metadata = self._github_json("/repos/" + full_name)
+        license_data = metadata.get("license") or {}
+        spdx = str(license_data.get("spdx_id", "")).upper()
+        license_allowed = spdx in self.ALLOWED_LICENSES
+        readme = ""
+        readme_error = ""
+        try:
+            raw = self._github_json("/repos/" + full_name + "/readme")
+            encoded = raw.get("content", "")
+            readme = (
+                base64.b64decode(encoded).decode("utf-8", errors="replace")
+                if raw.get("encoding") == "base64" else str(encoded)
+            )
+        except Exception as exc:
+            readme_error = str(exc)
+
+        tree_warnings = []
+        try:
+            tree = self._github_json(
+                "/repos/" + full_name + "/git/trees/" +
+                str(metadata.get("default_branch") or "main") + "?recursive=1"
+            )
+            paths = [
+                str(item.get("path", "")) for item in tree.get("tree", [])
+                if isinstance(item, dict)
+            ]
+            risky_names = [
+                name for name in paths
+                if name.lower().endswith((".exe", ".msi", ".dll", ".bat", ".cmd", ".ps1", ".sh"))
+                or Path(name).name.lower() in ("setup.py", "install.py")
+            ]
+            if risky_names:
+                tree_warnings.append(
+                    "Çalıştırılabilir kurulum betiği/binary bulundu; elle kod incelemesi gerekir: " +
+                    ", ".join(risky_names[:12])
+                )
+        except Exception as exc:
+            tree_warnings.append("Dosya ağacı taranamadı: " + str(exc))
+
+        translated = ""
+        translation_error = ""
+        if readme and self.ai_brain is not None:
+            prompt = (
+                "Aşağıdaki herkese açık GitHub README belgesini teknik anlamını koruyarak Türkçeye çevir. "
+                "Başlıkları, madde işaretlerini, Markdown tablolarını ve kod bloklarını koru. "
+                "Komutları, dosya yollarını, API adlarını ve lisans metnini değiştirme. "
+                "Kaynakta olmayan kurulum adımı veya özellik ekleme.\n\nREADME:\n" + readme[:18000]
+            )
+            try:
+                translated = self.ai_brain.ask(prompt)
+                if not translated or translated.startswith((
+                    "Yapay zekâ yanıtı alınamadı.", "Ollama bağlantısında sorun",
+                    "Bulut AI kapalı;",
+                )):
+                    translation_error = translated or "Türkçe çeviri üretilemedi."
+                    translated = ""
+            except Exception as exc:
+                translation_error = str(exc)
+
+        return {
+            "success": True,
+            "repository": full_name,
+            "description": str(metadata.get("description") or "Açıklama yok"),
+            "url": str(metadata.get("html_url") or ""),
+            "stars": int(metadata.get("stargazers_count") or 0),
+            "language": str(metadata.get("language") or "Belirtilmemiş"),
+            "license": spdx or "BELİRSİZ",
+            "license_allowed": license_allowed,
+            "install_recommended": license_allowed and not tree_warnings,
+            "warnings": tree_warnings,
+            "readme_excerpt": readme[:18000],
+            "readme_translation_tr": translated,
+            "translation_error": translation_error,
+            "readme_error": readme_error,
+            "message": (
+                "Açık lisanslı depo; kod ve bağımlılık güvenlik incelemesinden sonra kuruluma aday."
+                if license_allowed else "Lisans doğrulanamadı veya izin listesinde değil. Kurulum önerilmez."
+            ),
+        }
 
     def _root(self):
         if self.repo_path is None:
@@ -228,6 +416,59 @@ class RepositoryManager:
     def handle_command(self, command, confirmed=False):
         text = str(command or "").strip()
         low = text.lower().strip()
+
+        normalized = unicodedata.normalize("NFKD", low)
+        normalized = "".join(ch for ch in normalized if not unicodedata.combining(ch))
+        if normalized in (
+            "github tara", "github arastir",
+            "stagepulse icin arac tara", "stagepulse icin acik kaynak ara",
+        ) or "stagepulse icin github" in normalized:
+            result = self.search_stagepulse_repositories()
+            lines = [result["message"]]
+            for item in result["repositories"]:
+                status = "KURULUMA ADAY" if item["install_recommended"] else "LİSANS ENGELİ"
+                lines.append(
+                    f'{status} | {item["name"]} | {item["license"]} | {item["stars"]} yıldız | '
+                    f'{", ".join(item["areas"])} | {item["url"]}\n{item["description"]}'
+                )
+            if result["failures"]:
+                lines.append("Erişim uyarıları: " + " | ".join(result["failures"][:3]))
+            return {
+                "success": result["success"],
+                "response": "\n\n".join(lines),
+                "intent": "github_research",
+                "data": result,
+            }
+
+        inspect_match = re.match(
+            r"^(?:github|repo|depo)\\s+(?:incele|analiz et)\\s+([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)$",
+            text, re.IGNORECASE,
+        )
+        if inspect_match:
+            try:
+                result = self.inspect_github_repository(inspect_match.group(1))
+            except Exception as exc:
+                return {
+                    "success": False, "response": "GitHub deposu incelenemedi: " + str(exc),
+                    "intent": "github_inspection",
+                }
+            sections = [
+                f'Depo: {result["repository"]}',
+                f'Lisans: {result["license"]}',
+                f'Dil: {result["language"]} | Yıldız: {result["stars"]}',
+                result["message"],
+                "Kaynak: " + result["url"],
+            ]
+            if result["warnings"]:
+                sections.extend(result["warnings"])
+            if result["readme_translation_tr"]:
+                sections.append("README TÜRKÇE ÇEVİRİSİ:\n" + result["readme_translation_tr"][:9000])
+            elif result["translation_error"]:
+                sections.append("Çeviri durumu: " + result["translation_error"])
+            return {
+                "success": True, "response": "\n\n".join(sections),
+                "intent": "github_inspection", "data": result,
+            }
         bind_match = re.match(r"^(?:(?:git\s+)?repo|depo|depoyu|github deposunu)\s+(?:bağla|bagla|bağlan|baglan)\s*(.*)$", text, re.IGNORECASE)
         if bind_match:
             target = bind_match.group(1).strip()
