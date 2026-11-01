@@ -165,20 +165,21 @@ class RepositoryManager:
                         "stars": int(item.get("stargazers_count") or 0),
                         "updated": str(item.get("pushed_at") or ""),
                         "areas": [],
-                        "install_recommended": allowed,
+                        "license_allowed": allowed,
+                        "install_recommended": False,
                         "reason": (
-                            "Açık lisans bulundu; teknik ve güvenlik incelemesi gerekli."
+                            "Açık lisans bulundu; kurulumdan önce teknik ve güvenlik incelemesi zorunlu."
                             if allowed else "Lisans yok veya izin listesinde değil; kurulum önerilmez."
                         ),
                     })
                     if area not in candidate["areas"]:
                         candidate["areas"].append(area)
-                    candidate["install_recommended"] = candidate["install_recommended"] and allowed
+                    candidate["license_allowed"] = candidate["license_allowed"] and allowed
             except Exception as exc:
                 failures.append(area + ": " + str(exc))
         ordered = sorted(
             candidates.values(),
-            key=lambda item: (item["install_recommended"], item["stars"], item["updated"]),
+            key=lambda item: (item["license_allowed"], item["stars"], item["updated"]),
             reverse=True,
         )
         return {
@@ -537,7 +538,7 @@ class RepositoryManager:
             result = self.search_stagepulse_repositories()
             lines = [result["message"]]
             for item in result["repositories"]:
-                status = "KURULUMA ADAY" if item["install_recommended"] else "LİSANS ENGELİ"
+                status = "AÇIK LİSANS / TEKNİK İNCELEME GEREKLİ" if item["license_allowed"] else "LİSANS ENGELİ"
                 lines.append(
                     f'{status} | {item["name"]} | {item["license"]} | {item["stars"]} yıldız | '
                     f'{", ".join(item["areas"])} | {item["url"]}\n{item["description"]}'
@@ -567,10 +568,10 @@ class RepositoryManager:
                     lines.append(
                         ("AÇIK LİSANS" if eligible else "LİSANS DOĞRULANMADI") +
                         f' | {item.get("full_name", "")} | {spdx} | {item.get("stargazers_count", 0)} yıldız | ' +
-                        str(item.get("html_url", "")) + "\\n" + str(item.get("description") or "Açıklama yok")
+                        str(item.get("html_url", "")) + "\n" + str(item.get("description") or "Açıklama yok")
                     )
                 return {
-                    "success": True, "response": "\\n\\n".join(lines),
+                    "success": True, "response": "\n\n".join(lines),
                     "intent": "github_research", "data": items,
                 }
             except Exception as exc:
