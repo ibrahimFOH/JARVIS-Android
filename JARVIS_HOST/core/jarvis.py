@@ -33,12 +33,18 @@ class Jarvis:
                 logger.error("Ses motoru başlatılamadı; metin arayüzü açık kalacak: " + str(exc))
             if config.get("voice.wake_word_enabled", False):
                 try:
-                    self.wake_word_detector = WakeWordDetector()
+                    primary_wake_word = WakeWordDetector()
+                    if getattr(primary_wake_word, "porcupine", None):
+                        self.wake_word_detector = primary_wake_word
+                    else:
+                        logger.warning("Picovoice anahtarı/engine yok; çevrimiçi konuşma tanıma yedeği kullanılacak.")
+                        self.wake_word_detector = SimpleWakeWordDetector()
                 except Exception as exc:
-                    logger.warning("Uyandırma algılayıcısı kullanılamadı: " + str(exc))
+                    logger.warning("Porcupine başlatılamadı; çevrimiçi uyandırma yedeği deneniyor: " + str(exc))
                     try:
                         self.wake_word_detector = SimpleWakeWordDetector()
                     except Exception as fallback_exc:
+                        self.wake_word_detector = None
                         logger.warning("Uyandırma algılayıcısı kapalı: " + str(fallback_exc))
         self.is_running = False
         self.listening_continuously = False
