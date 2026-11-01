@@ -12,7 +12,8 @@ def make_brain():
     brain.gemini_model = "gemini-3.8-flash"
     brain.groq_key = ""
     brain.groq_model = "openai/gpt-oss-20b"
-    brain.free_tier_confirmed = False
+    brain.gemini_free_confirmed = False
+    brain.groq_free_confirmed = False
     brain.host = "http://127.0.0.1:11434"
     brain.model = "qwen3:0.6b"
     brain.api_defaults = {}
@@ -102,7 +103,7 @@ def test_cloud_provider_requires_explicit_free_billing_confirmation(provider):
     result = brain.test_provider(provider)
 
     assert result["success"] is False
-    assert "faturalandırmanın kapalı olduğunu onayla" in result["message"]
+    assert "isteği gönderilmedi" in result["message"]
 
 
 def test_gemini_api_is_blocked_before_network_without_free_tier_confirmation(monkeypatch):
