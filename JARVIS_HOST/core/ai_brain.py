@@ -7,7 +7,7 @@ import logging
 import copy
 import requests
 from pathlib import Path
-from urllib.parse import quote
+from urllib.parse import quote, urlparse
 
 logger = logging.getLogger(__name__)
 
@@ -521,6 +521,72 @@ profil bilgilerini gereksiz yere yanıta kopyalama."""
             return ((r.json().get("message") or {}).get("content") or "").strip()
         except Exception as e:
             return "Ollama bağlantısında sorun oluştu: "+str(e)
+
+    def analyze_local_images(self, image_paths, prompt):
+        """Analyze venue sketches only with a vision-capable Ollama model on this PC."""
+        parsed = urlparse(str(self.host or ""))
+        if parsed.hostname not in ("localhost", "127.0.0.1", "::1"):
+            return "GÖRSEL ANALİZİ DURDURULDU: Ollama adresi bu bilgisayara ait yerel adres değil. Müşteri görseli ağdaki başka bir cihaza gönderilmedi."
+
+        allowed_extensions = {".jpg", ".jpeg", ".png", ".webp", ".bmp"}
+        images = []
+        for raw_path in list(image_paths or [])[:6]:
+            path = Path(raw_path).expanduser()
+            if not path.is_file():
+                continue
+            if path.suffix.lower() not in allowed_extensions:
+                return "GÖRSEL ANALİZİ DURDURULDU: Desteklenmeyen görsel biçimi: " + path.suffix
+            try:
+                if path.stat().st_size > 15 * 1024 * 1024:
+                    return "GÖRSEL ANALİZİ DURDURULDU: Görsel 15 MB sınırını aşıyor: " + path.name
+                images.append(base64.b64encode(path.read_bytes()).decode("ascii"))
+            except OSError as exc:
+                return "GÖRSEL OKUNAMADI: " + path.name + " | " + str(exc)
+
+        if not images:
+            return "GÖRSEL ANALİZİ: Okunabilir yerel görsel bulunamadı."
+
+        try:
+            show = requests.post(
+                self.host + "/api/show",
+                json={"model": self.model},
+                timeout=min(self.timeout, 20),
+            )
+            show.raise_for_status()
+            capabilities = show.json().get("capabilities") or []
+            if "vision" not in capabilities:
+                return (
+                    "GÖRSEL ANALİZİ YAPILAMADI: Bu bilgisayardaki Ollama modeli görsel yeteneği bildirmiyor. "
+                    "Görsel yerel diskte kaldı ve hiçbir bulut servisine gönderilmedi. "
+                    "Yerel bir görsel model kurulduğunda yeniden denenebilir."
+                )
+            system = (
+                "Sen Stagepulse için yerel çalışan teknik çizim ve mekân krokisi analiz uzmanısın. "
+                "Yalnızca görüntüde gerçekten seçilebilen yazı, ölçü, duvar, sahne, seyirci alanı, "
+                "giriş, kolon ve işaretleri çıkar. Ölçek/ölçü görünmüyorsa metre veya açı uydurma. "
+                "Görüntüden gözlem, okunamayan bölüm, çıkarım ve doğrulanması gereken ölçüyü ayrı yaz. "
+                "SPL veya gerçek akustik kapsama ölçtüğünü iddia etme. Cevabı Türkçe ver."
+            )
+            response = requests.post(
+                self.host + "/api/chat",
+                json={
+                    "model": self.model,
+                    "stream": False,
+                    "keep_alive": "30m",
+                    "options": {"temperature": 0.1, "num_predict": 900, "num_ctx": 4096},
+                    "messages": [
+                        {"role": "system", "content": system},
+                        {"role": "user", "content": str(prompt or "") + "\\n\\nGÖRSEL SAYISI: " + str(len(images)), "images": images},
+                    ],
+                },
+                timeout=self.timeout,
+            )
+            response.raise_for_status()
+            answer = (response.json().get("message") or {}).get("content") or ""
+            return str(answer).strip() or "Yerel görsel modeli boş yanıt döndürdü."
+        except Exception as exc:
+            logger.warning("Yerel görsel analizi başarısız: " + str(exc))
+            return "YEREL GÖRSEL ANALİZİ BAŞARISIZ: " + str(exc) + ". Görsel hiçbir bulut servisine gönderilmedi."
 
     def ask(self, prompt, memory_context="", allow_cloud=True):
         if self.provider not in FREE_PROVIDERS:
