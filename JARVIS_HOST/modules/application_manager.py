@@ -100,13 +100,23 @@ class ApplicationManager:
             return
 
         suffix = Path(target).suffix.lower()
-        if suffix == ".exe" or (not suffix and "/" not in target and "\\" not in target):
+        if suffix in {".exe", ".com"} or (
+            not suffix and "/" not in target and "\\" not in target
+        ):
             subprocess.Popen([target], shell=False)
             return
 
+        # Shortcuts are the only non-executable files opened through ShellExecute.
+        # Batch files, command scripts and PowerShell scripts are deliberately
+        # rejected: Windows would execute them through a command interpreter.
+        if suffix not in {".lnk", ".url"}:
+            raise ValueError(
+                f"Desteklenmeyen uygulama türü: {suffix or 'uzantısız yol'}"
+            )
+
         startfile = getattr(os, "startfile", None)
         if startfile is None:
-            raise OSError("Bu uygulama türü için Windows ShellExecute gerekir.")
+            raise OSError("Windows kısayolları yalnızca Windows'ta açılabilir.")
         startfile(target)
 
     def close(self, app_name: str) -> Dict[str, any]:
