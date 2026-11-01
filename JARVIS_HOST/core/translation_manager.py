@@ -24,9 +24,9 @@ class TranslationError(RuntimeError):
 
 
 class TurkishTranslationManager:
-    def __init__(self, ai_brain, batch_size: int = 16):
+    def __init__(self, ai_brain, batch_size: int = 4):
         self.ai_brain = ai_brain
-        self.batch_size = max(1, min(int(batch_size), 24))
+        self.batch_size = max(1, min(int(batch_size), 8))
 
     @staticmethod
     def _placeholders(value: str) -> Counter:
