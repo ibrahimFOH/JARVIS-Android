@@ -316,7 +316,15 @@ class AIBrain:
             "ücretsiz katmanı onaylanmış Gemini ve Groq Free Plan kullanılabilir."
         )
 
-    def _gemini_api(self, prompt, context=""):
+    @staticmethod
+    def _output_token_limit(value=None, default=1200):
+        try:
+            requested = int(value) if value is not None else int(default)
+        except (TypeError, ValueError):
+            requested = int(default)
+        return max(64, min(requested, 4096))
+
+    def _gemini_api(self, prompt, context="", max_output_tokens=None):
         if not self.gemini_free_confirmed:
             raise RuntimeError("Gemini isteği engellendi: ücretsiz katman ve faturalandırmanın kapalı olduğu onaylanmalı.")
         if self.gemini_model != self.FREE_MODELS["gemini"]:
@@ -330,7 +338,10 @@ class AIBrain:
             json={
                 "systemInstruction": {"parts": [{"text": "Sen JARVIS'sin. Daima Türkçe yanıt ver."}]},
                 "contents": [{"role": "user", "parts": [{"text": user_text}]}],
-                "generationConfig": {"temperature": 0.2, "maxOutputTokens": 1200},
+                "generationConfig": {
+                    "temperature": 0.2,
+                    "maxOutputTokens": self._output_token_limit(max_output_tokens, 1200),
+                },
             },
             timeout=min(self.timeout, 60),
         )
@@ -453,14 +464,14 @@ class AIBrain:
             except Exception: pass
         return ""
 
-    def _ollama(self,prompt,context=""):
+    def _ollama(self,prompt,context="",max_output_tokens=None):
         system_prompt = """Sen JARVIS'sin. Daima Türkçe ve doğrudan yanıt ver.
 Kullanıcı tarafından bu istekte verilen bilgileri esas al. Kaydedilmiş bağlam bulunuyorsa
 onu yalnızca ilgili olduğunda kullan; eski bilgileri kesin gerçek sayma. Kaynak, ölçüm,
 dosya işlemi, donanım testi veya ağ erişimi gerçekten yapılmadıysa yapılmış gibi söyleme.
 Belirsizliği, varsayımları ve doğrulama adımlarını açıkça belirt. Gizli anahtar veya kişisel
 profil bilgilerini gereksiz yere yanıta kopyalama."""
-        payload={"model":self.model,"stream":False,"keep_alive":"30m","think":False,"options":{"temperature":0.1,"num_predict":180,"num_ctx":4096},"messages":[{"role":"system","content":system_prompt},{"role":"user","content":prompt+(("\n\nWEB VERİSİ:\n"+context) if context else "")}]}
+        payload={"model":self.model,"stream":False,"keep_alive":"30m","think":False,"options":{"temperature":0.1,"num_predict":self._output_token_limit(max_output_tokens,180),"num_ctx":4096},"messages":[{"role":"system","content":system_prompt},{"role":"user","content":prompt+(("\n\nWEB VERİSİ:\n"+context) if context else "")}]}
         try:
             r=requests.post(self.host+"/api/chat",json=payload,timeout=self.timeout)
             r.raise_for_status()
@@ -468,7 +479,7 @@ profil bilgilerini gereksiz yere yanıta kopyalama."""
         except Exception as e:
             return "Ollama bağlantısında sorun oluştu: "+str(e)
 
-    def ask(self, prompt, memory_context=""):
+    def ask(self, prompt, memory_context="", max_output_tokens=None):
         instant = self._instant(prompt)
         if instant and not memory_context:
             return instant
@@ -498,14 +509,14 @@ profil bilgilerini gereksiz yere yanıta kopyalama."""
         for selected in dict.fromkeys(order):
             try:
                 if selected == "ollama":
-                    answer = self._ollama(prompt, context)
+                    answer = self._ollama(prompt, context, max_output_tokens=max_output_tokens)
                     if not answer or answer.startswith("Ollama bağlantısında sorun oluştu:"):
                         raise RuntimeError(answer or "Ollama boş yanıt döndürdü.")
                     return answer
                 if selected == "gemini":
-                    return self._gemini_api(prompt, context)
+                    return self._gemini_api(prompt, context, max_output_tokens=max_output_tokens)
                 if selected == "groq":
-                    return self._compatible_groq(prompt, context)
+                    return self._compatible_groq(prompt, context, max_output_tokens=max_output_tokens)
                 if selected in self.api_defaults:
                     return self._compatible_api(selected, prompt, context)
                 raise RuntimeError("Bilinmeyen sağlayıcı: " + selected)
@@ -513,7 +524,7 @@ profil bilgilerini gereksiz yere yanıta kopyalama."""
                 errors.append(selected.upper() + ": " + str(exc))
         return "Yapay zekâ yanıtı alınamadı. Denenen sağlayıcılar: " + " | ".join(errors)
 
-    def _compatible_groq(self, prompt, context=""):
+    def _compatible_groq(self, prompt, context="", max_output_tokens=None):
         if not self.groq_free_confirmed:
             raise RuntimeError("Groq isteği engellendi: hesabın Free Plan üzerinde olduğu onaylanmalı.")
         if self.groq_model != self.FREE_MODELS["groq"]:
@@ -524,7 +535,11 @@ profil bilgilerini gereksiz yere yanıta kopyalama."""
         response = self.session.post(
             "https://api.groq.com/openai/v1/chat/completions",
             headers={"Authorization": "Bearer " + self.groq_key, "Content-Type": "application/json"},
-            json={"model": self.groq_model, "stream": False, "temperature": 0.2,
+            json={
+                "model": self.groq_model,
+                "stream": False,
+                "temperature": 0.2,
+                "max_tokens": self._output_token_limit(max_output_tokens, 1024),
                   "messages": [
                       {"role": "system", "content": "Sen JARVIS'sin. Daima Türkçe yanıt ver; kısa, doğru ve işe yarar ol."},
                       {"role": "user", "content": user_text},
