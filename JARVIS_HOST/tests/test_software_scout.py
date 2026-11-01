@@ -1,4 +1,4 @@
-from core.software_scout import StagepulseSoftwareScout
+from core.software_scout import StagepulseSoftwareScout, SoftwareScoutError
 
 
 class _Response:
@@ -102,7 +102,7 @@ def test_invalid_repository_name_is_rejected_before_network():
 
     try:
         scout.inspect_repository("https://example.com/owner/repo")
-    except ValueError as exc:
+    except SoftwareScoutError as exc:
         assert "owner/repository" in str(exc)
     else:
         raise AssertionError("Geçersiz repo adresi kabul edildi")
