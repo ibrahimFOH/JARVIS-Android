@@ -4,7 +4,7 @@ J.A.R.V.I.S. masaüstü uygulamasının Windows çekirdeği, tek dosya EXE derle
 
 ## Bileşenler
 
-- `core/`: komut işleme, yapay zekâ sağlayıcıları, hafıza, güvenli Git/dosya araçları ve güncelleme mantığı.
+- `core/`: komut işleme, ücretsiz yapay zekâ sağlayıcıları, hafıza, güvenli Git/dosya araçları, güncelleme mantığı ve Stagepulse hizmetlerine uygun ücretsiz yazılım araştırıcısı.
 - `gui/`: Stagepulse siyah/altın/beyaz masaüstü arayüzü.
 - `voice/`: konuşma tanıma ve metin seslendirme katmanı.
 - `android_bridge.py`: kullanıcı açıkça etkinleştirdiğinde Android istemcisi için yerel ağ köprüsü.
@@ -17,11 +17,11 @@ Windows 10/11 x64 ve Python 3.11 x64 gerekir. `QUICKSTART.md` içindeki adımlar
 
 ## Yapay zekâ sağlayıcıları
 
-Yerel Ollama ile birlikte Google Gemini, OpenAI, Grok/xAI, Anthropic, DeepSeek, Perplexity, Groq ve OpenRouter sağlayıcıları yapılandırılabilir. AUTO modu önce Ollama'yı dener ve yalnızca ayarlanmış yedek sağlayıcılara geçer. API anahtarları arayüzden girilir; Windows DPAPI ile korunur ve koruma başarısız olursa düz metin kaydedilmez.
+Yalnızca ücretsiz kullanım kabul edilir. Yerel Ollama varsayılandır ve API ücreti oluşturmaz. Bulut sağlayıcılarında yalnızca Gemini Free Tier ve Groq Free Plan etkinleştirilebilir. Her sağlayıcı için API anahtarına ek olarak ücretsiz plan/faturalandırma kapalı onayı gerekir; JARVIS hesap faturalandırmasını sağlayıcı hesabından okuyamaz. Ücretsiz kota dolarsa istek reddedilir veya durur; ücretli modele, plana ya da başka ücretli API'ye geçiş yapılmaz. xAI Grok API ve diğer ücretli/özel uç noktalar kapalıdır. API anahtarları arayüzden girilir; Windows DPAPI ile korunur ve koruma başarısız olursa düz metin kaydedilmez.
 
 ## Ses
 
-Sesli kontrol ve sürekli dinleme kullanıcı tarafından açılıp kapatılabilir. Konuşma tanıma hizmeti internet bağlantısı isteyebilir. Yerel TTS veya Ollama kullanımı tüm ses tanıma ve web işlemlerini çevrimdışı yapmaz.
+Konuşma tanıma ve JARVIS uyandırma kelimesi yerel Türkçe Vosk modeliyle çevrimdışı çalışır. Model bilgisayarda yoksa yalnızca resmi Vosk HTTPS kaynağından bir kez indirilir; mevcut model bulunursa tekrar indirilmez. Picovoice/Porcupine ve ücretli/çevrimiçi konuşma tanıma yedekleri kaldırılmıştır. Web araştırması internet gerektirir; TTS seçimine göre yerel SAPI veya ücretsiz çevrimiçi Edge TTS kullanılabilir.
 
 ## Güvenlik
 

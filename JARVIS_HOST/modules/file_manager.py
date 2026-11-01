@@ -8,6 +8,9 @@ import shutil
 from pathlib import Path
 from typing import List, Dict, Optional
 import subprocess
+import time
+import re
+import unicodedata
 from utils.logger import get_logger
 from utils.config_manager import get_config
 from utils.helpers import format_file_size, get_desktop_path, get_documents_path, get_downloads_path
@@ -26,7 +29,15 @@ class FileManager:
             str(get_desktop_path())
         ])
         self.max_results = config.get('files.max_search_results', 50)
-        self.search_timeout = config.get('files.search_timeout', 30)
+        self.search_timeout = max(1, int(config.get('files.search_timeout', 30)))
+        self.search_all_fixed_drives = bool(config.get('files.search_all_fixed_drives', True))
+        self.excluded_directories = {
+            'appdata', 'windows', 'program files', 'program files (x86)',
+            'programdata', 'windowsapps', '$recycle.bin',
+            'system volume information', 'recovery', 'perflogs',
+            'node_modules', '.git', '.venv', 'venv', '__pycache__',
+            '.cache', '.gradle', '.npm', '.nuget', 'winsxs', 'temp'
+        }
     
     def open_file(self, filepath: str) -> Dict[str, any]:
         """
@@ -63,57 +74,173 @@ class FileManager:
                 'message': f"Error: {str(e)}"
             }
     
-    def find_files(self, query: str, location: Optional[str] = None,
-                  file_type: Optional[str] = None) -> Dict[str, any]:
-        """
-        Search for files matching query
-        """
+    def _local_search_roots(self, location: Optional[str] = None) -> List[Path]:
+        """Return user profile first, then configured roots and fixed local disks."""
+        candidates = [Path(location).expanduser()] if location else [
+            Path.home(),
+            *[Path(item).expanduser() for item in self.search_locations],
+        ]
+        if location is None and self.search_all_fixed_drives and os.name == "nt":
+            try:
+                import ctypes
+                for letter in "ABCDEFGHIJKLMNOPQRSTUVWXYZ":
+                    root = Path(letter + ":\\")
+                    if root.exists() and ctypes.windll.kernel32.GetDriveTypeW(str(root)) == 3:
+                        candidates.append(root)
+            except Exception as exc:
+                logger.warning("Yerel disk listesi alınamadı: " + str(exc))
+
+        roots = []
+        seen = set()
+        for item in candidates:
+            try:
+                path = item.resolve()
+            except (OSError, RuntimeError):
+                continue
+            key = os.path.normcase(str(path))
+            if key not in seen and path.is_dir():
+                roots.append(path)
+                seen.add(key)
+        return roots
+
+    @staticmethod
+    def _normalize_search_text(value: str) -> str:
+        value = str(value or "").casefold().replace("ı", "i")
+        value = unicodedata.normalize("NFKD", value)
+        value = "".join(ch for ch in value if not unicodedata.combining(ch))
+        value = re.sub(r"[^a-z0-9]+", " ", value)
+        return " ".join(value.split())
+
+    @staticmethod
+    def _system_under_pressure() -> bool:
+        """Do not start/continue broad scans while Windows is under heavy load."""
         try:
-            logger.info(f"Searching for files: {query}")
-            
-            search_paths = [location] if location else self.search_locations
+            import psutil
+            memory = psutil.virtual_memory().percent
+            cpu = psutil.cpu_percent(interval=None)
+            return memory >= 92 or cpu >= 92
+        except Exception:
+            return False
+
+    def find_files(self, query: str, location: Optional[str] = None,
+                   file_type: Optional[str] = None) -> Dict[str, any]:
+        """Search local files first, with bounded traversal and system-folder exclusions."""
+        try:
+            query_text = self._normalize_search_text(query)
+            if not query_text:
+                return {
+                    'success': False, 'files': [],
+                    'message': 'Dosya aramak için bir ad veya anahtar kelime belirt.'
+                }
+
+            logger.info("Yerel dosya araması başlatıldı: " + str(query))
+            roots = self._local_search_roots(location)
+            deadline = time.monotonic() + self.search_timeout
             results = []
-            
-            for search_path in search_paths:
-                if not os.path.exists(search_path):
+            seen_paths = set()
+            covered_roots = set()
+            timed_out = False
+            truncated = False
+            paused_for_resources = self._system_under_pressure()
+            visited_directories = 0
+
+            for search_root in roots:
+                if paused_for_resources:
+                    break
+                if time.monotonic() >= deadline:
+                    timed_out = True
+                    break
+
+                root_key = os.path.normcase(str(search_root))
+                if any(root_key == parent or root_key.startswith(parent + os.sep)
+                       for parent in covered_roots):
                     continue
-                
-                # Search recursively
-                for root, dirs, files in os.walk(search_path):
-                    # Check files
-                    for file in files:
-                        if self._matches_query(file, query, file_type):
-                            filepath = Path(root) / file
-                            results.append({
-                                'name': file,
-                                'path': str(filepath),
-                                'size': format_file_size(filepath.stat().st_size),
-                                'modified': filepath.stat().st_mtime
-                            })
-                            
-                            if len(results) >= self.max_results:
-                                break
-                    
-                    if len(results) >= self.max_results:
+
+                for root, dirs, files in os.walk(
+                    str(search_root), topdown=True, followlinks=False,
+                    onerror=lambda exc: logger.debug("Dosya arama erişimi atlandı: " + str(exc))
+                ):
+                    current_key = os.path.normcase(str(Path(root).resolve()))
+                    if current_key in covered_roots:
+                        dirs[:] = []
+                        continue
+
+                    if time.monotonic() >= deadline:
+                        timed_out = True
                         break
-            
-            # Sort by modified date (newest first)
-            results.sort(key=lambda x: x['modified'], reverse=True)
-            
-            logger.info(f"Found {len(results)} file(s)")
+
+                    visited_directories += 1
+                    if visited_directories % 32 == 0 and self._system_under_pressure():
+                        paused_for_resources = True
+                        break
+
+                    allowed_dirs = []
+                    for name in dirs:
+                        if name.casefold() in self.excluded_directories or name.startswith('.'):
+                            continue
+                        child_key = os.path.normcase(os.path.abspath(os.path.join(root, name)))
+                        if any(
+                            child_key == parent or child_key.startswith(parent + os.sep)
+                            for parent in covered_roots
+                        ):
+                            continue
+                        allowed_dirs.append(name)
+                    dirs[:] = sorted(
+                        allowed_dirs,
+                        key=lambda name: (
+                            0 if name.casefold() in {'stagepulse', 'projects', 'documents', 'desktop', 'downloads'} else 1,
+                            name.casefold()
+                        )
+                    )
+
+                    for filename in files:
+                        if not self._matches_query(filename, query_text, file_type):
+                            continue
+                        filepath = Path(root) / filename
+                        try:
+                            canonical = os.path.normcase(str(filepath.resolve()))
+                            if canonical in seen_paths or not filepath.is_file():
+                                continue
+                            stat = filepath.stat()
+                            seen_paths.add(canonical)
+                            results.append({
+                                'name': filename,
+                                'path': str(filepath.resolve()),
+                                'size': format_file_size(stat.st_size),
+                                'size_bytes': stat.st_size,
+                                'modified': stat.st_mtime,
+                            })
+                        except (OSError, PermissionError, RuntimeError):
+                            continue
+
+                        if len(results) >= self.max_results:
+                            truncated = True
+                            break
+
+                    if truncated:
+                        break
+
+                covered_roots.add(root_key)
+                if timed_out or truncated or paused_for_resources:
+                    break
+
+            results.sort(key=lambda item: item['modified'], reverse=True)
+            logger.info(f"Yerel aramada {len(results)} dosya bulundu.")
             return {
                 'success': True,
                 'files': results,
                 'count': len(results),
-                'truncated': len(results) >= self.max_results
+                'truncated': truncated,
+                'timed_out': timed_out,
+                'paused_for_resources': paused_for_resources,
+                'searched_roots': [str(path) for path in roots],
             }
-            
+
         except Exception as e:
-            logger.error(f"Error searching files: {e}")
+            logger.error("Yerel dosya araması başarısız: " + str(e))
             return {
-                'success': False,
-                'files': [],
-                'message': f"Error: {str(e)}"
+                'success': False, 'files': [],
+                'message': "Yerel dosya araması başarısız: " + str(e)
             }
     
     def create_folder(self, name: str, location: Optional[str] = None) -> Dict[str, any]:
@@ -283,17 +410,15 @@ class FileManager:
             }
     
     def _matches_query(self, filename: str, query: str, file_type: Optional[str]) -> bool:
-        """Check if filename matches search query"""
-        filename_lower = filename.lower()
-        query_lower = query.lower()
-        
-        # Check file type
+        """Match Turkish names, separators and multi-word project names."""
         if file_type:
-            if not filename_lower.endswith(f'.{file_type.lower()}'):
+            normalized_type = str(file_type).lower().lstrip('.')
+            if Path(filename).suffix.lower().lstrip('.') != normalized_type:
                 return False
-        
-        # Check if query is in filename
-        return query_lower in filename_lower
+
+        target = self._normalize_search_text(Path(filename).stem)
+        terms = self._normalize_search_text(query).split()
+        return bool(terms) and all(term in target for term in terms)
     
     def _resolve_path(self, path_str: str) -> Optional[Path]:
         """Resolve common path shortcuts"""

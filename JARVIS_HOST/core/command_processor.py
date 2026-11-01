@@ -206,6 +206,79 @@ def _resolve_direct_website(command: str):
     return None
 
 
+def _stagepulse_software_research_command(command: str):
+    """Run Stagepulse-scoped, free-software discovery from a natural-language order."""
+    normalized = _normalize_direct_command(command)
+    triggers = (
+        "github", "yazilim tara", "yazilim arastir", "program arastir",
+        "ses muhendisligi yazilim", "dmx program", "ses sistemi yazilim",
+        "stage plot yazilim", "ucretsiz yazilim bul",
+    )
+    if not any(token in normalized for token in triggers):
+        return None
+
+    category = "all"
+    if any(token in normalized for token in ("dmx", "isik", "aydinlatma", "lighting")):
+        category = "lighting"
+    elif any(token in normalized for token in ("akustik", "oda olc", "rew", "spl olc", "olcum yazilim")):
+        category = "room_measurement"
+    elif any(token in normalized for token in ("line array", "linearray", "pa tasarim", "hoparlor tasarim", "ses sistemi tasarim")):
+        category = "loudspeaker_design"
+    elif any(token in normalized for token in ("dante", "aes67", "ses ag")):
+        category = "audio_network"
+    elif any(token in normalized for token in ("stage plot", "stageplot", "sahne plani", "rider")):
+        category = "stage_plot"
+
+    try:
+        from core.software_scout import StagepulseSoftwareScout
+        report = StagepulseSoftwareScout().scan(category=category, per_category=1)
+        items = report.get("results", [])
+        lines = [
+            "Stagepulse hizmetlerine göre ücretsiz yazılım araştırması tamamlandı.",
+            "Kapsam: " + category,
+        ]
+        if not items:
+            lines.append("Bu taramada doğrulanabilir depo adayı bulunamadı.")
+        for item in items:
+            lines.append("")
+            lines.append(str(item.get("full_name") or "Bilinmeyen depo"))
+            lines.append("Öneri: " + str(item.get("recommendation", "Doğrulanamadı")))
+            if item.get("license"):
+                lines.append("Lisans: " + str(item["license"]) + " | " + str(item.get("license_state", "")))
+            if item.get("description"):
+                lines.append("Açıklama: " + str(item["description"])[:240])
+            if item.get("windows_support"):
+                lines.append("Windows: " + str(item["windows_support"]))
+            if item.get("local_install_status"):
+                lines.append("Yerel kurulum: " + str(item["local_install_status"]))
+            for installed in item.get("installed_on_pc", []):
+                lines.append("Mevcut kurulum: " + str(installed.get("display_name", "")) +
+                             (" " + str(installed.get("version", "")) if installed.get("version") else ""))
+            locale = item.get("turkish_localization") or {}
+            if locale:
+                lines.append("Türkçe: " + str(locale.get("status", "Durum bilinmiyor")))
+            release = item.get("release") or {}
+            lines.append("Yayın: " + (str(release.get("tag")) or "Yayın etiketi bulunamadı"))
+            if item.get("html_url"):
+                lines.append("Kaynak: " + str(item["html_url"]))
+        lines.append("")
+        lines.append("Kurulum güvenliği: Önce bilgisayarda mevcut kurulum aranır. Bu tarama hiçbir şey indirmez veya kurmaz.")
+        lines.append("Ücretli eklenti, deneme sürümü veya ücretli API gerektiren özellikler öneri kapsamı dışındadır.")
+        return {
+            "success": True,
+            "response": "\n".join(lines),
+            "intent": "stagepulse_software_research",
+            "data": items,
+        }
+    except Exception as exc:
+        logger.warning("Stagepulse yazılım araştırması başarısız: " + str(exc))
+        return {
+            "success": False,
+            "response": "Stagepulse yazılım araştırması tamamlanamadı: " + str(exc),
+            "intent": "stagepulse_software_research",
+        }
+
+
 class CommandProcessor:
     """Processes and executes commands"""
     
@@ -236,8 +309,88 @@ class CommandProcessor:
             return self.ai_brain.ask(prompt)
         return self.ai_brain.ask(prompt, memory_context=facts)
 
+    def _translate_qt_catalog_command(self, command: str):
+        """Translate an existing Qt .ts catalog into a separate Turkish catalog."""
+        normalized = _normalize_direct_command(command)
+        if not any(term in normalized for term in ("turkceye cevir", "turkcelestir", "arayuzunu turkce yap")):
+            return None
+
+        original = str(command or "")
+        match = re.search(
+            r'(?i)([A-Za-z]:\\[^\r\n"]+?\.ts|"(?:[^"]+\\)?[^"]+\.ts")',
+            original,
+        )
+        if not match:
+            return {
+                "success": False,
+                "response": "Türkçeye çevrilecek Qt .ts dosyasının tam yolunu belirt.",
+                "intent": "translate_qt_catalog",
+            }
+
+        raw_path = match.group(1).strip('"')
+        source = Path(raw_path).expanduser()
+        if source.suffix.lower() != ".ts":
+            return {
+                "success": False,
+                "response": "Bu çeviri hizmeti şu anda Qt Linguist .ts kataloglarını kabul ediyor.",
+                "intent": "translate_qt_catalog",
+            }
+
+        target_name = re.sub(r'_[a-z]{2}_[A-Z]{2}(?=\.ts$)', '_tr_TR', source.name)
+        if target_name == source.name:
+            target_name = source.stem + "_tr_TR.ts"
+        destination = source.with_name(target_name)
+
+        try:
+            from core.translation_manager import TurkishTranslationManager
+            result = TurkishTranslationManager(self.ai_brain).translate_qt_ts(source, destination)
+            return {
+                "success": True,
+                "response": (
+                    "Türkçe çeviri dosyası oluşturuldu ve XML yapısı doğrulandı.\n"
+                    f"Kaynak: {result['source']}\n"
+                    f"Çıktı: {result['destination']}\n"
+                    f"Çevrilen kayıt: {result['translated_entries']}\n"
+                    f"Korunan kayıt: {result['preserved_entries']}\n"
+                    "Orijinal dosya değiştirilmedi. Uygulamada etkinleştirme/derleme ayrıca doğrulanmalı."
+                ),
+                "intent": "translate_qt_catalog",
+                "data": result,
+            }
+        except Exception as exc:
+            logger.warning("Türkçe katalog çevirisi tamamlanamadı: " + str(exc))
+            return {
+                "success": False,
+                "response": "Türkçe katalog çevirisi tamamlanamadı: " + str(exc),
+                "intent": "translate_qt_catalog",
+            }
+
     def process(self, command: str, confirmed: bool = False) -> Dict[str, Any]:
         logger.command(command)
+
+        translation_result = self._translate_qt_catalog_command(command)
+        if translation_result is not None:
+            return translation_result
+
+        software_result = _stagepulse_software_research_command(command)
+        if software_result is not None:
+            return software_result
+
+        try:
+            from core.engineering_task_runtime import EngineeringTaskRuntime
+            task_runtime = EngineeringTaskRuntime(
+                self.ai_brain, self.file_manager, self.memory
+            )
+            task_result = task_runtime.execute(command)
+            if task_result is not None:
+                return task_result
+        except Exception as exc:
+            logger.error("Mühendislik görev motoru başarısız: " + str(exc))
+            return {
+                "success": False,
+                "response": "Mühendislik görevi güvenli şekilde tamamlanamadı: " + str(exc),
+                "intent": "engineering_task",
+            }
 
         # Explicit OS integrations run before generic intent/LLM routing so that
         # Git operations and dialer requests execute rather than merely being described.
@@ -694,38 +847,46 @@ class CommandProcessor:
     def _execute_find_files(self, params: Dict) -> Dict:
         query = params.get('query', '')
         result = self.file_manager.find_files(query)
-        
+
         if result['success']:
-            count = result['count']
-            if count > 0:
-                files = result['files'][:5]  # Show first 5
-                file_list = '\n'.join([f"- {f['name']} ({f['size']})" 
-                                      for f in files])
-                details = f"I found {count} file(s):\n{file_list}"
+            files = result.get('files', [])
+            if files:
+                file_list = '\n'.join(
+                    f"- {item['name']} ({item['size']})\n  {item['path']}"
+                    for item in files[:5]
+                )
+                response = f"Bilgisayarda {result['count']} eşleşen dosya bulundu:\n{file_list}"
                 if result.get('truncated'):
-                    details += "\n(Showing first 5 results)"
+                    response += "\nİlk sonuç sınırına ulaşıldı; daha fazla eşleşme olabilir."
+            elif result.get('paused_for_resources'):
+                response = (
+                    "Bilgisayar kaynak kullanımı yüksek olduğu için yerel dosya araması duraklatıldı. "
+                    "Dosyanın bulunmadığı sonucu çıkarılamaz; indirme yapılmadı."
+                )
+            elif result.get('timed_out'):
+                response = (
+                    f"'{query}' için yerel arama zaman sınırına ulaştı. "
+                    "Dosya bulunamadığı kesinleşmedi; indirme yapmadan önce aramayı daraltmak veya sürdürmek gerekiyor."
+                )
             else:
-                details = f"I couldn't find any files matching '{query}'"
-            
-            response = self.response_generator.generate(
-                'success',
-                intent='find_files',
-                details=details
-            )
+                response = f"Bilgisayarda '{query}' ile eşleşen mevcut dosya bulunamadı."
+            if result.get('paused_for_resources') and files:
+                response += "\nBilgisayar yükü yükseldiği için tarama duraklatıldı; mevcut sonuçlar eksik olabilir."
+            elif result.get('timed_out') and files:
+                response += "\nArama süresi dolduğu için tüm diskler taranamadı; sonuç eksik olabilir."
         else:
-            response = self.response_generator.generate(
-                'error',
-                intent='find_files',
-                error=result.get('message', 'Failed to search for files')
+            response = "Yerel dosya araması başarısız: " + str(
+                result.get('message', 'Bilinmeyen arama hatası')
             )
-        
+
         return {
             'success': result['success'],
             'response': response,
             'intent': 'find_files',
-            'data': result.get('files', [])
+            'data': files if result['success'] else [],
+            'search_incomplete': bool(result.get('timed_out') or result.get('truncated') or result.get('paused_for_resources')),
         }
-    
+
     def _execute_create_folder(self, params: Dict) -> Dict:
         name = params.get('name', '')
         result = self.file_manager.create_folder(name)

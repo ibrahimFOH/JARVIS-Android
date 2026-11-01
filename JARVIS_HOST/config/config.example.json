@@ -9,7 +9,7 @@
     "enabled": true,
     "wake_word": "jarvis",
     "continuous_listening": true,
-    "recognition_engine": "google",
+    "recognition_engine": "vosk",
     "recognition_timeout": 5,
     "phrase_time_limit": 10,
     "tts_engine": "auto",
@@ -19,7 +19,9 @@
     "tts_volume": 0.9,
     "energy_threshold": 4000,
     "dynamic_energy_threshold": true,
-    "recognition_language": "tr-TR"
+    "recognition_language": "tr-TR",
+    "vosk_model_path": "",
+    "wake_word_enabled": true
   },
   "personality": {
     "formality_level": "professional",
@@ -118,14 +120,19 @@
   },
   "ai": {
     "enabled": true,
-    "strategy": "ollama_only",
+    "strategy": "free_only",
     "free_only": true,
     "max_output_tokens": 120,
     "timeout_seconds": 18,
     "provider": "ollama",
     "ollama_url": "http://127.0.0.1:11434",
     "ollama_model": "qwen3:0.6b",
-    "web_enabled": true
+    "web_enabled": true,
+    "allowed_providers": [
+      "ollama",
+      "gemini",
+      "groq"
+    ]
   },
   "android_bridge": {
     "enabled": true,

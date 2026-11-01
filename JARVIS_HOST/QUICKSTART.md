@@ -38,20 +38,23 @@ Python 3.11 x64 kurulu Windows bilgisayarda `BUILD_JARVIS_EXE.bat` dosyasını �
 
 ## 3. Yapay zekâ sağlayıcıları
 
-- **Ollama:** Yerel model; Ollama hizmeti ve model bilgisayarda kurulu olmalıdır.
-- **Gemini, OpenAI, Grok/xAI, Anthropic, DeepSeek, Perplexity, Groq ve OpenRouter:** API anahtarı ve internet bağlantısı gerektirir.
-- **Özel sağlayıcı:** OpenAI Chat Completions uyumlu uç nokta girilebilir.
-- **AUTO:** Önce yerel Ollama'yı dener; başarısızsa yapılandırılmış yedek sağlayıcılara geçer.
+- **Ollama:** Yerel ve ücretsiz model. Ollama hizmeti ve model bilgisayarda kurulu olmalıdır.
+- **Gemini Free Tier:** Yalnızca ücretsiz kotada, faturalandırma kapalı hesapta ve kullanıcı onayıyla çalışır.
+- **Groq Free Plan:** Yalnızca Free Plan hesabında ve kullanıcı onayıyla çalışır. Kota sınırı aşılırsa istek reddedilir.
+- **Ücretli sağlayıcılar:** OpenAI, xAI/Grok API, Anthropic, DeepSeek, Perplexity, OpenRouter ve özel API uç noktaları kapalıdır.
+- **AUTO:** Önce yerel Ollama'yı, ardından yalnızca ücretsiz planı ayrı ayrı onaylanmış Gemini/Groq bağlantılarını dener. Ücretli sağlayıcıya geçmez.
 
-API anahtarları Windows DPAPI korumasıyla saklanır. Şifreleme başarısız olursa anahtar düz metin olarak kaydedilmez.
+JARVIS, sağlayıcı hesabının ödeme durumunu kendisi doğrulayamaz; ücretsiz plan ve faturalandırmanın kapalı olduğu doğruysa onay ver. Kota dolduğunda ücretli plana otomatik geçiş yoktur. API anahtarları Windows DPAPI korumasıyla saklanır. Şifreleme başarısız olursa anahtar düz metin olarak kaydedilmez.
 
 ## 4. Sesli kullanım
 
-Arayüzde **Sesli kontrol** ve **Sürekli dinle** anahtarlarını kullanın. Mikrofon iznini ve varsayılan Windows kayıt aygıtını kontrol edin. Varsayılan konuşma tanıma hizmeti internet isteyebilir. Yerel TTS veya yerel Ollama, konuşma tanımanın da çevrimdışı olduğu anlamına gelmez.
+Arayüzde **Sesli kontrol** ve **Sürekli dinle** anahtarlarını kullanın. Mikrofon iznini ve varsayılan Windows kayıt aygıtını kontrol edin. Konuşma tanıma ve `Jarvis` uyandırma sözcüğü yerel Türkçe Vosk modeliyle çevrimdışı çalışır.
 
-### Uyandırma sözcüğü yedeği
+### Yerel Türkçe model
 
-Picovoice anahtarı `advanced.api_keys.picovoice_key` tanımlıysa Porcupine kullanılır. Anahtar yoksa JARVIS otomatik olarak çevrimiçi Google konuşma tanıma tabanlı uyandırma yedeğine geçer. Bu yedek internet bağlantısı ister; Porcupine kadar düşük gecikmeli veya hatasız değildir. Mikrofon erişimi Windows gizlilik ayarlarından açık olmalıdır.
+JARVIS önce şu konumlarda mevcut modeli arar: kullanıcı yapılandırmasındaki yol, `%APPDATA%\\StagepulseJARVIS\\models\\vosk-model-small-tr-0.3`, uygulama `models` klasörü, İndirilenler ve Stagepulse model arşivi. Bulursa yeniden indirme yapmaz. Bulamazsa Vosk'un resmi HTTPS kaynağından yaklaşık 35 MB'lık Türkçe küçük modeli indirir; arşiv boyutunu, CRC değerlerini, dosya yollarını ve model klasör yapısını doğrular. Model `%APPDATA%\\StagepulseJARVIS\\models` altında tutulur. Kaynak sayfa sabit bir yayın SHA-256 değeri sunmadığından indirilen arşiv özeti yerel kayıt olarak saklanır; yayıncı imzası varmış gibi gösterilmez. `voice.vosk_model_path` ile başka bir kurulum yolu belirtilebilir.
+
+Picovoice/Porcupine, çevrimiçi Google Speech Recognition ve ücretli/çevrimiçi konuşma tanıma yedekleri kullanılmaz. Model indirilemezse ses tanıma kapalı kalır ve Türkçe hata raporlanır; ücretli servise geçiş yapılmaz.
 
 ## 5. Android bağlantısı
 
@@ -64,6 +67,14 @@ Picovoice anahtarı `advanced.api_keys.picovoice_key` tanımlıysa Porcupine kul
 ## 6. Stagepulse ve GitHub
 
 JARVIS web araması, bağlı yerel Git deposu üzerinde durum/karşılaştırma/commit/push/pull işlemleri ve Stagepulse sayfalarına yönlendirme desteği sunar. Depoda değişiklik yapmadan önce doğru klasörün bağlandığını kontrol edin. Git kimlik doğrulaması Windows Git Credential Manager veya SSH üzerinden yapılır. Oturum gerektiren yönetim sayfalarında kullanıcı girişi kullanıcı tarafından tamamlanmalıdır.
+
+Yazılım araştırması için doğal dilde şu tür emirler verilebilir:
+
+- `GitHub'da DMX ışık kontrol yazılımlarını araştır`
+- `Stagepulse için ücretsiz ses mühendisliği yazılımlarını tara`
+- `Dante ve stage plot için açık kaynak araçları bul`
+
+Araştırıcı; GitHub kaynağını, lisansı, güncellenme tarihini, Windows desteğine dair işaretleri, yayın dosyalarını ve Türkçe dil dosyalarını denetler. Önce bilgisayardaki kurulum kaydını kontrol eder. Bu araştırma komutu kendi başına dosya indirmez veya program kurmaz; kurulumdan önce kaynak, dijital imza/hash, uyumluluk ve kullanıcı onayı gerekir. Lisansı belirsiz, arşivlenmiş veya doğrulanamayan yazılım otomatik olarak kurulmaz. Qt tabanlı yazılımlarda `Türkçeye çevir C:\\Yol\\uygulama_de_DE.ts` komutuyla, kaynak dosyayı ezmeden ayrı `tr_TR` dil kataloğu üretilebilir. Yer tutucu ve XML doğrulaması geçmeden çıktı kabul edilmez; uygulamada etkinleştirme/derleme ayrıca kontrol edilmelidir.
 
 ## 7. Sorun giderme
 

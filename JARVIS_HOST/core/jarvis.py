@@ -5,7 +5,7 @@ from typing import Optional, Callable
 from utils.logger import get_logger, log_startup
 from utils.config_manager import get_config
 from core.command_processor import CommandProcessor
-from voice import SpeechRecognizer, TextToSpeech, WakeWordDetector, SimpleWakeWordDetector
+from voice import SpeechRecognizer, TextToSpeech, WakeWordDetector
 from personality.response_generator import ResponseGenerator
 
 logger = get_logger()
@@ -33,19 +33,21 @@ class Jarvis:
                 logger.error("Ses motoru başlatılamadı; metin arayüzü açık kalacak: " + str(exc))
             if config.get("voice.wake_word_enabled", False):
                 try:
-                    primary_wake_word = WakeWordDetector()
-                    if getattr(primary_wake_word, "porcupine", None):
+                    if self.speech_recognizer is None:
+                        raise RuntimeError(
+                            "Yerel Türkçe konuşma motoru başlatılamadı; çevrimiçi/ücretli yedek kullanılmayacak."
+                        )
+                    primary_wake_word = WakeWordDetector(
+                        speech_recognizer=self.speech_recognizer
+                    )
+                    if primary_wake_word.is_available:
                         self.wake_word_detector = primary_wake_word
                     else:
-                        logger.warning("Picovoice anahtarı/engine yok; çevrimiçi konuşma tanıma yedeği kullanılacak.")
-                        self.wake_word_detector = SimpleWakeWordDetector()
-                except Exception as exc:
-                    logger.warning("Porcupine başlatılamadı; çevrimiçi uyandırma yedeği deneniyor: " + str(exc))
-                    try:
-                        self.wake_word_detector = SimpleWakeWordDetector()
-                    except Exception as fallback_exc:
                         self.wake_word_detector = None
-                        logger.warning("Uyandırma algılayıcısı kapalı: " + str(fallback_exc))
+                        logger.warning("Yerel Vosk uyandırma algılama hazır değil; ücretli/çevrimiçi yedek kapalı.")
+                except Exception as exc:
+                    self.wake_word_detector = None
+                    logger.warning("Çevrimdışı uyandırma algılayıcısı başlatılamadı: " + str(exc))
         self.is_running = False
         self.listening_continuously = False
         self.stop_event = threading.Event()
