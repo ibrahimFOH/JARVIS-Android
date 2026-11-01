@@ -46,6 +46,7 @@ def _processor(monkeypatch, *, deletion_enabled):
     processor.validator.require_confirmation = {"system_shutdown": True}
     processor.response_generator = _ResponseGenerator()
     processor.memory = _Memory()
+    processor.ai_brain = SimpleNamespace(ask=lambda *_args, **_kwargs: "Test yanıtı.")
     processor.deleted = []
     processor.file_manager = SimpleNamespace(
         delete_file=lambda target: (
