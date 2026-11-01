@@ -34,7 +34,7 @@ jobs:
         with:
           languages: ${{ matrix.language }}
           queries: security-extended
-          build-mode: ${{ matrix.language == 'java-kotlin' || matrix.language == 'cpp' && 'manual' || 'none' }}
+          build-mode: ${{ (matrix.language == 'java-kotlin' || matrix.language == 'cpp') && 'manual' || 'none' }}
 
       - name: JDK 17 kur
         if: matrix.language == 'java-kotlin' || matrix.language == 'cpp'
