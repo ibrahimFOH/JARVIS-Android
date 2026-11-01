@@ -384,6 +384,212 @@ class CommandProcessor:
             allow_cloud=not private_task,
         )
 
+    @staticmethod
+    def _should_create_stagepulse_pdf(command: str) -> bool:
+        normalized = _normalize_direct_command(command)
+        report_terms = (
+            "rapor", "teklif", "rider", "stage plot", "stageplot",
+            "input list", "ekipman listesi", "sistem listesi",
+            "pa tasarim raporu", "ses sistemi raporu",
+        )
+        return any(term in normalized for term in report_terms)
+
+    def _create_stagepulse_pdf(self, command: str, content: str) -> Path:
+        """Create a Turkish, branded PDF only for explicit Stagepulse deliverable requests."""
+        from reportlab.lib import colors
+        from reportlab.lib.enums import TA_CENTER, TA_LEFT
+        from reportlab.lib.pagesizes import A4
+        from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+        from reportlab.lib.units import mm
+        from reportlab.pdfbase import pdfmetrics
+        from reportlab.pdfbase.ttfonts import TTFont
+        from reportlab.platypus import (
+            HRFlowable, KeepTogether, PageBreak, Paragraph, SimpleDocTemplate,
+            Spacer, Table, TableStyle,
+        )
+        from xml.sax.saxutils import escape
+
+        base = Path.home() / "Documents" / "Stagepulse" / "Raporlar"
+        base.mkdir(parents=True, exist_ok=True)
+        stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        slug = re.sub(r"[^a-z0-9]+", "_", _normalize_direct_command(command)).strip("_")[:44] or "teknik_rapor"
+        destination = base / f"{slug}_{stamp}.pdf"
+        suffix = 2
+        while destination.exists():
+            destination = base / f"{slug}_{stamp}_{suffix}.pdf"
+            suffix += 1
+
+        regular_font = "Helvetica"
+        bold_font = "Helvetica-Bold"
+        font_candidates = (
+            (Path(os.environ.get("WINDIR", "C:/Windows")) / "Fonts" / "arial.ttf",
+             Path(os.environ.get("WINDIR", "C:/Windows")) / "Fonts" / "arialbd.ttf"),
+            (Path("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"),
+             Path("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf")),
+        )
+        for regular_path, bold_path in font_candidates:
+            if regular_path.is_file() and bold_path.is_file():
+                try:
+                    pdfmetrics.registerFont(TTFont("StagepulseTR", str(regular_path)))
+                    pdfmetrics.registerFont(TTFont("StagepulseTR-Bold", str(bold_path)))
+                    regular_font, bold_font = "StagepulseTR", "StagepulseTR-Bold"
+                    break
+                except Exception as exc:
+                    logger.warning("Türkçe PDF fontu yüklenemedi: " + str(exc))
+
+        styles = getSampleStyleSheet()
+        styles.add(ParagraphStyle(
+            name="SPTitle", parent=styles["Title"], fontName=bold_font,
+            fontSize=19, leading=24, textColor=colors.HexColor("#D6B23C"),
+            alignment=TA_LEFT, spaceAfter=7 * mm,
+        ))
+        styles.add(ParagraphStyle(
+            name="SPH1", parent=styles["Heading1"], fontName=bold_font,
+            fontSize=14, leading=18, textColor=colors.HexColor("#8C7220"),
+            spaceBefore=5 * mm, spaceAfter=2 * mm, keepWithNext=True,
+        ))
+        styles.add(ParagraphStyle(
+            name="SPH2", parent=styles["Heading2"], fontName=bold_font,
+            fontSize=11, leading=15, textColor=colors.HexColor("#343434"),
+            spaceBefore=3 * mm, spaceAfter=1.5 * mm, keepWithNext=True,
+        ))
+        styles.add(ParagraphStyle(
+            name="SPBody", parent=styles["BodyText"], fontName=regular_font,
+            fontSize=9.2, leading=13.2, textColor=colors.HexColor("#202020"),
+            alignment=TA_LEFT, spaceAfter=2.3 * mm,
+        ))
+        styles.add(ParagraphStyle(
+            name="SPBullet", parent=styles["BodyText"], fontName=regular_font,
+            fontSize=9, leading=12.5, leftIndent=5 * mm, firstLineIndent=-3 * mm,
+            textColor=colors.HexColor("#202020"), spaceAfter=1.2 * mm,
+        ))
+        styles.add(ParagraphStyle(
+            name="SPMeta", parent=styles["BodyText"], fontName=regular_font,
+            fontSize=8, leading=11, textColor=colors.HexColor("#666666"),
+            spaceAfter=1.8 * mm,
+        ))
+
+        story = [
+            Paragraph("STAGEPULSE", styles["SPH2"]),
+            Paragraph(escape(str(command or "Teknik Rapor")), styles["SPTitle"]),
+            Paragraph("Tarih: " + datetime.now().strftime("%d.%m.%Y %H:%M"), styles["SPMeta"]),
+            Paragraph("Belge türü: Otomatik hazırlanmış teknik çalışma taslağı", styles["SPMeta"]),
+            HRFlowable(width="100%", thickness=1.1, color=colors.HexColor("#D6B23C"), spaceAfter=5 * mm),
+        ]
+
+        raw_lines = str(content or "").replace("\r\n", "\n").replace("\r", "\n").split("\n")
+        in_code = False
+        code_lines = []
+        index = 0
+        while index < len(raw_lines):
+            raw = raw_lines[index].rstrip()
+            stripped = raw.strip()
+            if stripped.startswith("```"):
+                if not in_code:
+                    in_code = True
+                    code_lines = []
+                else:
+                    story.append(Paragraph(
+                        "<br/>".join(escape(line) for line in code_lines),
+                        ParagraphStyle(
+                            "SPCode" + str(index), parent=styles["SPBody"],
+                            fontName="Courier", fontSize=7.5, leading=10,
+                            backColor=colors.HexColor("#F2F2F2"),
+                            borderPadding=5, leftIndent=4 * mm,
+                        ),
+                    ))
+                    story.append(Spacer(1, 2 * mm))
+                    in_code = False
+                index += 1
+                continue
+            if in_code:
+                code_lines.append(raw)
+                index += 1
+                continue
+            if not stripped:
+                story.append(Spacer(1, 1.2 * mm))
+                index += 1
+                continue
+            if stripped.startswith("|") and "|" in stripped[1:]:
+                table_lines = []
+                while index < len(raw_lines) and raw_lines[index].strip().startswith("|"):
+                    table_lines.append(raw_lines[index].strip())
+                    index += 1
+                rows = []
+                for table_line in table_lines:
+                    cells = [cell.strip() for cell in table_line.strip("|").split("|")]
+                    if cells and all(re.fullmatch(r":?-{3,}:?", cell or "") for cell in cells):
+                        continue
+                    rows.append([Paragraph(escape(cell), styles["SPMeta"]) for cell in cells])
+                if rows:
+                    max_cols = max(len(row) for row in rows)
+                    rows = [row + [Paragraph("", styles["SPMeta"])] * (max_cols-len(row)) for row in rows]
+                    table = Table(rows, repeatRows=1, hAlign="LEFT")
+                    table.setStyle(TableStyle([
+                        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#171717")),
+                        ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+                        ("FONTNAME", (0, 0), (-1, -1), regular_font),
+                        ("GRID", (0, 0), (-1, -1), 0.35, colors.HexColor("#C5C5C5")),
+                        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                        ("LEFTPADDING", (0, 0), (-1, -1), 5),
+                        ("RIGHTPADDING", (0, 0), (-1, -1), 5),
+                        ("TOPPADDING", (0, 0), (-1, -1), 4),
+                        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+                    ]))
+                    story.extend([table, Spacer(1, 3 * mm)])
+                continue
+            if stripped.startswith("#"):
+                level = len(stripped) - len(stripped.lstrip("#"))
+                heading = stripped[level:].strip()
+                story.append(Paragraph(escape(heading), styles["SPH1" if level == 1 else "SPH2"]))
+            elif re.match(r"^[-*•]\s+", stripped):
+                story.append(Paragraph("• " + escape(re.sub(r"^[-*•]\s+", "", stripped)), styles["SPBullet"]))
+            elif re.match(r"^\d+[.)]\s+", stripped):
+                story.append(Paragraph(escape(stripped), styles["SPBullet"]))
+            else:
+                story.append(Paragraph(escape(stripped), styles["SPBody"]))
+            index += 1
+
+        story.extend([
+            Spacer(1, 5 * mm),
+            HRFlowable(width="100%", thickness=0.7, color=colors.HexColor("#D6B23C"), spaceAfter=2 * mm),
+            Paragraph(
+                "Not: Bu belge, sağlanan dosyalar ve araştırma çıktıları üzerinden hazırlanmış bir çalışma taslağıdır. "
+                "Saha ölçümü, fiziksel kurulum veya kalibrasyon yapılmadıkça gerçek ölçüm sonucu olarak kullanılmamalıdır. "
+                "Doğrulanmamış ölçü, fiyat, üretici verisi ve varsayımlar ayrıca belirtilmelidir.",
+                styles["SPMeta"],
+            ),
+        ])
+
+        def draw_page(canvas, document):
+            canvas.saveState()
+            width, height = A4
+            canvas.setFillColor(colors.HexColor("#101010"))
+            canvas.rect(0, height - 8 * mm, width, 8 * mm, fill=1, stroke=0)
+            canvas.setFillColor(colors.HexColor("#D6B23C"))
+            canvas.setFont(bold_font, 8)
+            canvas.drawString(17 * mm, height - 5.4 * mm, "STAGEPULSE  /  SES MÜHENDİSLİĞİ")
+            canvas.setFillColor(colors.HexColor("#777777"))
+            canvas.setFont(regular_font, 7)
+            canvas.drawString(17 * mm, 10 * mm, "JARVIS tarafından oluşturuldu | Teknik doğrulama gerektirir")
+            canvas.drawRightString(width - 17 * mm, 10 * mm, f"Sayfa {document.page}")
+            canvas.restoreState()
+
+        document = SimpleDocTemplate(
+            str(destination), pagesize=A4,
+            rightMargin=17 * mm, leftMargin=17 * mm,
+            topMargin=18 * mm, bottomMargin=17 * mm,
+            title=str(command or "Stagepulse Teknik Rapor"),
+            author="Stagepulse JARVIS",
+        )
+        document.build(story, onFirstPage=draw_page, onLaterPages=draw_page)
+        if not destination.is_file() or destination.stat().st_size < 1200:
+            raise RuntimeError("PDF çıktısı doğrulanamadı veya dosya beklenenden küçük.")
+        with destination.open("rb") as handle:
+            if handle.read(5) != b"%PDF-":
+                raise RuntimeError("Oluşturulan dosya geçerli PDF imzasına sahip değil.")
+        return destination
+
     def process(self, command: str, confirmed: bool = False) -> Dict[str, Any]:
         """Track every command durably and recover pending confirmations after restart."""
         normalized = _normalize_direct_command(command)
@@ -589,7 +795,17 @@ class CommandProcessor:
         if intent == 'unknown' or confidence < 0.3:
             try:
                 ai_response = self._ask_with_memory(command)
-                return {'success': True, 'response': ai_response, 'intent': 'ai'}
+                result = {'success': True, 'response': ai_response, 'intent': 'ai'}
+                if self._should_create_stagepulse_pdf(command):
+                    try:
+                        report_path = self._create_stagepulse_pdf(command, ai_response)
+                        result["report_path"] = str(report_path)
+                        result["response"] = str(ai_response).rstrip() + "\n\nPDF taslağı oluşturuldu: " + str(report_path)
+                    except Exception as report_error:
+                        result["success"] = False
+                        result["report_error"] = str(report_error)
+                        result["response"] = str(ai_response).rstrip() + "\n\nPDF oluşturulamadı: " + str(report_error)
+                return result
             except Exception:
                 pass
             response = self.response_generator.generate('unknown')
