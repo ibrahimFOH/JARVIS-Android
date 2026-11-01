@@ -424,3 +424,88 @@ def test_fast_turkish_responses_use_command_processors_real_process_method():
     assert result["intent"] == "greeting"
     assert result["fast_local"] is True
     assert "Hazırım" in result["response"]
+
+
+
+def test_github_research_is_wired_for_stagepulse_commands():
+    from core.agent_tools import RepositoryManager
+
+    assert RepositoryManager.is_command("Stagepulse için Github araştır")
+    assert RepositoryManager.is_command("github tara")
+    assert RepositoryManager.is_command("github incele owner/repo")
+
+
+def test_stagepulse_github_scan_recommends_only_explicit_open_source_licenses(tmp_path):
+    from core.agent_tools import RepositoryManager
+
+    manager = RepositoryManager(settings_path=tmp_path / "repo.json")
+    manager._search_github_repositories = lambda _query, per_page=3: [
+        {
+            "full_name": "audio/open-tool",
+            "description": "Open measurement tool",
+            "html_url": "https://github.com/audio/open-tool",
+            "license": {"spdx_id": "MIT"},
+            "language": "Python",
+            "stargazers_count": 120,
+            "pushed_at": "2026-01-01T00:00:00Z",
+            "archived": False,
+            "fork": False,
+        },
+        {
+            "full_name": "audio/unknown-license",
+            "description": "License missing",
+            "html_url": "https://github.com/audio/unknown-license",
+            "license": None,
+            "language": "Python",
+            "stargazers_count": 900,
+            "pushed_at": "2026-01-01T00:00:00Z",
+            "archived": False,
+            "fork": False,
+        },
+    ]
+
+    result = manager.search_stagepulse_repositories()
+    by_name = {item["name"]: item for item in result["repositories"]}
+    assert by_name["audio/open-tool"]["install_recommended"] is True
+    assert by_name["audio/unknown-license"]["install_recommended"] is False
+    assert by_name["audio/unknown-license"]["license"] == "BELİRSİZ"
+
+
+def test_github_inspection_flags_install_scripts_and_preserves_license(tmp_path):
+    import base64
+    from core.agent_tools import RepositoryManager
+
+    manager = RepositoryManager(settings_path=tmp_path / "repo.json")
+    readme = "# Open audio\n\nInstall with python."
+    encoded = base64.b64encode(readme.encode("utf-8")).decode("ascii")
+
+    def fake_github_json(path):
+        if path == "/repos/audio/open-tool":
+            return {
+                "license": {"spdx_id": "MIT"},
+                "html_url": "https://github.com/audio/open-tool",
+                "description": "Audio utility",
+                "stargazers_count": 12,
+                "language": "Python",
+                "default_branch": "main",
+            }
+        if path == "/repos/audio/open-tool/readme":
+            return {"content": encoded, "encoding": "base64"}
+        if path == "/repos/audio/open-tool/git/trees/main?recursive=1":
+            return {"tree": [{"path": "install.ps1"}, {"path": "README.md"}]}
+        raise AssertionError("Unexpected GitHub path: " + path)
+
+    manager._github_json = fake_github_json
+    result = manager.inspect_github_repository("audio/open-tool")
+    assert result["license_allowed"] is True
+    assert result["install_recommended"] is False
+    assert any("install.ps1" in warning for warning in result["warnings"])
+    assert result["readme_excerpt"] == readme
+
+
+def test_github_inspection_rejects_invalid_repository_name(tmp_path):
+    from core.agent_tools import RepositoryManager
+
+    manager = RepositoryManager(settings_path=tmp_path / "repo.json")
+    with pytest.raises(ValueError, match="owner/repo"):
+        manager.inspect_github_repository("https://github.com/audio/open-tool")
