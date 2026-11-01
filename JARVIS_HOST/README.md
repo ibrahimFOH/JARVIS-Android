@@ -4,7 +4,7 @@ J.A.R.V.I.S. masaüstü uygulamasının Windows çekirdeği, tek dosya EXE derle
 
 ## Bileşenler
 
-- `core/`: komut işleme, yapay zekâ sağlayıcıları, hafıza, güvenli Git/dosya araçları ve güncelleme mantığı.
+- `core/`: komut işleme, ücretsiz yapay zekâ sağlayıcıları, hafıza, güvenli Git/dosya araçları, güncelleme mantığı ve Stagepulse hizmetlerine uygun ücretsiz yazılım araştırıcısı.
 - `gui/`: Stagepulse siyah/altın/beyaz masaüstü arayüzü.
 - `voice/`: konuşma tanıma ve metin seslendirme katmanı.
 - `android_bridge.py`: kullanıcı açıkça etkinleştirdiğinde Android istemcisi için yerel ağ köprüsü.
