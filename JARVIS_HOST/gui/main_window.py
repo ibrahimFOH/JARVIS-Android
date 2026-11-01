@@ -937,17 +937,17 @@ class JarvisGUI:
         groq_free_var = ctk.BooleanVar(value=brain.groq_free_confirmed)
         ctk.CTkCheckBox(
             content,
-            text="Gemini: Ücretsiz katman kullanıyorum ve Google Cloud faturalandırması kapalı.",
+            text="Gemini: Free Tier, faturalandırma kapalı.",
             variable=gemini_free_var,
             text_color=WHITE, fg_color=GOLD2, hover_color=GOLD,
-            border_color=GOLD2, font=("Consolas", 9), wraplength=535
+            border_color=GOLD2, font=("Consolas", 9)
         ).pack(anchor="w", padx=20, pady=(8, 3))
         ctk.CTkCheckBox(
             content,
-            text="Groq: Hesabım Free Plan'da; ücretli Developer planı etkin değil.",
+            text="Groq: Free Plan, ücretli Developer planı kapalı.",
             variable=groq_free_var,
             text_color=WHITE, fg_color=GOLD2, hover_color=GOLD,
-            border_color=GOLD2, font=("Consolas", 9), wraplength=535
+            border_color=GOLD2, font=("Consolas", 9)
         ).pack(anchor="w", padx=20, pady=(3, 8))
 
         ctk.CTkLabel(
