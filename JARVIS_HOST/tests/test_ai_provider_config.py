@@ -509,3 +509,29 @@ def test_github_inspection_rejects_invalid_repository_name(tmp_path):
     manager = RepositoryManager(settings_path=tmp_path / "repo.json")
     with pytest.raises(ValueError, match="owner/repo"):
         manager.inspect_github_repository("https://github.com/audio/open-tool")
+
+
+
+def test_private_task_uses_ollama_even_when_free_cloud_provider_is_selected(tmp_path, monkeypatch):
+    brain = fresh_brain(tmp_path, monkeypatch)
+    brain.provider = "groq"
+    brain.free_cloud_enabled = True
+    brain.groq_key = "test-key"
+    calls = []
+    monkeypatch.setattr(brain, "_ollama", lambda _prompt, _context="": "Yalnızca yerel yanıt")
+    monkeypatch.setattr(
+        brain, "_compatible_groq",
+        lambda *_args, **_kwargs: calls.append("groq") or "Bulut yanıtı",
+    )
+    monkeypatch.setattr(
+        brain, "_web",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("Gizli görev internete gitmemeli")),
+    )
+
+    result = brain.ask(
+        "Müşteri salonu için rapor hazırla",
+        memory_context="Özel müşteri ölçüleri",
+        allow_cloud=False,
+    )
+    assert result == "Yalnızca yerel yanıt"
+    assert calls == []
