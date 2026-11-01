@@ -41,3 +41,16 @@ def test_remaining_desktop_ui_labels_are_turkish():
     assert "PDF İŞLENİYOR" in source
     assert "YAPAY ZEKÂ SAĞLAYICISI" in source
     assert "Android uygulamasındaki Bilgisayar alanına" in source
+
+
+def test_android_license_uses_shared_core_without_persisting_auth_tokens():
+    android = Path(__file__).resolve().parents[2] / "JARVIS_ANDROID" / "app" / "src" / "main" / "java" / "com" / "stagepulse" / "jarvis" / "MainActivity.java"
+    source = android.read_text(encoding="utf-8")
+    assert '"app_id", "jarvis-android"' in source
+    assert '"/functions/v1/license-core"' in source
+    assert 'licenseCoreRequest("status"' in source
+    assert 'licenseCoreRequest("activate"' in source
+    assert 'private String licenseAccessToken = ""' in source
+    assert 'licensePrefs' not in source
+    assert 'putString("session"' not in source
+    assert 'AndroidKeyStore' not in source

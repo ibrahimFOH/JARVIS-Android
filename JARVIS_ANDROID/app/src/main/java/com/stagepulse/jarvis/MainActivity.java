@@ -50,6 +50,7 @@ public class MainActivity extends Activity {
     private AgencyAgent activeAgent;
     private android.content.SharedPreferences bridgePrefs;
     private android.content.SharedPreferences updatePrefs;
+    private String licenseAccessToken = "";
     private static final String SUPABASE_URL = "https://itasctyjzyewcykozuex.supabase.co";
     private static final String SUPABASE_PUBLISHABLE_KEY = "sb_publishable_tP3CMhVAjv6FNtrkYfVEOA_dbF9m8Jb";
     private final UpdateManager updateManager = new UpdateManager();
@@ -75,6 +76,7 @@ public class MainActivity extends Activity {
         initSystemTtsFallback();
         initSpeech();
         append("JARVIS","PATRON, bağımsız Android çekirdeği hazır.");
+        checkCurrentLicenseStatus();
         checkForUpdates(false);
     }
 
@@ -555,6 +557,39 @@ public class MainActivity extends Activity {
         return hex.toString();
     }
 
+    private JSONObject licenseCoreRequest(String action, String token, String licenseKey) throws Exception {
+        JSONObject body = new JSONObject()
+                .put("action", action)
+                .put("app_id", "jarvis-android")
+                .put("platform", "android")
+                .put("device_hash", androidDeviceHash());
+        if (licenseKey != null && !licenseKey.trim().isEmpty()) body.put("license_key", licenseKey.trim());
+        return postSupabaseJson("/functions/v1/license-core", body, token);
+    }
+
+    private void checkCurrentLicenseStatus() {
+        if (licenseAccessToken.isEmpty()) return;
+        io.submit(() -> {
+            try {
+                JSONObject result = licenseCoreRequest("status", licenseAccessToken, "");
+                boolean active = result.optBoolean("licensed", false);
+                runOnUiThread(() -> {
+                    status.setText(active ? "● LİSANSLI" : "● LİSANS GEREKLİ");
+                    status.setTextColor(active ? gold() : muted());
+                    append("JARVIS", active
+                            ? "Ortak Stagepulse hesabı ve Android lisansı doğrulandı."
+                            : "Hesap açık; bu cihazda etkin JARVIS Android lisansı yok.");
+                });
+            } catch (Exception e) {
+                runOnUiThread(() -> {
+                    status.setText("● LİSANS DURUMU ÇEVRİMDIŞI");
+                    status.setTextColor(muted());
+                    append("JARVIS", "Lisans sunucusuna ulaşılamadı. Yerel Android işlevleri kullanılabilir.");
+                });
+            }
+        });
+    }
+
     private void showLicenseSettings() {
         LinearLayout box = new LinearLayout(this);
         box.setOrientation(LinearLayout.VERTICAL);
@@ -569,45 +604,45 @@ public class MainActivity extends Activity {
         password.setInputType(android.text.InputType.TYPE_CLASS_TEXT | android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD);
         EditText licenseKey = new EditText(this);
         licenseKey.setSingleLine(true);
-        licenseKey.setHint("JARVIS lisans anahtarı");
+        licenseKey.setHint("JARVIS lisans anahtarı (isteğe bağlı)");
         box.addView(email);
         box.addView(password);
         box.addView(licenseKey);
         new AlertDialog.Builder(this)
             .setTitle("ORTAK HESAP / JARVIS LİSANSI")
-            .setMessage("Stagepulse ortak hesabınla giriş yap. Lisans aktivasyonu isteğe bağlıdır; temel Android JARVIS işlevleri lisans olmadan da çalışır.")
+            .setMessage("Stagepulse ortak hesabınla giriş yap. Oturum yalnızca uygulama açıkken bellekte tutulur. Lisans isteğe bağlıdır; yerel JARVIS işlevleri çevrimdışı da çalışır.")
             .setView(box)
-            .setPositiveButton("GİRİŞ YAP VE ETKİNLEŞTİR", (dialog, which) -> {
+            .setPositiveButton("GİRİŞ YAP / LİSANSI ETKİNLEŞTİR", (dialog, which) -> {
                 String emailValue = email.getText().toString().trim();
                 String passwordValue = password.getText().toString();
                 String keyValue = licenseKey.getText().toString().trim();
-                if (emailValue.isEmpty() || passwordValue.isEmpty() || keyValue.isEmpty()) {
-                    toast("E-posta, şifre ve lisans anahtarı gerekli.");
+                if (emailValue.isEmpty() || passwordValue.isEmpty()) {
+                    toast("Ortak hesap e-postası ve şifresi gerekli.");
                     return;
                 }
                 status.setText("● HESAP DOĞRULANIYOR");
                 io.submit(() -> {
                     try {
-                        JSONObject authBody = new JSONObject();
-                        authBody.put("email", emailValue);
-                        authBody.put("password", passwordValue);
+                        JSONObject authBody = new JSONObject()
+                                .put("email", emailValue)
+                                .put("password", passwordValue);
                         JSONObject auth = postSupabaseJson("/auth/v1/token?grant_type=password", authBody, "");
                         String token = auth.getString("access_token");
-
-                        JSONObject activationBody = new JSONObject();
-                        activationBody.put("action", "activate");
-                        activationBody.put("app_id", "jarvis-android");
-                        activationBody.put("platform", "android");
-                        activationBody.put("device_hash", androidDeviceHash());
-                        activationBody.put("license_key", keyValue);
-                        JSONObject activation = postSupabaseJson("/functions/v1/license-core", activationBody, token);
+                        licenseAccessToken = token;
+                        JSONObject result = keyValue.isEmpty()
+                                ? licenseCoreRequest("status", token, "")
+                                : licenseCoreRequest("activate", token, keyValue);
+                        boolean active = result.optBoolean("licensed", false);
                         runOnUiThread(() -> {
-                            status.setText("● LİSANSLI");
-                            status.setTextColor(gold());
-                            append("JARVIS", "Ortak hesap doğrulandı. Android lisansı etkinleştirildi.");
-                            speak("JARVIS lisansı etkinleştirildi.");
+                            status.setText(active ? "● LİSANSLI" : "● LİSANS GEREKLİ");
+                            status.setTextColor(active ? gold() : muted());
+                            append("JARVIS", active
+                                    ? (keyValue.isEmpty() ? "Ortak hesap ve mevcut Android lisansı doğrulandı." : "Ortak hesap doğrulandı. Android lisansı etkinleştirildi.")
+                                    : "Hesap doğrulandı; bu cihazda etkin JARVIS Android lisansı bulunamadı.");
+                            if (active && !keyValue.isEmpty()) speak("JARVIS lisansı etkinleştirildi.");
                         });
                     } catch (Exception e) {
+                        licenseAccessToken = "";
                         runOnUiThread(() -> {
                             status.setText("● LİSANS DOĞRULANAMADI");
                             status.setTextColor(0xFFFF5555);
@@ -616,7 +651,8 @@ public class MainActivity extends Activity {
                     }
                 });
             })
-            .setNegativeButton("İPTAL", null)
+            .setNeutralButton("LİSANSI KONTROL ET", (dialog, which) -> checkCurrentLicenseStatus())
+            .setNegativeButton("KAPAT", null)
             .show();
     }
 
