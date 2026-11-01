@@ -1,0 +1,84 @@
+"""Ücretli API uç noktalarının kapalı kaldığını doğrulayan regresyon testleri."""
+
+import pytest
+
+from core.ai_brain import AIBrain
+
+
+def make_brain():
+    brain = AIBrain.__new__(AIBrain)
+    brain.provider = "ollama"
+    brain.gemini_key = ""
+    brain.gemini_model = "gemini-3.8-flash"
+    brain.groq_key = ""
+    brain.groq_model = "openai/gpt-oss-20b"
+    brain.host = "http://127.0.0.1:11434"
+    brain.model = "qwen3:0.6b"
+    brain.api_defaults = {}
+    brain.api_keys = {}
+    brain.api_models = {}
+    brain.api_base_urls = {}
+    brain._persist_settings = lambda: None
+    return brain
+
+
+@pytest.mark.parametrize(
+    "provider",
+    ["openai", "grok", "anthropic", "deepseek", "perplexity", "openrouter", "custom"],
+)
+def test_paid_or_unverified_provider_cannot_be_selected(provider):
+    brain = make_brain()
+
+    with pytest.raises(ValueError, match="yalnızca ücretsiz sağlayıcılar"):
+        brain.configure(provider=provider)
+
+
+def test_only_local_and_free_tier_providers_are_allowlisted():
+    assert AIBrain.FREE_PROVIDERS == frozenset({"auto", "ollama", "gemini", "groq"})
+
+
+@pytest.mark.parametrize(
+    "provider",
+    ["openai", "grok", "anthropic", "deepseek", "perplexity", "openrouter", "custom"],
+)
+def test_paid_provider_connection_test_is_blocked_without_network(provider):
+    brain = make_brain()
+
+    result = brain.test_provider(provider)
+
+    assert result["success"] is False
+    assert "engellendi" in result["message"]
+
+
+def test_generic_api_adapter_cannot_call_paid_or_custom_endpoints():
+    brain = make_brain()
+
+    with pytest.raises(RuntimeError, match="Genel/ücretli API uç noktaları devre dışı"):
+        brain._compatible_api("openai", "test")
+
+
+def test_auto_mode_never_falls_back_to_paid_providers(monkeypatch):
+    brain = make_brain()
+    brain.provider = "auto"
+    brain._ollama = lambda _prompt, _context="": "Ollama bağlantısında sorun oluştu: kapalı"
+    paid_calls = []
+
+    def forbidden_paid_call(*args, **kwargs):
+        paid_calls.append((args, kwargs))
+        raise AssertionError("AUTO ücretli sağlayıcıya yönelmemeli")
+
+    monkeypatch.setattr(AIBrain, "_compatible_api", forbidden_paid_call)
+
+    result = brain.ask("Basit bir test yap")
+
+    assert result.startswith("Yapay zekâ yanıtı alınamadı.")
+    assert paid_calls == []
+
+
+def test_configure_accepts_free_provider_and_rejects_paid_key_injection():
+    brain = make_brain()
+
+    brain.configure(provider="groq", api_keys={"openai": "must-not-be-used"})
+
+    assert brain.provider == "groq"
+    assert brain.api_keys == {}
