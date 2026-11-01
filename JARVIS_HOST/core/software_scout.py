@@ -201,9 +201,9 @@ class StagepulseSoftwareScout:
             return found
 
         registry_roots = (
-            (winreg.HKEY_CURRENT_USER, r"Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall"),
-            (winreg.HKEY_LOCAL_MACHINE, r"Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall"),
-            (winreg.HKEY_LOCAL_MACHINE, r"Software\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\Uninstall"),
+            (winreg.HKEY_CURRENT_USER, r"Software\Microsoft\\Windows\\CurrentVersion\\Uninstall"),
+            (winreg.HKEY_LOCAL_MACHINE, r"Software\Microsoft\\Windows\\CurrentVersion\\Uninstall"),
+            (winreg.HKEY_LOCAL_MACHINE, r"Software\WOW6432Node\Microsoft\\Windows\\CurrentVersion\\Uninstall"),
         )
 
         for hive, root_path in registry_roots:
@@ -215,9 +215,15 @@ class StagepulseSoftwareScout:
                             subkey_name = winreg.EnumKey(root, index)
                             with winreg.OpenKey(root, subkey_name) as entry:
                                 display_name = str(winreg.QueryValueEx(entry, "DisplayName")[0])
-                                display_version = str(winreg.QueryValueEx(entry, "DisplayVersion")[0]) if _has_value(entry, "DisplayVersion") else ""
-                                install_location = str(winreg.QueryValueEx(entry, "InstallLocation")[0]) if _has_value(entry, "InstallLocation") else ""
-                        except (OSError, WindowsError):
+                                try:
+                                    display_version = str(winreg.QueryValueEx(entry, "DisplayVersion")[0])
+                                except OSError:
+                                    display_version = ""
+                                try:
+                                    install_location = str(winreg.QueryValueEx(entry, "InstallLocation")[0])
+                                except OSError:
+                                    install_location = ""
+                        except OSError:
                             continue
 
                         folded = display_name.casefold()
