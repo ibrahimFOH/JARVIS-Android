@@ -38,12 +38,13 @@ Python 3.11 x64 kurulu Windows bilgisayarda `BUILD_JARVIS_EXE.bat` dosyasını �
 
 ## 3. Yapay zekâ sağlayıcıları
 
-- **Ollama:** Yerel model; Ollama hizmeti ve model bilgisayarda kurulu olmalıdır.
-- **Gemini, OpenAI, Grok/xAI, Anthropic, DeepSeek, Perplexity, Groq ve OpenRouter:** API anahtarı ve internet bağlantısı gerektirir.
-- **Özel sağlayıcı:** OpenAI Chat Completions uyumlu uç nokta girilebilir.
-- **AUTO:** Önce yerel Ollama'yı dener; başarısızsa yapılandırılmış yedek sağlayıcılara geçer.
+- **Ollama:** Yerel ve ücretsiz model. Ollama hizmeti ve model bilgisayarda kurulu olmalıdır.
+- **Gemini Free Tier:** Yalnızca ücretsiz kotada, faturalandırma kapalı hesapta ve kullanıcı onayıyla çalışır.
+- **Groq Free Plan:** Yalnızca Free Plan hesabında ve kullanıcı onayıyla çalışır. Kota sınırı aşılırsa istek reddedilir.
+- **Ücretli sağlayıcılar:** OpenAI, xAI/Grok API, Anthropic, DeepSeek, Perplexity, OpenRouter ve özel API uç noktaları kapalıdır.
+- **AUTO:** Önce yerel Ollama'yı, ardından yalnızca ücretsiz planı ayrı ayrı onaylanmış Gemini/Groq bağlantılarını dener. Ücretli sağlayıcıya geçmez.
 
-API anahtarları Windows DPAPI korumasıyla saklanır. Şifreleme başarısız olursa anahtar düz metin olarak kaydedilmez.
+JARVIS, sağlayıcı hesabının ödeme durumunu kendisi doğrulayamaz; ücretsiz plan ve faturalandırmanın kapalı olduğu doğruysa onay ver. Kota dolduğunda ücretli plana otomatik geçiş yoktur. API anahtarları Windows DPAPI korumasıyla saklanır. Şifreleme başarısız olursa anahtar düz metin olarak kaydedilmez.
 
 ## 4. Sesli kullanım
 
