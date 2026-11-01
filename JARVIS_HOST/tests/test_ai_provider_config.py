@@ -780,3 +780,93 @@ def test_cloud_provider_requires_explicit_free_plan_attestation(tmp_path, monkey
     assert brain.provider == "ollama"
     assert brain.groq_free_plan_confirmed is False
     assert calls == []
+
+
+
+def test_task_journal_recovers_running_task_after_restart(tmp_path):
+    from core.agent_tools import TaskJournal
+
+    database = tmp_path / "tasks.sqlite3"
+    journal = TaskJournal(database)
+    task_id = journal.create("Elif Kır Bahçesi sistem raporunu hazırla")
+    journal.close()
+
+    restarted = TaskJournal(database)
+    rows = restarted.recent()
+    task = next(item for item in rows if item["id"] == task_id)
+
+    assert task["status"] == "interrupted"
+    assert "yarıda kaldı" in task["progress"].lower()
+
+
+def test_task_journal_reuses_confirmation_record_after_user_approval(tmp_path):
+    from core.agent_tools import TaskJournal
+    from core.command_processor import CommandProcessor
+
+    processor = CommandProcessor.__new__(CommandProcessor)
+    processor.task_journal = TaskJournal(tmp_path / "tasks.sqlite3")
+    command = "Midas M32 uygulamasını kapat"
+    calls = []
+
+    def fake_execute(received, confirmed=False):
+        calls.append((received, confirmed))
+        if not confirmed:
+            return {
+                "success": False,
+                "response": "Kapatma izni gerekli.",
+                "requires_confirmation": True,
+                "pending_command": received,
+            }
+        return {"success": True, "response": "Uygulama kapatıldı.", "intent": "close_app"}
+
+    processor._process_untracked = fake_execute
+    first = processor.process(command)
+    second = processor.process(command, confirmed=True)
+
+    assert first["requires_confirmation"] is True
+    assert second["success"] is True
+    assert first["task_id"] == second["task_id"]
+    task = processor.task_journal.recent(1)[0]
+    assert task["status"] == "succeeded"
+    assert calls == [(command, False), (command, True)]
+
+
+def test_task_journal_lists_recent_jobs_without_running_ai(tmp_path):
+    from core.agent_tools import TaskJournal
+    from core.command_processor import CommandProcessor
+
+    processor = CommandProcessor.__new__(CommandProcessor)
+    processor.task_journal = TaskJournal(tmp_path / "tasks.sqlite3")
+    task_id = processor.task_journal.create("Stage plot hazırla")
+    processor.task_journal.update(task_id, "succeeded", "Komut tamamlandı.", "Rapor oluşturuldu.")
+
+    result = processor.process("görevlerim")
+
+    assert result["success"] is True
+    assert result["intent"] == "task_journal"
+    assert "Stage plot hazırla" in result["response"]
+    assert "TAMAMLANDI" in result["response"]
+
+
+def test_resume_command_requires_confirmation_and_reuses_interrupted_job(tmp_path):
+    from core.agent_tools import TaskJournal
+    from core.command_processor import CommandProcessor
+
+    processor = CommandProcessor.__new__(CommandProcessor)
+    processor.task_journal = TaskJournal(tmp_path / "tasks.sqlite3")
+    command = "Elif Kır Bahçesi için sistem raporu hazırla"
+    task_id = processor.task_journal.create(command)
+    processor.task_journal.update(task_id, "interrupted", "Bilgisayar kapandı.")
+
+    result = processor.process("devam et")
+    assert result["requires_confirmation"] is True
+    assert result["task_id"] == task_id
+    assert result["pending_command"] == command
+    assert "baştan yeniden çalıştırılacak" in result["response"]
+
+    processor._process_untracked = lambda received, confirmed=False: {
+        "success": True, "response": "Yeniden başlatıldı.", "intent": "ai"
+    }
+    resumed = processor.process(command, confirmed=True)
+    assert resumed["task_id"] == task_id
+    assert processor.task_journal.recent(1)[0]["status"] == "succeeded"
