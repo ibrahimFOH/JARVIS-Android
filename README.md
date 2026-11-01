@@ -28,8 +28,8 @@ Windows kaynak kodu JARVIS_HOST/, Android uygulaması JARVIS_ANDROID/ altında t
 
 Windows arayüzünde:
 - UZMANLAR: APK'deki uzman kataloğuna karşılık gelen FOH, Monitor, RF, System Tech, Rider, Stage Plot, SPL, Audio System Design, Live Sound Troubleshooting, Dante, Lighting ve Event Production rollerini içerir. Ek olarak yazılım, Windows/Linux, stüdyo, SEO, araştırma ve dokümantasyon profilleri bulunur.
-- AI PROVIDER: Ollama, otomatik seçim, Gemini, Groq, OpenAI, xAI/Grok, Anthropic, DeepSeek, Perplexity, OpenRouter ve özel OpenAI uyumlu uç nokta seçilebilir.
-- Varsayılan sağlayıcı Ollama'dır (qwen3:0.6b). Bulut sağlayıcıları için ilgili API anahtarını AI PROVIDER ekranından girin. Mevcut config.json içindeki eski sağlayıcı/model ayarları da yeni çekirdeğe aktarılır.
+- AI PROVIDER: Yalnızca yerel Ollama, Gemini Free Tier ve Groq Free Plan kullanılabilir. OpenAI, xAI/Grok API, Anthropic, DeepSeek, Perplexity, OpenRouter ve özel API uç noktaları güvenlik nedeniyle kapalıdır.
+- Varsayılan sağlayıcı Ollama'dır (qwen3:0.6b). Gemini ve Groq için API anahtarından ayrı olarak ücretsiz plan ve faturalandırmanın kapalı olduğu kullanıcı tarafından onaylanmalıdır. Kota dolarsa ücretli plana geçilmez; istek durur. Eski ücretli sağlayıcı ayarları etkin sağlayıcı listesine alınmaz.
 - API ayarları %APPDATA%\StagepulseJARVIS\ai_settings.json dosyasında tutulur. API anahtarları Windows DPAPI ile şifrelenir; DPAPI başarısız olursa düz metin olarak kaydedilmez. Bu dosyayı ya da köprü token'ını depoya eklemeyin.
 
 ### Tek EXE oluşturma
