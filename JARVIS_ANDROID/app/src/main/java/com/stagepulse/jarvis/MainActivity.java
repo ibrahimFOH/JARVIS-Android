@@ -50,7 +50,6 @@ public class MainActivity extends Activity {
     private AgencyAgent activeAgent;
     private android.content.SharedPreferences bridgePrefs;
     private android.content.SharedPreferences updatePrefs;
-    private volatile String licenseAccessToken = "";
     private static final String SUPABASE_URL = "https://itasctyjzyewcykozuex.supabase.co";
     private static final String SUPABASE_PUBLISHABLE_KEY = "sb_publishable_tP3CMhVAjv6FNtrkYfVEOA_dbF9m8Jb";
     private final UpdateManager updateManager = new UpdateManager();
@@ -602,7 +601,6 @@ public class MainActivity extends Activity {
                         activationBody.put("device_hash", androidDeviceHash());
                         activationBody.put("license_key", keyValue);
                         JSONObject activation = postSupabaseJson("/functions/v1/license-core", activationBody, token);
-                        licenseAccessToken = token;
                         runOnUiThread(() -> {
                             status.setText("● LİSANSLI");
                             status.setTextColor(gold());
