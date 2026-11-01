@@ -26,7 +26,7 @@ class ApplicationManager:
     def launch(self, app_name: str) -> Dict[str, Any]:
         """Launch a resolved application without evaluating user text as a shell command."""
         try:
-            logger.info("Attempting to launch: %s", app_name)
+            logger.info(f"Attempting to launch: {app_name}")
 
             executable = self._resolve_app_name(app_name)
             if not executable:
@@ -75,11 +75,11 @@ class ApplicationManager:
 
             self._launch_target(target, protocol_targets)
             time.sleep(0.5)
-            logger.info("Successfully launched: %s", app_name)
+            logger.info(f"Successfully launched: {app_name}")
             return {"success": True, "message": f"{app_name} launched successfully"}
 
         except Exception as exc:
-            logger.error("Error launching %s: %s", app_name, exc)
+            logger.error(f"Error launching {app_name}: {exc}")
             return {
                 "success": False,
                 "message": f"Error launching application: {exc}",
