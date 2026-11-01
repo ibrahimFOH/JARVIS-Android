@@ -211,9 +211,9 @@ class StagepulseSoftwareScout:
             return found
 
         registry_roots = (
-            (winreg.HKEY_CURRENT_USER, r"Software\Microsoft\\Windows\\CurrentVersion\\Uninstall"),
-            (winreg.HKEY_LOCAL_MACHINE, r"Software\Microsoft\\Windows\\CurrentVersion\\Uninstall"),
-            (winreg.HKEY_LOCAL_MACHINE, r"Software\WOW6432Node\Microsoft\\Windows\\CurrentVersion\\Uninstall"),
+            (winreg.HKEY_CURRENT_USER, r"Software\Microsoft\Windows\CurrentVersion\Uninstall"),
+            (winreg.HKEY_LOCAL_MACHINE, r"Software\Microsoft\Windows\CurrentVersion\Uninstall"),
+            (winreg.HKEY_LOCAL_MACHINE, r"Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall"),
         )
 
         for hive, root_path in registry_roots:
