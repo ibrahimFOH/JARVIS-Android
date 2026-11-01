@@ -141,6 +141,8 @@ jobs:
 
       - name: Build Windows single-file JARVIS
         shell: pwsh
+        env:
+          WINDOWS_SIGNING_PFX_PASSWORD: ${{ secrets.WINDOWS_SIGNING_PFX_PASSWORD }}
         working-directory: JARVIS_HOST
         run: |
           python build_jarvis_exe.py
