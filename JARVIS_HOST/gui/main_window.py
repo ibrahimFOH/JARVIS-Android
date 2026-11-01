@@ -950,9 +950,25 @@ class JarvisGUI:
             border_color=GOLD2, font=("Consolas", 9)
         ).pack(anchor="w", padx=20, pady=(3, 8))
 
+        cloud_data_var = ctk.BooleanVar(value=brain.cloud_project_data_confirmed)
+        ctk.CTkCheckBox(
+            content,
+            text="Proje belgeleri ve görselleri, görev için onaylı ücretsiz bulut API'sine gönderilebilir.",
+            variable=cloud_data_var,
+            text_color=WHITE, fg_color=GOLD2, hover_color=GOLD,
+            border_color=GOLD2, font=("Consolas", 9)
+        ).pack(anchor="w", padx=20, pady=(8, 8))
+
         ctk.CTkLabel(
             content,
-            text="ÖNEMLİ: JARVIS ödeme planını sağlayıcı hesabından doğrulayamaz. Yalnızca gerçekten ücretsiz ve faturalandırmasız hesaplarda ilgili onayı ver. Onay yoksa o sağlayıcıya istek gönderilmez. Ücretsiz kota dolarsa ücretli plana geçilmez; istek durur. Ollama yerel çalışır ve API ücreti oluşturmaz. API anahtarları Windows DPAPI ile şifrelenir; DPAPI başarısızsa düz metin kaydedilmez. OpenAI, Grok/xAI, Anthropic, DeepSeek, Perplexity, OpenRouter ve özel API uç noktaları kapalıdır.",
+            text="Bu izin kapalıysa yerel dosya içerikleri ve kayıtlı bağlam yalnızca Ollama'da işlenir. Gemini/Groq ücretsiz plan onayı bundan ayrıdır. Görsel aktarımı da bu izni gerektirir. Ücretsiz kota dolarsa ücretli plana geçiş yapılmaz. API anahtarları Windows DPAPI ile şifrelenir.",
+            text_color=MUTED, wraplength=550, justify="left",
+            font=("Consolas", 9)
+        ).pack(anchor="w", padx=20, pady=(5, 12))
+
+        ctk.CTkLabel(
+            content,
+            text="ÖNEMLİ: JARVIS ödeme planını sağlayıcı hesabından doğrulayamaz. Yalnızca gerçekten ücretsiz ve faturalandırmasız hesaplarda ilgili onayı ver. Onay yoksa o sağlayıcıya istek gönderilmez. Ücretsiz kota dolarsa ücretli plana geçilmez; istek durur. Ollama yerel çalışır ve API ücreti oluşturmaz. OpenAI, xAI/Grok, Anthropic, DeepSeek, Perplexity, OpenRouter ve özel API uç noktaları kapalıdır.",
             text_color=MUTED, wraplength=550, justify="left",
             font=("Consolas", 9)
         ).pack(anchor="w", padx=20, pady=(5, 12))
@@ -966,6 +982,7 @@ class JarvisGUI:
                 groq_key=groq_key.get(),
                 gemini_free_confirmed=gemini_free_var.get(),
                 groq_free_confirmed=groq_free_var.get(),
+                cloud_project_data_confirmed=cloud_data_var.get(),
             )
             label = getattr(self, "_telemetry_widgets", {}).get("YAPAY ZEKÂ ÇEKİRDEĞİ")
             if label is not None:
