@@ -3,6 +3,7 @@ import os,sys,subprocess
 import base64
 from pathlib import Path
 import requests
+import psutil
 class ToolEngine:
  def __init__(self,repo=None): self.repo=Path(repo or Path.cwd()).resolve()
  def list_dir(self,path="."):
@@ -93,7 +94,7 @@ class TaskJournal:
         return task_id
 
     def update(self, task_id, status, progress="", result=""):
-        allowed = {"running", "awaiting_confirmation", "succeeded", "failed", "interrupted"}
+        allowed = {"running", "awaiting_confirmation", "succeeded", "failed", "interrupted", "paused"}
         if status not in allowed:
             raise ValueError("Geçersiz görev durumu: " + str(status))
         with self._connect() as db:
@@ -113,7 +114,7 @@ class TaskJournal:
     def latest_interrupted(self):
         with self._connect() as db:
             row = db.execute(
-                "SELECT id, command, status, progress, updated_at FROM tasks WHERE status='interrupted' ORDER BY updated_at DESC LIMIT 1"
+                "SELECT id, command, status, progress, updated_at FROM tasks WHERE status IN ('interrupted', 'paused') ORDER BY updated_at DESC LIMIT 1"
             ).fetchone()
         return dict(row) if row else None
 
@@ -128,6 +129,43 @@ class TaskJournal:
     def close(self):
         # Connections are short-lived; this method exists for a consistent manager lifecycle.
         return None
+
+
+class ResourceGovernor:
+    """Lightweight local PC resource monitor; never closes processes on its own."""
+
+    def __init__(self, cpu_limit=90.0, memory_limit=92.0):
+        self.cpu_limit = float(cpu_limit)
+        self.memory_limit = float(memory_limit)
+
+    def snapshot(self):
+        cpu = float(psutil.cpu_percent(interval=0.2))
+        memory = psutil.virtual_memory()
+        top = []
+        for process in psutil.process_iter(["pid", "name", "memory_info"]):
+            try:
+                info = process.info
+                mem = info.get("memory_info")
+                top.append({
+                    "pid": int(info.get("pid") or 0),
+                    "name": str(info.get("name") or "Bilinmeyen"),
+                    "memory_mb": round((mem.rss if mem else 0) / 1024 / 1024, 1),
+                })
+            except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+                continue
+        top.sort(key=lambda item: item["memory_mb"], reverse=True)
+        return {
+            "cpu_percent": cpu,
+            "memory_percent": float(memory.percent),
+            "memory_available_mb": round(memory.available / 1024 / 1024, 1),
+            "high_load": cpu >= self.cpu_limit or float(memory.percent) >= self.memory_limit,
+            "top_processes": top[:8],
+            "message": (
+                "Yüksek sistem kullanımı; ağır JARVIS görevleri duraklatılmalı."
+                if cpu >= self.cpu_limit or float(memory.percent) >= self.memory_limit
+                else "Sistem kaynakları normal aralıkta."
+            ),
+        }
 
 
 class RepositoryManager:
