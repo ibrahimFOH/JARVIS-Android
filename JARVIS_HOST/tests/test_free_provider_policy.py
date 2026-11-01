@@ -1,7 +1,8 @@
 """Ücretli API uç noktalarının kapalı kaldığını doğrulayan regresyon testleri."""
 
-import pytest
 from types import SimpleNamespace
+
+import pytest
 
 from core.ai_brain import AIBrain
 
@@ -130,3 +131,26 @@ def test_groq_api_is_blocked_before_network_without_free_plan_confirmation(monke
         brain._compatible_groq("test")
 
     assert calls == []
+
+
+def test_auto_mode_does_not_call_cloud_without_provider_specific_confirmation(monkeypatch):
+    brain = make_brain()
+    brain.provider = "auto"
+    brain.gemini_key = "gemini-test-key"
+    brain.groq_key = "groq-test-key"
+    brain._ollama = lambda _prompt, _context="": "Ollama bağlantısında sorun oluştu: kapalı"
+    cloud_calls = []
+
+    monkeypatch.setattr(
+        brain, "_gemini_api",
+        lambda *args, **kwargs: cloud_calls.append("gemini"),
+    )
+    monkeypatch.setattr(
+        brain, "_compatible_groq",
+        lambda *args, **kwargs: cloud_calls.append("groq"),
+    )
+
+    result = brain.ask("Çevrimdışı test")
+
+    assert result.startswith("Yapay zekâ yanıtı alınamadı.")
+    assert cloud_calls == []
