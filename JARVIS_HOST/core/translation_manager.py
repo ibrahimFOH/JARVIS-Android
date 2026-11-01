@@ -118,14 +118,14 @@ class TurkishTranslationManager:
                     continue
                 identifier = str(len(pending))
                 pending.append({"id": identifier, "source": source_text})
-                targets.append((target_node, source_text, identifier))
+                targets.append((target_node, translation_node, source_text, identifier))
 
         for offset in range(0, len(pending), self.batch_size):
             batch = pending[offset:offset + self.batch_size]
             translated = self._translate_batch(batch)
-            for target_node, source_text, identifier in targets[offset:offset + len(batch)]:
+            for target_node, translation_node, source_text, identifier in targets[offset:offset + len(batch)]:
                 target_node.text = translated[identifier]
-                target_node.attrib.pop("type", None)
+                translation_node.attrib.pop("type", None)
 
         destination.parent.mkdir(parents=True, exist_ok=True)
         try:
