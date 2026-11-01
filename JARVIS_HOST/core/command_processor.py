@@ -641,6 +641,9 @@ class CommandProcessor:
     def process(self, command: str, confirmed: bool = False) -> Dict[str, Any]:
         """Track every command durably and recover pending confirmations after restart."""
         normalized = _normalize_direct_command(command)
+        if not hasattr(self, "task_journal") or self.task_journal is None:
+            from core.agent_tools import TaskJournal
+            self.task_journal = TaskJournal()
         if normalized in (
             "gorevlerim", "islerim", "acik islerim", "yarim kalan isler",
             "son gorevler", "gorev gecmisim", "islerimin durumu",
@@ -676,8 +679,9 @@ class CommandProcessor:
             return {
                 "success": False,
                 "response": (
-                    "Yarım kalan görev bulundu:\n" + task["command"] +
-                    "\n\nBu sürüm görevi son teknik adımdan değil, komutun başından yeniden çalıştıracak. "
+                    "Yarım kalan görev bulundu:" + chr(10) + task["command"] +
+                    chr(10) + chr(10) +
+                    "Bu sürüm görevi son teknik adımdan değil, komutun başından yeniden çalıştıracak. "
                     "Önceki işlem dosya oluşturmuş olabilir. Devam etmek için onay ver."
                 ),
                 "intent": "task_resume",
