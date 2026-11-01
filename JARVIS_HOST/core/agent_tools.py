@@ -31,10 +31,103 @@ class ToolEngine:
 # Explicitly scoped integrations used by the desktop GUI and the Android bridge.
 import json
 import re
+import sqlite3
+import uuid
+from datetime import datetime, timezone
 import shlex
 import shutil
 import unicodedata
 from urllib.parse import urlsplit
+
+
+class TaskJournal:
+    """Persistent task history for the Windows assistant; standard-library SQLite only."""
+
+    def __init__(self, db_path=None):
+        if db_path is None:
+            root = Path(os.environ.get("APPDATA") or (Path.home() / "AppData" / "Roaming"))
+            db_path = root / "Stagepulse" / "JARVIS" / "tasks.sqlite3"
+        self.db_path = Path(db_path).expanduser()
+        self.db_path.parent.mkdir(parents=True, exist_ok=True)
+        self._initialize()
+
+    @staticmethod
+    def _now():
+        return datetime.now(timezone.utc).isoformat(timespec="seconds")
+
+    def _connect(self):
+        connection = sqlite3.connect(str(self.db_path), timeout=10)
+        connection.row_factory = sqlite3.Row
+        return connection
+
+    def _initialize(self):
+        with self._connect() as db:
+            db.execute(
+                """
+                CREATE TABLE IF NOT EXISTS tasks (
+                    id TEXT PRIMARY KEY,
+                    command TEXT NOT NULL,
+                    status TEXT NOT NULL,
+                    progress TEXT NOT NULL DEFAULT '',
+                    result TEXT NOT NULL DEFAULT '',
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                )
+                """
+            )
+            db.execute("CREATE INDEX IF NOT EXISTS idx_tasks_status_updated ON tasks(status, updated_at)")
+            # A process killed by Windows is not allowed to remain falsely marked running.
+            db.execute(
+                "UPDATE tasks SET status='interrupted', progress='Uygulama kapandığı için yarıda kaldı.', updated_at=? WHERE status='running'",
+                (self._now(),),
+            )
+
+    def create(self, command):
+        task_id = uuid.uuid4().hex
+        now = self._now()
+        with self._connect() as db:
+            db.execute(
+                "INSERT INTO tasks(id, command, status, progress, result, created_at, updated_at) VALUES (?, ?, 'running', ?, '', ?, ?)",
+                (task_id, str(command or "").strip(), "Komut yürütülüyor.", now, now),
+            )
+        return task_id
+
+    def update(self, task_id, status, progress="", result=""):
+        allowed = {"running", "awaiting_confirmation", "succeeded", "failed", "interrupted"}
+        if status not in allowed:
+            raise ValueError("Geçersiz görev durumu: " + str(status))
+        with self._connect() as db:
+            db.execute(
+                "UPDATE tasks SET status=?, progress=?, result=?, updated_at=? WHERE id=?",
+                (status, str(progress or "")[:500], str(result or "")[:6000], self._now(), str(task_id)),
+            )
+
+    def latest_awaiting(self, command):
+        with self._connect() as db:
+            row = db.execute(
+                "SELECT id, command, status FROM tasks WHERE status='awaiting_confirmation' AND command=? ORDER BY updated_at DESC LIMIT 1",
+                (str(command or "").strip(),),
+            ).fetchone()
+        return dict(row) if row else None
+
+    def latest_interrupted(self):
+        with self._connect() as db:
+            row = db.execute(
+                "SELECT id, command, status, progress, updated_at FROM tasks WHERE status='interrupted' ORDER BY updated_at DESC LIMIT 1"
+            ).fetchone()
+        return dict(row) if row else None
+
+    def recent(self, limit=12):
+        with self._connect() as db:
+            rows = db.execute(
+                "SELECT id, command, status, progress, result, created_at, updated_at FROM tasks ORDER BY updated_at DESC LIMIT ?",
+                (max(1, min(int(limit), 50)),),
+            ).fetchall()
+        return [dict(row) for row in rows]
+
+    def close(self):
+        # Connections are short-lived; this method exists for a consistent manager lifecycle.
+        return None
 
 
 class RepositoryManager:
