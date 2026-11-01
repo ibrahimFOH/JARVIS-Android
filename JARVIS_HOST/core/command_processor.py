@@ -231,7 +231,7 @@ def _stagepulse_software_research_command(command: str):
 
     try:
         from core.software_scout import StagepulseSoftwareScout
-        report = StagepulseSoftwareScout().scan(category=category, per_category=2)
+        report = StagepulseSoftwareScout().scan(category=category, per_category=1)
         items = report.get("results", [])
         lines = [
             "Stagepulse hizmetlerine göre ücretsiz yazılım araştırması tamamlandı.",
