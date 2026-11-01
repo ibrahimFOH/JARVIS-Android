@@ -157,3 +157,31 @@ def test_simple_wake_word_stops_when_microphone_is_unavailable(monkeypatch):
     assert not detector.listen_thread.is_alive()
     assert detector.is_listening is False
     assert calls == [2]
+
+
+def test_jarvis_uses_online_wake_word_fallback_without_porcupine_key(monkeypatch):
+    import core.jarvis as jarvis_module
+
+    class FakeConfig:
+        def get(self, key, default=None):
+            if key in ("voice.enabled", "voice.wake_word_enabled"):
+                return True
+            return default
+
+    class PrimaryWakeWord:
+        porcupine = None
+
+    class OnlineFallback:
+        pass
+
+    monkeypatch.setattr(jarvis_module, "config", FakeConfig())
+    monkeypatch.setattr(jarvis_module, "CommandProcessor", lambda: object())
+    monkeypatch.setattr(jarvis_module, "ResponseGenerator", lambda: object())
+    monkeypatch.setattr(jarvis_module, "SpeechRecognizer", lambda: object())
+    monkeypatch.setattr(jarvis_module, "TextToSpeech", lambda: object())
+    monkeypatch.setattr(jarvis_module, "WakeWordDetector", PrimaryWakeWord)
+    monkeypatch.setattr(jarvis_module, "SimpleWakeWordDetector", OnlineFallback)
+    monkeypatch.setattr(jarvis_module, "log_startup", lambda: None)
+
+    jarvis = jarvis_module.Jarvis()
+    assert isinstance(jarvis.wake_word_detector, OnlineFallback)
