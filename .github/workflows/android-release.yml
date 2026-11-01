@@ -14,7 +14,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
 
       - name: Verify release tag and signing secrets
         shell: bash
@@ -43,13 +43,13 @@ jobs:
           fi
 
       - name: Set up Java 17
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3
         with:
           distribution: temurin
           java-version: '17'
 
       - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
+        uses: android-actions/setup-android@035682743ab223ec9c6169af09811dff8247e520
         with:
           packages: ''
 
@@ -58,7 +58,7 @@ jobs:
           sdkmanager "platforms;android-35" "build-tools;35.0.0" "ndk;27.2.12479018" "cmake;3.22.1"
 
       - name: Set up Gradle 8.9
-        uses: gradle/actions/setup-gradle@v4
+        uses: gradle/actions/setup-gradle@ed408507eac070d1f99cc633dbcf757c94c7933a
         with:
           gradle-version: '8.9'
 
@@ -93,7 +93,7 @@ jobs:
           cp "$APK" release-assets/JARVIS-Android-release.apk
 
       - name: Upload Android release artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: android-release
           path: release-assets/JARVIS-Android-release.apk
@@ -105,7 +105,7 @@ jobs:
     runs-on: windows-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
 
       - name: Verify Windows release version and Authenticode secrets
         shell: pwsh
@@ -127,7 +127,7 @@ jobs:
           "JARVIS_SIGNING_PFX=$pfx" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@82c7e631bb3cdc910f68e0081d67478d79c6982d
         with:
           python-version: '3.11'
           cache: pip
@@ -149,7 +149,8 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "Single-file Windows EXE build failed" }
           $exe = "dist\StagepulseJARVIS.exe"
           if (!(Test-Path $exe)) { throw "StagepulseJARVIS.exe was not created" }
-          $signtool = Get-ChildItem "$env:ProgramFiles(x86)\Windows Kits\10\bin" -Recurse -Filter signtool.exe -ErrorAction SilentlyContinue |
+          $sdkRoot = Join-Path ([Environment]::GetFolderPath('ProgramFilesX86')) 'Windows Kits\10\bin'
+          $signtool = Get-ChildItem $sdkRoot -Recurse -Filter signtool.exe -ErrorAction SilentlyContinue |
             Where-Object { $_.FullName -match '\\x64\\signtool\.exe$' } |
             Sort-Object FullName -Descending |
             Select-Object -First 1
@@ -166,7 +167,7 @@ jobs:
           if (!(Test-Path "$env:GITHUB_WORKSPACE\JARVIS-Windows.zip")) { throw "Windows ZIP package was not created" }
 
       - name: Upload Windows release artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: windows-release
           path: JARVIS-Windows.zip
@@ -181,16 +182,16 @@ jobs:
       - build-windows
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
 
       - name: Download Android artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
         with:
           name: android-release
           path: release-assets
 
       - name: Download Windows artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
         with:
           name: windows-release
           path: release-assets
@@ -229,7 +230,7 @@ jobs:
           (cd release-assets && sha256sum JARVIS-Android-release.apk JARVIS-Windows.zip > SHA256SUMS.txt)
 
       - name: Publish GitHub Release
-        uses: softprops/action-gh-release@v3
+        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64
         with:
           tag_name: ${{ github.ref_name }}
           name: JARVIS ${{ github.ref_name }}
