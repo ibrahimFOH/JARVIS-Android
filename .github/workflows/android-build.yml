@@ -3,8 +3,14 @@ name: JARVIS Android Build
 on:
   push:
     branches: [ main ]
+    paths:
+      - 'JARVIS_ANDROID/**'
+      - 'JARVIS_HOST/android_bridge.py'
   pull_request:
     branches: [ main ]
+    paths:
+      - 'JARVIS_ANDROID/**'
+      - 'JARVIS_HOST/android_bridge.py'
   workflow_dispatch:
 
 jobs:
