@@ -150,6 +150,15 @@ class StagepulseSoftwareScout:
                     "digest": asset.get("digest", ""),
                 })
 
+        windows_marked = "Windows desteğine dair depo işareti bulundu" in self._windows_hint(repo, tree)
+        digest_verified_asset = any(bool(asset["digest"]) for asset in assets)
+        install_eligible = (
+            spdx in OPEN_SOURCE_LICENSES
+            and not repo.get("archived")
+            and windows_marked
+            and digest_verified_asset
+        )
+
         return {
             "full_name": repo.get("full_name", full_name),
             "description": repo.get("description") or "",
@@ -168,12 +177,13 @@ class StagepulseSoftwareScout:
                 "tag": release.get("tag_name", ""),
                 "published_at": release.get("published_at", ""),
                 "assets": assets,
-                "has_verified_installer_candidate": any(bool(a["digest"]) for a in assets),
+                "has_verified_installer_candidate": digest_verified_asset,
             },
+            "install_eligible": install_eligible,
             "install_policy": (
                 "Kurulum adayı; önce yerel PC'de zaten kurulu olup olmadığı kontrol edilmeli."
-                if spdx in OPEN_SOURCE_LICENSES and not repo.get("archived")
-                else "Kurulum önerilmez; lisans veya depo durumu doğrulamadan geçmedi."
+                if install_eligible
+                else "Yalnızca araştırma adayı; Windows kurulum dosyası ve yayın SHA-256 özeti doğrulanmadı. Otomatik indirme/kurulum kapalı."
             ),
         }
 
