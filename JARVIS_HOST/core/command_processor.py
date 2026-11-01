@@ -245,7 +245,7 @@ class CommandProcessor:
             from core.agent_tools import RepositoryManager, PhoneManager
             if RepositoryManager.is_command(command):
                 if not hasattr(self, "_repository_manager"):
-                    self._repository_manager = RepositoryManager()
+                    self._repository_manager = RepositoryManager(ai_brain=self.ai_brain)
                 routed = self._repository_manager.handle_command(command, confirmed=confirmed)
                 if routed is not None:
                     return routed
