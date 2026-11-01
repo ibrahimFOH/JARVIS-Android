@@ -16,6 +16,10 @@ class AIBrain:
     """Yalnızca ücretsiz katmanları ve yerel modeli kullanır."""
 
     FREE_PROVIDERS = frozenset({"auto", "ollama", "gemini", "groq"})
+    FREE_MODELS = {
+        "gemini": "gemini-3.8-flash",
+        "groq": "openai/gpt-oss-20b",
+    }
 
     def __init__(self):
         self.session = requests.Session()
@@ -50,15 +54,22 @@ class AIBrain:
         self.gemini_key = os.environ.get(
             "GEMINI_API_KEY", self._unprotect_key(saved.get("gemini_api_key", legacy_value("gemini", "api_key", "")))
         ).strip()
-        self.gemini_model = os.environ.get(
-            "GEMINI_MODEL", saved.get("gemini_model", legacy_value("gemini", "model", "gemini-3.8-flash"))
+        requested_gemini_model = os.environ.get(
+            "GEMINI_MODEL", saved.get("gemini_model", legacy_value("gemini", "model", self.FREE_MODELS["gemini"]))
         )
-        if self.gemini_model == "gemini-2.5-flash":
-            self.gemini_model = "gemini-3.8-flash"
+        self.gemini_model = self.FREE_MODELS["gemini"]
+        if requested_gemini_model != self.gemini_model:
+            logger.warning("Gemini modeli ücretsiz izin listesi dışındaydı; güvenli ücretsiz model seçildi.")
         self.groq_key = os.environ.get(
             "GROQ_API_KEY", self._unprotect_key(saved.get("groq_api_key", legacy_value("groq", "api_key", "")))
         ).strip()
-        self.groq_model = os.environ.get("GROQ_MODEL", saved.get("groq_model", legacy_value("groq", "model", "openai/gpt-oss-20b")))
+        requested_groq_model = os.environ.get(
+            "GROQ_MODEL", saved.get("groq_model", legacy_value("groq", "model", self.FREE_MODELS["groq"]))
+        )
+        self.groq_model = self.FREE_MODELS["groq"]
+        if requested_groq_model != self.groq_model:
+            logger.warning("Groq modeli izin listesi dışındaydı; sabit ücretsiz plan modeli seçildi.")
+        self.free_tier_confirmed = bool(saved.get("free_tier_confirmed", False))
         self.host = os.environ.get("OLLAMA_HOST", saved.get("ollama_host", legacy_ai.get("ollama_url", self.host))).rstrip("/")
         self.model = os.environ.get("OLLAMA_MODEL", saved.get("ollama_model", legacy_ai.get("ollama_model", self.model)))
         # Önceki sürümlerde kaydedilmiş genel/ücretli sağlayıcı anahtarları
@@ -227,6 +238,7 @@ class AIBrain:
     def _persist_settings(self):
         payload = {
             "provider": self.provider,
+            "free_tier_confirmed": bool(self.free_tier_confirmed),
             "gemini_api_key": self._protect_key(self.gemini_key),
             "gemini_model": self.gemini_model,
             "groq_api_key": self._protect_key(self.groq_key),
@@ -245,7 +257,7 @@ class AIBrain:
     def configure(self, provider=None, gemini_key=None, gemini_model=None,
                   ollama_host=None, ollama_model=None,
                   groq_key=None, groq_model=None, api_keys=None, api_models=None,
-                  api_base_urls=None):
+                  api_base_urls=None, free_tier_confirmed=None):
         if provider is not None:
             value = str(provider).strip().lower()
             if value not in self.FREE_PROVIDERS:
@@ -256,12 +268,16 @@ class AIBrain:
             self.provider = value
         if gemini_key is not None:
             self.gemini_key = gemini_key.strip()
-        if gemini_model and gemini_model.strip():
-            self.gemini_model = gemini_model.strip()
+        if gemini_model and gemini_model.strip() != self.FREE_MODELS["gemini"]:
+            raise ValueError("Yalnızca izin verilen ücretsiz Gemini Flash modeli kullanılabilir.")
+        self.gemini_model = self.FREE_MODELS["gemini"]
         if groq_key is not None:
             self.groq_key = groq_key.strip()
-        if groq_model and groq_model.strip():
-            self.groq_model = groq_model.strip()
+        if groq_model and groq_model.strip() != self.FREE_MODELS["groq"]:
+            raise ValueError("Yalnızca izin verilen Groq Free Plan modeli kullanılabilir.")
+        self.groq_model = self.FREE_MODELS["groq"]
+        if free_tier_confirmed is not None:
+            self.free_tier_confirmed = bool(free_tier_confirmed)
         if ollama_host and ollama_host.strip():
             self.host = ollama_host.strip().rstrip("/")
         if ollama_model and ollama_model.strip():
@@ -284,72 +300,17 @@ class AIBrain:
         self._persist_settings()
 
     def _compatible_api(self, provider, prompt, context=""):
+        """Genel/ücretli API uç noktalarına ağ isteği gönderilmesini engeller."""
         raise RuntimeError(
             "Genel/ücretli API uç noktaları devre dışı. Yalnızca Ollama, "
-            "Gemini ücretsiz katmanı ve Groq Free Plan kullanılabilir."
+            "ücretsiz katmanı onaylanmış Gemini ve Groq Free Plan kullanılabilir."
         )
-        key = self.api_keys.get(provider, "")
-        default_url, default_model = self.api_defaults[provider]
-        base_url = self.api_base_urls.get(provider, default_url).rstrip("/")
-        model = self.api_models.get(provider, default_model)
-        if not key:
-            raise RuntimeError(provider.upper() + " API anahtarı boş. AI PROVIDER ayarlarından ekleyin.")
-        user_text = prompt + (("\n\nWEB VERİSİ:\n" + context) if context else "")
-        if provider == "anthropic":
-            response = self.session.post(
-                base_url + "/messages",
-                headers={"x-api-key": key, "anthropic-version": "2023-06-01",
-                         "Content-Type": "application/json"},
-                json={"model": model, "max_tokens": 1200,
-                      "system": "Sen JARVIS'sin. Daima Türkçe yanıt ver; kısa, doğru ve işe yarar ol. Bilmediğin bilgiyi uydurma.",
-                      "messages": [{"role": "user", "content": user_text}]},
-                timeout=min(self.timeout, 60),
-            )
-        else:
-            chat_payload = {
-                "model": model,
-                "stream": False,
-                "temperature": 0.2,
-                "messages": [
-                    {"role": "system", "content": "Sen JARVIS'sin. Daima Türkçe yanıt ver; kısa, doğru ve işe yarar ol. Bilmediğin bilgiyi uydurma."},
-                    {"role": "user", "content": user_text},
-                ],
-            }
-            # GPT-6 models reject sampling parameters when reasoning is enabled.
-            # Luna supports reasoning_effort="none", which also permits temperature.
-            model_id = str(model).lower().split("/")[-1]
-            if model_id.startswith("gpt-6"):
-                if model_id in {"gpt-6-luna", "gpt-6-sol", "gpt-6.1-terra"}:
-                    chat_payload["reasoning_effort"] = "none"
-                else:
-                    chat_payload.pop("temperature", None)
-            response = self.session.post(
-                base_url + "/chat/completions",
-                headers={"Authorization": "Bearer " + key, "Content-Type": "application/json"},
-                json=chat_payload,
-                timeout=min(self.timeout, 60),
-            )
-        if not response.ok:
-            try:
-                detail = response.json().get("error", {}).get("message", response.text[:300])
-            except (ValueError, AttributeError):
-                detail = response.text[:300]
-            raise RuntimeError("{} API HTTP {}: {}".format(provider.upper(), response.status_code, detail))
-        data = response.json()
-        if provider == "anthropic":
-            blocks = data.get("content") or []
-            answer = " ".join(str(item.get("text", "")) for item in blocks
-                              if isinstance(item, dict) and item.get("type") == "text")
-        else:
-            choices = data.get("choices") or []
-            answer = (choices[0].get("message") or {}).get("content", "") if choices else ""
-            if isinstance(answer, list):
-                answer = " ".join(str(item.get("text", "")) for item in answer if isinstance(item, dict))
-        if not str(answer or "").strip():
-            raise RuntimeError(provider.upper() + " boş yanıt döndürdü.")
-        return str(answer).strip()
 
     def _gemini_api(self, prompt, context=""):
+        if not self.free_tier_confirmed:
+            raise RuntimeError("Gemini isteği engellendi: ücretsiz katman ve faturalandırmanın kapalı olduğu onaylanmalı.")
+        if self.gemini_model != self.FREE_MODELS["gemini"]:
+            raise RuntimeError("Gemini model izin listesi dışındaki istek engellendi.")
         if not self.gemini_key:
             raise RuntimeError("Gemini API anahtarı boş. AI PROVIDER ayarlarından ekleyin.")
         user_text = prompt + (("\n\nWEB VERİSİ:\n" + context) if context else "")
@@ -381,6 +342,11 @@ class AIBrain:
             return {
                 "success": False,
                 "message": "Ücretli veya izin verilmeyen sağlayıcı engellendi: " + target,
+            }
+        if target in ("gemini", "groq") and not self.free_tier_confirmed:
+            return {
+                "success": False,
+                "message": "API isteği gönderilmedi. Hesabın ücretsiz katmanda ve faturalandırmanın kapalı olduğunu onayla.",
             }
         try:
             if target == "auto":
@@ -502,9 +468,9 @@ profil bilgilerini gereksiz yere yanıta kopyalama."""
         if self.provider not in self.FREE_PROVIDERS:
             return "Ücretli veya izin verilmeyen AI sağlayıcısı güvenlik nedeniyle engellendi."
         available = []
-        if self.groq_key:
+        if self.free_tier_confirmed and self.groq_key:
             available.append("groq")
-        if self.gemini_key:
+        if self.free_tier_confirmed and self.gemini_key:
             available.append("gemini")
         # AUTO yalnızca yerel Ollama ve ücretsiz katmanlarda açıkça yapılandırılmış
         # Gemini/Groq bağlantılarını dener. Kota dolduğunda başka ücretli servise
@@ -533,6 +499,12 @@ profil bilgilerini gereksiz yere yanıta kopyalama."""
         return "Yapay zekâ yanıtı alınamadı. Denenen sağlayıcılar: " + " | ".join(errors)
 
     def _compatible_groq(self, prompt, context=""):
+        if not self.free_tier_confirmed:
+            raise RuntimeError("Groq isteği engellendi: hesabın Free Plan üzerinde olduğu onaylanmalı.")
+        if self.groq_model != self.FREE_MODELS["groq"]:
+            raise RuntimeError("Groq model izin listesi dışındaki istek engellendi.")
+        if not self.groq_key:
+            raise RuntimeError("Groq Free Plan API anahtarı tanımlı değil.")
         user_text = prompt + (("\n\nWEB VERİSİ:\n" + context) if context else "")
         response = self.session.post(
             "https://api.groq.com/openai/v1/chat/completions",
