@@ -11,7 +11,12 @@ from urllib.parse import quote
 
 logger = logging.getLogger(__name__)
 
+
 class AIBrain:
+    """Yalnızca ücretsiz katmanları ve yerel modeli kullanır."""
+
+    FREE_PROVIDERS = frozenset({"auto", "ollama", "gemini", "groq"})
+
     def __init__(self):
         self.session = requests.Session()
         self.host = "http://127.0.0.1:11434"
@@ -38,15 +43,10 @@ class AIBrain:
             provider_settings = legacy_providers.get(name, {})
             return provider_settings.get(field, default) if isinstance(provider_settings, dict) else default
 
-        self.api_defaults = {
-            "openai": ("https://api.openai.com/v1", "gpt-6-luna"),
-            "grok": ("https://api.x.ai/v1", "grok-4.7"),
-            "anthropic": ("https://api.anthropic.com/v1", "claude-sonnet-4-6"),
-            "deepseek": ("https://api.deepseek.com", "deepseek-flash"),
-            "perplexity": ("https://api.perplexity.ai", "sonar"),
-            "openrouter": ("https://openrouter.ai/api/v1", "openai/gpt-6-luna"),
-            "custom": ("https://api.openai.com/v1", "model-name"),
-        }
+        # Ücretli veya fiyatlandırması kullanıcı hesabına bağlı genel sağlayıcılar
+        # bu sürümde özellikle etkinleştirilmez. Bulut sağlayıcıları yalnızca
+        # kendi ücretsiz plan/katmanlarında kullanılmalıdır.
+        self.api_defaults = {}
         self.gemini_key = os.environ.get(
             "GEMINI_API_KEY", self._unprotect_key(saved.get("gemini_api_key", legacy_value("gemini", "api_key", "")))
         ).strip()
@@ -61,12 +61,12 @@ class AIBrain:
         self.groq_model = os.environ.get("GROQ_MODEL", saved.get("groq_model", legacy_value("groq", "model", "openai/gpt-oss-20b")))
         self.host = os.environ.get("OLLAMA_HOST", saved.get("ollama_host", legacy_ai.get("ollama_url", self.host))).rstrip("/")
         self.model = os.environ.get("OLLAMA_MODEL", saved.get("ollama_model", legacy_ai.get("ollama_model", self.model)))
-        self.api_keys = {
-            str(key).lower(): self._unprotect_key(value)
-            for key, value in saved.get("api_keys", {}).items()
-        } if isinstance(saved.get("api_keys", {}), dict) else {}
-        self.api_models = dict(saved.get("api_models", {})) if isinstance(saved.get("api_models", {}), dict) else {}
-        self.api_base_urls = dict(saved.get("api_base_urls", {})) if isinstance(saved.get("api_base_urls", {}), dict) else {}
+        # Önceki sürümlerde kaydedilmiş genel/ücretli sağlayıcı anahtarları
+        # yeni çalışma oturumuna alınmaz. Ücretsiz sağlayıcıların kendi anahtar
+        # alanları (Gemini/Groq) yukarıda ayrı şekilde okunur.
+        self.api_keys = {}
+        self.api_models = {}
+        self.api_base_urls = {}
         for name in self.api_defaults:
             old_provider = legacy_providers.get(name, {})
             if not isinstance(old_provider, dict):
@@ -94,23 +94,20 @@ class AIBrain:
             if self.api_models.get(name) in obsolete:
                 self.api_models[name] = self.api_defaults[name][1]
 
-        for name, env_key in {
-            "openai": "OPENAI_API_KEY", "grok": "XAI_API_KEY",
-            "anthropic": "ANTHROPIC_API_KEY", "deepseek": "DEEPSEEK_API_KEY",
-            "perplexity": "PERPLEXITY_API_KEY", "openrouter": "OPENROUTER_API_KEY",
-            "custom": "CUSTOM_API_KEY",
-        }.items():
-            if os.environ.get(env_key):
-                self.api_keys[name] = os.environ[env_key].strip()
         self.provider = str(
             saved.get("provider", os.environ.get("JARVIS_AI_PROVIDER", legacy_ai.get("provider", "ollama")))
         ).strip().lower()
-        if self.provider not in ("auto", "gemini", "groq", "ollama", *self.api_defaults.keys()):
+        if self.provider not in self.FREE_PROVIDERS:
+            logger.warning("Önceki ayarlarda ücretli/desteklenmeyen sağlayıcı bulundu; güvenli yerel Ollama seçildi.")
             self.provider = "ollama"
 
         # Older releases stored provider API keys as cleartext in ai_settings.json
         # and config.json. Migrate those values to DPAPI before retaining them.
         self._migrate_plaintext_credentials(saved, legacy_ai, legacy_config_manager)
+        # Eski sürümlerdeki ücretli sağlayıcı kayıtlarını etkin ayar dosyasından
+        # çıkar; API anahtarları hiçbir ücretli uç noktaya gönderilmez.
+        if saved.get("api_keys") or saved.get("api_models") or saved.get("api_base_urls") or saved.get("provider") not in self.FREE_PROVIDERS:
+            self._persist_settings()
 
     @staticmethod
     def _settings_file():
@@ -251,9 +248,11 @@ class AIBrain:
                   api_base_urls=None):
         if provider is not None:
             value = str(provider).strip().lower()
-            allowed = ("auto", "gemini", "groq", "ollama", *self.api_defaults.keys())
-            if value not in allowed:
-                raise ValueError("Desteklenmeyen AI sağlayıcısı: " + value)
+            if value not in self.FREE_PROVIDERS:
+                raise ValueError(
+                    "Bu JARVIS sürümünde yalnızca ücretsiz sağlayıcılar kullanılabilir: "
+                    "Ollama, Gemini ücretsiz katmanı ve Groq Free Plan."
+                )
             self.provider = value
         if gemini_key is not None:
             self.gemini_key = gemini_key.strip()
@@ -285,6 +284,10 @@ class AIBrain:
         self._persist_settings()
 
     def _compatible_api(self, provider, prompt, context=""):
+        raise RuntimeError(
+            "Genel/ücretli API uç noktaları devre dışı. Yalnızca Ollama, "
+            "Gemini ücretsiz katmanı ve Groq Free Plan kullanılabilir."
+        )
         key = self.api_keys.get(provider, "")
         default_url, default_model = self.api_defaults[provider]
         base_url = self.api_base_urls.get(provider, default_url).rstrip("/")
@@ -374,6 +377,11 @@ class AIBrain:
 
     def test_provider(self, provider=None):
         target = (provider or self.provider).strip().lower()
+        if target not in self.FREE_PROVIDERS:
+            return {
+                "success": False,
+                "message": "Ücretli veya izin verilmeyen sağlayıcı engellendi: " + target,
+            }
         try:
             if target == "auto":
                 answer = self.ask("Sadece 'Bağlantı başarılı' yaz.")
@@ -491,15 +499,16 @@ profil bilgilerini gereksiz yere yanıta kopyalama."""
                 "güncel olmayan bilgileri kesin gerçek sayma):\n" + str(memory_context) +
                 "\n\nKULLANICI İSTEĞİ:\n" + str(prompt or "")
             )
+        if self.provider not in self.FREE_PROVIDERS:
+            return "Ücretli veya izin verilmeyen AI sağlayıcısı güvenlik nedeniyle engellendi."
         available = []
         if self.groq_key:
             available.append("groq")
         if self.gemini_key:
             available.append("gemini")
-        available.extend(name for name in self.api_defaults if self.api_keys.get(name))
-        # A named provider is an explicit user choice. Do not silently transmit
-        # prompts to another service or incur cloud charges when it fails. "auto"
-        # prefers local Ollama, then uses configured cloud providers only on failure.
+        # AUTO yalnızca yerel Ollama ve ücretsiz katmanlarda açıkça yapılandırılmış
+        # Gemini/Groq bağlantılarını dener. Kota dolduğunda başka ücretli servise
+        # geçmez; istek başarısız olarak raporlanır.
         if self.provider == "auto":
             order = ["ollama"] + available
         else:
