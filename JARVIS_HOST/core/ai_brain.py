@@ -18,6 +18,11 @@ FREE_GEMINI_MODELS = frozenset({"gemini-3.8-flash", "gemini-3.6-flash", "gemini-
 FREE_GROQ_MODELS = frozenset({"openai/gpt-oss-20b", "llama-3.3-70b-versatile", "llama-3.1-8b-instant"})
 
 class AIBrain:
+    FREE_PROVIDERS = FREE_PROVIDERS
+    FREE_CLOUD_PROVIDERS = FREE_CLOUD_PROVIDERS
+    FREE_GEMINI_MODELS = FREE_GEMINI_MODELS
+    FREE_GROQ_MODELS = FREE_GROQ_MODELS
+
     def __init__(self):
         self.session = requests.Session()
         self.host = "http://127.0.0.1:11434"
