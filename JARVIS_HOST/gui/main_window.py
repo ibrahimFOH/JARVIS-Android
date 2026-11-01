@@ -879,8 +879,8 @@ class JarvisGUI:
         brain = self.jarvis.command_processor.ai_brain
         win = ctk.CTkToplevel(self.root)
         win.title("STAGEPULSE // YAPAY ZEKÂ SAĞLAYICISI")
-        win.geometry("650x850")
-        win.minsize(590, 650)
+        win.geometry("620x700")
+        win.minsize(560, 620)
         win.configure(fg_color=BG)
         win.transient(self.root)
         win.grab_set()
@@ -897,8 +897,7 @@ class JarvisGUI:
         provider = ctk.StringVar(value=brain.provider)
         ctk.CTkOptionMenu(
             content, variable=provider,
-            values=["auto", "ollama", "gemini", "groq", "openai", "grok",
-                    "anthropic", "deepseek", "perplexity", "openrouter", "custom"],
+            values=["auto", "ollama", "gemini", "groq"],
             width=550, fg_color="#17191C", button_color=GOLD2,
             button_hover_color=GOLD, text_color=WHITE
         ).pack(anchor="w", padx=20, pady=(0, 10))
@@ -919,46 +918,22 @@ class JarvisGUI:
             return entry
 
         ctk.CTkLabel(
-            content, text="YEREL / GOOGLE / GROQ", text_color=GOLD,
+            content, text="ÜCRETSİZ SAĞLAYICILAR", text_color=GOLD,
             font=("Consolas", 11, "bold")
         ).pack(anchor="w", padx=20, pady=(12, 3))
-        ollama_host = field("OLLAMA ADRESİ", brain.host)
+        ollama_host = field("OLLAMA YEREL ADRESİ", brain.host)
         ollama_model = field("OLLAMA MODELİ", brain.model)
-        gemini_key = field("GEMINI API ANAHTARI", brain.gemini_key, secret=True)
+        gemini_key = field("GEMINI ÜCRETSİZ KATMAN API ANAHTARI", brain.gemini_key, secret=True)
         gemini_model = field("GEMINI MODELİ", brain.gemini_model)
-        groq_key = field("GROQ API ANAHTARI", brain.groq_key, secret=True)
+        groq_key = field("GROQ FREE PLAN API ANAHTARI", brain.groq_key, secret=True)
         groq_model = field("GROQ MODELİ", brain.groq_model)
 
         ctk.CTkLabel(
-            content, text="DİĞER API SAĞLAYICILARI", text_color=GOLD,
-            font=("Consolas", 11, "bold")
-        ).pack(anchor="w", padx=20, pady=(14, 3))
-        ctk.CTkLabel(
             content,
-            text="API anahtarları yerel ayar dosyasında Windows DPAPI ile şifrelenir. DPAPI başarısız olursa anahtar düz metin kaydedilmez ve kayıt hata verir. Anahtarları kaynak koduna veya GitHub'a yazma.",
+            text="Kesin ücretsiz kullanım: Ollama yerel çalışır ve API ücreti oluşturmaz. Gemini anahtarını yalnızca ücretsiz kota etkin ve faturalandırma kapalı AI Studio projesinden; Groq anahtarını yalnızca Free Plan hesabından kullan. JARVIS ücretli OpenAI, Grok/xAI, Anthropic, DeepSeek, Perplexity, OpenRouter ve özel API uç noktalarını devre dışı bırakır. Ücretsiz kota dolarsa ücretli plana geçmez; istek başarısız olur. Anahtarlar Windows DPAPI ile şifrelenir; DPAPI başarısızsa düz metin kaydedilmez.",
             text_color=MUTED, wraplength=550, justify="left",
             font=("Consolas", 9)
-        ).pack(anchor="w", padx=20, pady=(0, 4))
-
-        key_entries, model_entries, url_entries = {}, {}, {}
-        labels = [
-            ("openai", "OPENAI"), ("grok", "GROK / XAI"),
-            ("anthropic", "ANTHROPIC"), ("deepseek", "DEEPSEEK"),
-            ("perplexity", "PERPLEXITY"), ("openrouter", "OPENROUTER"),
-            ("custom", "ÖZEL OPENAI-UYUMLU API"),
-        ]
-        for name, label in labels:
-            default_url, default_model = brain.api_defaults[name]
-            key_entries[name] = field(label + " API ANAHTARI", brain.api_keys.get(name, ""), secret=True)
-            url_entries[name] = field(label + " BASE URL", brain.api_base_urls.get(name, default_url))
-            model_entries[name] = field(label + " MODEL", brain.api_models.get(name, default_model))
-
-        ctk.CTkLabel(
-            content,
-            text="AUTO modu önce yerel Ollama'yı dener; başarısız olursa tanımlı API sağlayıcılarına geçer. Belirli bir sağlayıcı seçildiğinde sessizce başka sağlayıcıya geçilmez. Özel adres için OpenAI Chat Completions uyumlu /chat/completions uç noktası gerekir.",
-            text_color=MUTED, wraplength=550, justify="left",
-            font=("Consolas", 9)
-        ).pack(anchor="w", padx=20, pady=(14, 12))
+        ).pack(anchor="w", padx=20, pady=(10, 12))
 
         def persist():
             brain.configure(
@@ -969,9 +944,6 @@ class JarvisGUI:
                 ollama_model=ollama_model.get(),
                 groq_key=groq_key.get(),
                 groq_model=groq_model.get(),
-                api_keys={key: entry.get() for key, entry in key_entries.items()},
-                api_models={key: entry.get() for key, entry in model_entries.items()},
-                api_base_urls={key: entry.get() for key, entry in url_entries.items()},
             )
             label = getattr(self, "_telemetry_widgets", {}).get("YAPAY ZEKÂ ÇEKİRDEĞİ")
             if label is not None:
