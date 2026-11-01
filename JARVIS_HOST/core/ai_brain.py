@@ -69,7 +69,8 @@ class AIBrain:
         self.groq_model = self.FREE_MODELS["groq"]
         if requested_groq_model != self.groq_model:
             logger.warning("Groq modeli izin listesi dışındaydı; sabit ücretsiz plan modeli seçildi.")
-        self.free_tier_confirmed = bool(saved.get("free_tier_confirmed", False))
+        self.gemini_free_confirmed = bool(saved.get("gemini_free_confirmed", False))
+        self.groq_free_confirmed = bool(saved.get("groq_free_confirmed", False))
         self.host = os.environ.get("OLLAMA_HOST", saved.get("ollama_host", legacy_ai.get("ollama_url", self.host))).rstrip("/")
         self.model = os.environ.get("OLLAMA_MODEL", saved.get("ollama_model", legacy_ai.get("ollama_model", self.model)))
         # Önceki sürümlerde kaydedilmiş genel/ücretli sağlayıcı anahtarları
@@ -118,7 +119,12 @@ class AIBrain:
         # Eski sürümlerdeki ücretli sağlayıcı kayıtlarını etkin ayar dosyasından
         # çıkar; API anahtarları hiçbir ücretli uç noktaya gönderilmez.
         if saved.get("api_keys") or saved.get("api_models") or saved.get("api_base_urls") or saved.get("provider") not in self.FREE_PROVIDERS:
-            self._persist_settings()
+            try:
+                self._persist_settings()
+            except Exception as exc:
+                # A DPAPI problem must not make the app fall back to, or call,
+                # a legacy paid provider. In-memory allowlisting remains active.
+                logger.warning("Eski sağlayıcı ayarları temizlenemedi; bu oturumda yine de devre dışı: %s", exc)
 
     @staticmethod
     def _settings_file():
@@ -238,7 +244,8 @@ class AIBrain:
     def _persist_settings(self):
         payload = {
             "provider": self.provider,
-            "free_tier_confirmed": bool(self.free_tier_confirmed),
+            "gemini_free_confirmed": bool(self.gemini_free_confirmed),
+            "groq_free_confirmed": bool(self.groq_free_confirmed),
             "gemini_api_key": self._protect_key(self.gemini_key),
             "gemini_model": self.gemini_model,
             "groq_api_key": self._protect_key(self.groq_key),
@@ -257,7 +264,8 @@ class AIBrain:
     def configure(self, provider=None, gemini_key=None, gemini_model=None,
                   ollama_host=None, ollama_model=None,
                   groq_key=None, groq_model=None, api_keys=None, api_models=None,
-                  api_base_urls=None, free_tier_confirmed=None):
+                  api_base_urls=None, gemini_free_confirmed=None,
+                  groq_free_confirmed=None):
         if provider is not None:
             value = str(provider).strip().lower()
             if value not in self.FREE_PROVIDERS:
@@ -276,8 +284,10 @@ class AIBrain:
         if groq_model and groq_model.strip() != self.FREE_MODELS["groq"]:
             raise ValueError("Yalnızca izin verilen Groq Free Plan modeli kullanılabilir.")
         self.groq_model = self.FREE_MODELS["groq"]
-        if free_tier_confirmed is not None:
-            self.free_tier_confirmed = bool(free_tier_confirmed)
+        if gemini_free_confirmed is not None:
+            self.gemini_free_confirmed = bool(gemini_free_confirmed)
+        if groq_free_confirmed is not None:
+            self.groq_free_confirmed = bool(groq_free_confirmed)
         if ollama_host and ollama_host.strip():
             self.host = ollama_host.strip().rstrip("/")
         if ollama_model and ollama_model.strip():
@@ -307,7 +317,7 @@ class AIBrain:
         )
 
     def _gemini_api(self, prompt, context=""):
-        if not self.free_tier_confirmed:
+        if not self.gemini_free_confirmed:
             raise RuntimeError("Gemini isteği engellendi: ücretsiz katman ve faturalandırmanın kapalı olduğu onaylanmalı.")
         if self.gemini_model != self.FREE_MODELS["gemini"]:
             raise RuntimeError("Gemini model izin listesi dışındaki istek engellendi.")
@@ -343,10 +353,15 @@ class AIBrain:
                 "success": False,
                 "message": "Ücretli veya izin verilmeyen sağlayıcı engellendi: " + target,
             }
-        if target in ("gemini", "groq") and not self.free_tier_confirmed:
+        if target == "gemini" and not self.gemini_free_confirmed:
             return {
                 "success": False,
-                "message": "API isteği gönderilmedi. Hesabın ücretsiz katmanda ve faturalandırmanın kapalı olduğunu onayla.",
+                "message": "Gemini isteği gönderilmedi. Ücretsiz katmanı ve faturalandırmanın kapalı olduğunu onayla.",
+            }
+        if target == "groq" and not self.groq_free_confirmed:
+            return {
+                "success": False,
+                "message": "Groq isteği gönderilmedi. Free Plan'da olduğunu ve faturalandırmanın kapalı olduğunu onayla.",
             }
         try:
             if target == "auto":
@@ -468,9 +483,9 @@ profil bilgilerini gereksiz yere yanıta kopyalama."""
         if self.provider not in self.FREE_PROVIDERS:
             return "Ücretli veya izin verilmeyen AI sağlayıcısı güvenlik nedeniyle engellendi."
         available = []
-        if self.free_tier_confirmed and self.groq_key:
+        if self.groq_free_confirmed and self.groq_key:
             available.append("groq")
-        if self.free_tier_confirmed and self.gemini_key:
+        if self.gemini_free_confirmed and self.gemini_key:
             available.append("gemini")
         # AUTO yalnızca yerel Ollama ve ücretsiz katmanlarda açıkça yapılandırılmış
         # Gemini/Groq bağlantılarını dener. Kota dolduğunda başka ücretli servise
@@ -499,7 +514,7 @@ profil bilgilerini gereksiz yere yanıta kopyalama."""
         return "Yapay zekâ yanıtı alınamadı. Denenen sağlayıcılar: " + " | ".join(errors)
 
     def _compatible_groq(self, prompt, context=""):
-        if not self.free_tier_confirmed:
+        if not self.groq_free_confirmed:
             raise RuntimeError("Groq isteği engellendi: hesabın Free Plan üzerinde olduğu onaylanmalı.")
         if self.groq_model != self.FREE_MODELS["groq"]:
             raise RuntimeError("Groq model izin listesi dışındaki istek engellendi.")
