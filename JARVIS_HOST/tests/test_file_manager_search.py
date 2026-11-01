@@ -63,3 +63,20 @@ def test_search_reports_invalid_empty_query_without_walking(tmp_path):
     assert result["success"] is False
     assert result["files"] == []
     assert "anahtar kelime" in result["message"]
+
+
+
+def test_local_search_pauses_immediately_when_pc_is_under_pressure(tmp_path, monkeypatch):
+    manager = _manager(tmp_path)
+    monkeypatch.setattr(
+        FileManager,
+        "_system_under_pressure",
+        staticmethod(lambda: True),
+    )
+    (tmp_path / "Elif_Kir_Bahcesi.pdf").write_bytes(b"pdf")
+
+    result = manager.find_files("Elif Kir Bahcesi", location=str(tmp_path))
+
+    assert result["success"] is True
+    assert result["paused_for_resources"] is True
+    assert result["files"] == []
