@@ -4,6 +4,7 @@ Processes commands and routes them to appropriate modules
 """
 
 from typing import Dict, Any, Optional
+import hashlib
 import ipaddress
 import os
 import re
@@ -110,6 +111,20 @@ def _download_image(url: str, max_bytes: int = 20 * 1024 * 1024) -> Path:
     import requests
 
     current_url = str(url or "").strip()
+    url_key = hashlib.sha256(current_url.encode("utf-8")).hexdigest()[:12]
+    folder = Path.home() / "Downloads" / "StagepulseJARVIS"
+    if folder.is_dir():
+        url_name = Path(unquote(urlparse(current_url).path)).name
+        cached_stem = Path(url_name).stem
+        cached_stem = re.sub(r"[^A-Za-z0-9._ -]+", "_", cached_stem).strip(" ._")[:80] or "stagepulse-image"
+        cached = list(folder.glob(cached_stem + "-" + url_key + ".*"))
+        if cached and cached[0].is_file() and cached[0].stat().st_size > 0:
+            return cached[0]
+        # Existing pre-cache downloads are reused by their original filename.
+        for extension in (".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp", ".tiff", ".avif", ".ico"):
+            legacy = folder / (cached_stem + extension)
+            if legacy.is_file() and legacy.stat().st_size > 0:
+                return legacy
     response = None
     for _attempt in range(4):
         _validate_public_http_url(current_url)
@@ -149,17 +164,14 @@ def _download_image(url: str, max_bytes: int = 20 * 1024 * 1024) -> Path:
             except ValueError as exc:
                 if "sınırını" in str(exc):
                     raise
-        folder = Path.home() / "Downloads" / "StagepulseJARVIS"
         folder.mkdir(parents=True, exist_ok=True)
         url_name = Path(unquote(urlparse(current_url).path)).name
         stem = Path(url_name).stem
         stem = re.sub(r"[^A-Za-z0-9._ -]+", "_", stem).strip(" ._")[:80] or "stagepulse-image"
         extension = extensions[content_type]
-        destination = folder / (stem + extension)
-        suffix = 2
-        while destination.exists():
-            destination = folder / (stem + "-" + str(suffix) + extension)
-            suffix += 1
+        destination = folder / (stem + "-" + url_key + extension)
+        if destination.is_file() and destination.stat().st_size > 0:
+            return destination
         fd, temp_name = tempfile.mkstemp(prefix=".stagepulse-image-", suffix=".part", dir=str(folder))
         os.close(fd)
         temp_path = Path(temp_name)
@@ -222,21 +234,497 @@ class CommandProcessor:
         self.system_controller = SystemController()
         self.file_manager = FileManager()
         self.window_manager = WindowManager()
+        from core.agent_tools import TaskJournal
+        self.task_journal = TaskJournal()
         
         logger.info("Command processor initialized")
     
+    def _collect_stagepulse_context(self, command: str) -> tuple[str, bool]:
+        """Search local project records first; never download a file during discovery."""
+        normalized = _normalize_direct_command(command)
+        stagepulse_terms = (
+            "rider", "stage plot", "stageplan", "pa tasarim", "ses sistemi",
+            "spl", "dugun", "salon", "kir bahcesi", "ekipman listesi",
+            "teklif", "sistem raporu", "sound system", "monitor", "iem",
+        )
+        if not any(term in normalized for term in stagepulse_terms):
+            return "", False
+
+        names = re.findall(
+            r"[A-ZÇĞİÖŞÜ][\wÇĞİÖŞÜçğıöşü]*(?:\s+[A-ZÇĞİÖŞÜ][\wÇĞİÖŞÜçğıöşü]*){1,3}",
+            str(command or ""),
+        )
+        names = list(dict.fromkeys(name.strip() for name in names if len(name.strip()) > 2))
+        found = {}
+        for name in names:
+            for query in (name, name.split()[0]):
+                try:
+                    result = self.file_manager.find_files(query)
+                except Exception as exc:
+                    logger.warning("Yerel proje dosyası aranamadı: " + str(exc))
+                    continue
+                for item in result.get("files", []):
+                    path = str(item.get("path", ""))
+                    if path:
+                        found.setdefault(path, item)
+                    if len(found) >= 12:
+                        break
+                if len(found) >= 12:
+                    break
+            if len(found) >= 12:
+                break
+
+        sections = [
+            "STAGEPULSE GÖREV AKIŞI:",
+            "1. Önce bilgisayardaki mevcut proje dosyalarını ve arşivi kullan; tekrar indirme yapma.",
+            "2. Kroki, ölçü, envanter, önceki teklif ve raporlardaki doğrulanmış bilgileri ayır.",
+            "3. Eksik üretici verilerini yalnızca üreticinin/resmî kaynağın sayfasından araştır.",
+            "4. Mekân geometrisi, kapsama, açı, SPL ve ekipman uyumluluğunu ayrı ayrı doğrula.",
+            "5. İstenen rider, stage plot, ekipman listesi, maliyet ve sistem raporu çıktısını hazırla.",
+            "6. Kaynak, tarih, varsayım, bilinmeyen ve gerçek ölçüm/tahmin ayrımını raporla.",
+            "7. Araştırmayla bulunabilen bilgileri kullanıcıya sorma; yalnızca hesabı etkileyen kritik eksikleri sor.",
+            "Dosya bulunamazsa varmış gibi davranma; indirme gerekip gerekmediğini kaynak doğrulamasından sonra kararlaştır.",
+        ]
+        if not names:
+            sections.append("Proje/kurum adı komuttan güvenilir biçimde çıkarılamadı; kullanıcıdan tekrar istemeden önce mevcut komut bağlamında ara.")
+        else:
+            sections.append("Tespit edilen proje/kurum adları: " + " | ".join(names))
+
+        # Search public web information using names from the user's command only.
+        # Never send local document contents, customer notes, measurements or prices to search engines.
+        public_research = []
+        public_identifiers = list(names[:3])
+        model_ids = re.findall(r"\b[A-Z]{2,}[A-Za-z0-9-]{1,}\b", str(command or ""))
+        for model_id in model_ids[:3]:
+            if model_id not in public_identifiers:
+                public_identifiers.append(model_id)
+        for identifier in public_identifiers[:4]:
+            try:
+                query = f'"{identifier}" resmi site adres kapasite teknik özellik'
+                excerpt = self.ai_brain._web(query)
+                if excerpt:
+                    public_research.append(
+                        "ARAMA TERİMİ: " + identifier + "\n" + str(excerpt)[:2200]
+                    )
+            except Exception as exc:
+                logger.warning("Kamuya açık bilgi araştırması başarısız (%s): %s", identifier, exc)
+        if public_research:
+            sections.append(
+                "KAMUYA AÇIK WEB ARAMA SONUÇLARI (arama motoru metni; resmî kaynakla ayrıca doğrula):\n" +
+                "\n\n".join(public_research)
+            )
+        else:
+            sections.append("KAMUYA AÇIK WEB ARAŞTIRMASI: Sonuç alınamadı veya ağ erişimi yok. Doğrulanmamış bilgileri gerçek kabul etme.")
+
+        if not found:
+            sections.append("YEREL DOSYA TARAMASI: Belirtilen adlarla eşleşen dosya bulunamadı. Bu, tüm disklerin tarandığı anlamına gelmez; yapılandırılmış arama konumları kullanıldı.")
+        else:
+            sections.append("YEREL DOSYA TARAMASI: " + str(len(found)) + " mevcut dosya bulundu. Bu dosyaları yeniden indirme.")
+        total_chars = 0
+        local_images = []
+        for path, item in found.items():
+            file_path = Path(path)
+            sections.append(
+                f"\nDOSYA: {file_path.name}\nYOL: {file_path}\nBOYUT: {item.get('size', 'bilinmiyor')}"
+            )
+            suffix = file_path.suffix.lower()
+            extracted = ""
+            try:
+                if suffix == ".pdf":
+                    from pypdf import PdfReader
+                    reader = PdfReader(str(file_path))
+                    pages = []
+                    for page in reader.pages[:10]:
+                        pages.append(page.extract_text() or "")
+                    extracted = "\n".join(pages)
+                    if not extracted.strip():
+                        sections.append("PDF metin içermiyor veya taranmış görüntü; görsel incelemesi/OCR gerekli.")
+                elif suffix in (".txt", ".md", ".csv", ".json", ".xml", ".yaml", ".yml", ".ini"):
+                    extracted = file_path.read_text(encoding="utf-8", errors="replace")
+                elif suffix in (".jpg", ".jpeg", ".png", ".webp", ".tif", ".tiff", ".bmp"):
+                    local_images.append(str(file_path))
+                    sections.append("GÖRSEL: Dosya bulundu; içerik yalnızca yerel Ollama görsel modeli destekliyorsa incelenecek.")
+            except Exception as exc:
+                sections.append("DOSYA OKUMA UYARISI: " + str(exc))
+            if extracted:
+                remaining = max(0, 14000 - total_chars)
+                if remaining:
+                    content = extracted[:remaining]
+                    sections.append("DOSYA İÇERİĞİ (çıkarılmış metin):\n" + content)
+                    total_chars += len(content)
+                else:
+                    sections.append("Metin bağlamı sınırına ulaşıldı; dosya bulundu ancak içeriğinin tamamı modele aktarılmadı.")
+            if total_chars >= 14000:
+                break
+        if local_images:
+            try:
+                vision_result = self.ai_brain.analyze_local_images(
+                    local_images,
+                    "Bu Stagepulse proje krokisini incele. Ölçüler, sahne, PA noktaları, seyirci alanı, engeller, girişler ve okunabilen notları ayır. Görülmeyen ölçüyü tahmin etme.",
+                )
+                sections.append("YEREL GÖRSEL ANALİZİ:\n" + str(vision_result))
+            except Exception as exc:
+                sections.append("YEREL GÖRSEL ANALİZİ BAŞARISIZ: " + str(exc))
+        return "\n".join(sections), True
+
     def _ask_with_memory(self, prompt: str) -> str:
-        """Use saved facts as prompt context, never as search terms."""
+        """Use specialist guidance and local project files without sending private data to cloud."""
         try:
             facts = self.memory.context(limit=15)
         except Exception as exc:
             logger.warning("Kalıcı hafıza okunamadı: " + str(exc))
             facts = ""
-        if not facts:
-            return self.ai_brain.ask(prompt)
-        return self.ai_brain.ask(prompt, memory_context=facts)
+
+        task_context = ""
+        private_task = False
+        try:
+            task_context, private_task = self._collect_stagepulse_context(prompt)
+        except Exception as exc:
+            logger.warning("Stagepulse görev bağlamı hazırlanamadı: " + str(exc))
+
+        expert_context = ""
+        try:
+            from core.specialist_agents import prepare_expert_task, route_agent
+            agent_id = route_agent(prompt)
+            normalized = _normalize_direct_command(prompt)
+            if not agent_id and private_task:
+                agent_id = "audio_system_designer"
+            if agent_id:
+                instructions, tool_output = prepare_expert_task(agent_id, prompt)
+                expert_context = instructions
+                if tool_output:
+                    expert_context += "\n\nDOĞRULANABİLİR HESAPLAMA SONUCU:\n" + tool_output
+        except Exception as exc:
+            logger.warning("Uzman görev yönlendirmesi başarısız: " + str(exc))
+
+        context_parts = [part for part in (facts, task_context) if part]
+        memory_context = "\n\n".join(context_parts)
+        task_prompt = str(prompt or "")
+        if expert_context:
+            task_prompt = expert_context + "\n\nKULLANICI EMRİ:\n" + task_prompt
+
+        # Project, venue, client, rider and local archive content are private by default.
+        return self.ai_brain.ask(
+            task_prompt,
+            memory_context=memory_context,
+            allow_cloud=not private_task,
+        )
+
+    @staticmethod
+    def _is_stagepulse_document_request(command: str) -> bool:
+        normalized = _normalize_direct_command(command)
+        subject_terms = (
+            "stagepulse", "dugun salonu", "kir bahcesi", "mekan",
+            "pa", "ses sistemi", "rider", "stage plot", "stageplot",
+            "input list", "ekipman", "teklif", "rapor", "spl",
+            "monitor", "iem", "dante", "rf", "sistem tasarim",
+        )
+        action_terms = (
+            "hazirla", "olustur", "cikar", "tasarla", "hesapla",
+            "duzenle", "guncelle", "planla", "karsilastir", "yaz",
+        )
+        return (
+            any(term in normalized for term in subject_terms)
+            and any(term in normalized for term in action_terms)
+        )
+
+    @staticmethod
+    def _should_create_stagepulse_pdf(command: str) -> bool:
+        normalized = _normalize_direct_command(command)
+        report_terms = (
+            "rapor", "teklif", "rider", "stage plot", "stageplot",
+            "input list", "ekipman listesi", "sistem listesi",
+            "pa tasarim raporu", "ses sistemi raporu", "dugun salonu",
+            "kir bahcesi", "mekan",
+        )
+        return (
+            any(term in normalized for term in report_terms)
+            or CommandProcessor._is_stagepulse_document_request(command)
+        )
+
+    def _create_stagepulse_pdf(self, command: str, content: str) -> Path:
+        """Create a Turkish, branded PDF only for explicit Stagepulse deliverable requests."""
+        from reportlab.lib import colors
+        from reportlab.lib.enums import TA_CENTER, TA_LEFT
+        from reportlab.lib.pagesizes import A4
+        from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+        from reportlab.lib.units import mm
+        from reportlab.pdfbase import pdfmetrics
+        from reportlab.pdfbase.ttfonts import TTFont
+        from reportlab.platypus import (
+            HRFlowable, KeepTogether, PageBreak, Paragraph, SimpleDocTemplate,
+            Spacer, Table, TableStyle,
+        )
+        from xml.sax.saxutils import escape
+
+        base = Path.home() / "Documents" / "Stagepulse" / "Raporlar"
+        base.mkdir(parents=True, exist_ok=True)
+        stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        slug = re.sub(r"[^a-z0-9]+", "_", _normalize_direct_command(command)).strip("_")[:44] or "teknik_rapor"
+        destination = base / f"{slug}_{stamp}.pdf"
+        suffix = 2
+        while destination.exists():
+            destination = base / f"{slug}_{stamp}_{suffix}.pdf"
+            suffix += 1
+
+        regular_font = "Helvetica"
+        bold_font = "Helvetica-Bold"
+        font_candidates = (
+            (Path(os.environ.get("WINDIR", "C:/Windows")) / "Fonts" / "arial.ttf",
+             Path(os.environ.get("WINDIR", "C:/Windows")) / "Fonts" / "arialbd.ttf"),
+            (Path("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"),
+             Path("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf")),
+        )
+        for regular_path, bold_path in font_candidates:
+            if regular_path.is_file() and bold_path.is_file():
+                try:
+                    pdfmetrics.registerFont(TTFont("StagepulseTR", str(regular_path)))
+                    pdfmetrics.registerFont(TTFont("StagepulseTR-Bold", str(bold_path)))
+                    regular_font, bold_font = "StagepulseTR", "StagepulseTR-Bold"
+                    break
+                except Exception as exc:
+                    logger.warning("Türkçe PDF fontu yüklenemedi: " + str(exc))
+
+        styles = getSampleStyleSheet()
+        styles.add(ParagraphStyle(
+            name="SPTitle", parent=styles["Title"], fontName=bold_font,
+            fontSize=19, leading=24, textColor=colors.HexColor("#D6B23C"),
+            alignment=TA_LEFT, spaceAfter=7 * mm,
+        ))
+        styles.add(ParagraphStyle(
+            name="SPH1", parent=styles["Heading1"], fontName=bold_font,
+            fontSize=14, leading=18, textColor=colors.HexColor("#8C7220"),
+            spaceBefore=5 * mm, spaceAfter=2 * mm, keepWithNext=True,
+        ))
+        styles.add(ParagraphStyle(
+            name="SPH2", parent=styles["Heading2"], fontName=bold_font,
+            fontSize=11, leading=15, textColor=colors.HexColor("#343434"),
+            spaceBefore=3 * mm, spaceAfter=1.5 * mm, keepWithNext=True,
+        ))
+        styles.add(ParagraphStyle(
+            name="SPBody", parent=styles["BodyText"], fontName=regular_font,
+            fontSize=9.2, leading=13.2, textColor=colors.HexColor("#202020"),
+            alignment=TA_LEFT, spaceAfter=2.3 * mm,
+        ))
+        styles.add(ParagraphStyle(
+            name="SPBullet", parent=styles["BodyText"], fontName=regular_font,
+            fontSize=9, leading=12.5, leftIndent=5 * mm, firstLineIndent=-3 * mm,
+            textColor=colors.HexColor("#202020"), spaceAfter=1.2 * mm,
+        ))
+        styles.add(ParagraphStyle(
+            name="SPMeta", parent=styles["BodyText"], fontName=regular_font,
+            fontSize=8, leading=11, textColor=colors.HexColor("#666666"),
+            spaceAfter=1.8 * mm,
+        ))
+
+        story = [
+            Paragraph("STAGEPULSE", styles["SPH2"]),
+            Paragraph(escape(str(command or "Teknik Rapor")), styles["SPTitle"]),
+            Paragraph("Tarih: " + datetime.now().strftime("%d.%m.%Y %H:%M"), styles["SPMeta"]),
+            Paragraph("Belge türü: Otomatik hazırlanmış teknik çalışma taslağı", styles["SPMeta"]),
+            HRFlowable(width="100%", thickness=1.1, color=colors.HexColor("#D6B23C"), spaceAfter=5 * mm),
+        ]
+
+        raw_lines = str(content or "").replace("\r\n", "\n").replace("\r", "\n").split("\n")
+        in_code = False
+        code_lines = []
+        index = 0
+        while index < len(raw_lines):
+            raw = raw_lines[index].rstrip()
+            stripped = raw.strip()
+            if stripped.startswith("```"):
+                if not in_code:
+                    in_code = True
+                    code_lines = []
+                else:
+                    story.append(Paragraph(
+                        "<br/>".join(escape(line) for line in code_lines),
+                        ParagraphStyle(
+                            "SPCode" + str(index), parent=styles["SPBody"],
+                            fontName="Courier", fontSize=7.5, leading=10,
+                            backColor=colors.HexColor("#F2F2F2"),
+                            borderPadding=5, leftIndent=4 * mm,
+                        ),
+                    ))
+                    story.append(Spacer(1, 2 * mm))
+                    in_code = False
+                index += 1
+                continue
+            if in_code:
+                code_lines.append(raw)
+                index += 1
+                continue
+            if not stripped:
+                story.append(Spacer(1, 1.2 * mm))
+                index += 1
+                continue
+            if stripped.startswith("|") and "|" in stripped[1:]:
+                table_lines = []
+                while index < len(raw_lines) and raw_lines[index].strip().startswith("|"):
+                    table_lines.append(raw_lines[index].strip())
+                    index += 1
+                rows = []
+                for table_line in table_lines:
+                    cells = [cell.strip() for cell in table_line.strip("|").split("|")]
+                    if cells and all(re.fullmatch(r":?-{3,}:?", cell or "") for cell in cells):
+                        continue
+                    rows.append([Paragraph(escape(cell), styles["SPMeta"]) for cell in cells])
+                if rows:
+                    max_cols = max(len(row) for row in rows)
+                    rows = [row + [Paragraph("", styles["SPMeta"])] * (max_cols-len(row)) for row in rows]
+                    table = Table(rows, repeatRows=1, hAlign="LEFT")
+                    table.setStyle(TableStyle([
+                        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#171717")),
+                        ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+                        ("FONTNAME", (0, 0), (-1, -1), regular_font),
+                        ("GRID", (0, 0), (-1, -1), 0.35, colors.HexColor("#C5C5C5")),
+                        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                        ("LEFTPADDING", (0, 0), (-1, -1), 5),
+                        ("RIGHTPADDING", (0, 0), (-1, -1), 5),
+                        ("TOPPADDING", (0, 0), (-1, -1), 4),
+                        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+                    ]))
+                    story.extend([table, Spacer(1, 3 * mm)])
+                continue
+            if stripped.startswith("#"):
+                level = len(stripped) - len(stripped.lstrip("#"))
+                heading = stripped[level:].strip()
+                story.append(Paragraph(escape(heading), styles["SPH1" if level == 1 else "SPH2"]))
+            elif re.match(r"^[-*•]\s+", stripped):
+                story.append(Paragraph("• " + escape(re.sub(r"^[-*•]\s+", "", stripped)), styles["SPBullet"]))
+            elif re.match(r"^\d+[.)]\s+", stripped):
+                story.append(Paragraph(escape(stripped), styles["SPBullet"]))
+            else:
+                story.append(Paragraph(escape(stripped), styles["SPBody"]))
+            index += 1
+
+        story.extend([
+            Spacer(1, 5 * mm),
+            HRFlowable(width="100%", thickness=0.7, color=colors.HexColor("#D6B23C"), spaceAfter=2 * mm),
+            Paragraph(
+                "Not: Bu belge, sağlanan dosyalar ve araştırma çıktıları üzerinden hazırlanmış bir çalışma taslağıdır. "
+                "Saha ölçümü, fiziksel kurulum veya kalibrasyon yapılmadıkça gerçek ölçüm sonucu olarak kullanılmamalıdır. "
+                "Doğrulanmamış ölçü, fiyat, üretici verisi ve varsayımlar ayrıca belirtilmelidir.",
+                styles["SPMeta"],
+            ),
+        ])
+
+        def draw_page(canvas, document):
+            canvas.saveState()
+            width, height = A4
+            canvas.setFillColor(colors.HexColor("#101010"))
+            canvas.rect(0, height - 8 * mm, width, 8 * mm, fill=1, stroke=0)
+            canvas.setFillColor(colors.HexColor("#D6B23C"))
+            canvas.setFont(bold_font, 8)
+            canvas.drawString(17 * mm, height - 5.4 * mm, "STAGEPULSE  /  SES MÜHENDİSLİĞİ")
+            canvas.setFillColor(colors.HexColor("#777777"))
+            canvas.setFont(regular_font, 7)
+            canvas.drawString(17 * mm, 10 * mm, "JARVIS tarafından oluşturuldu | Teknik doğrulama gerektirir")
+            canvas.drawRightString(width - 17 * mm, 10 * mm, f"Sayfa {document.page}")
+            canvas.restoreState()
+
+        document = SimpleDocTemplate(
+            str(destination), pagesize=A4,
+            rightMargin=17 * mm, leftMargin=17 * mm,
+            topMargin=18 * mm, bottomMargin=17 * mm,
+            title=str(command or "Stagepulse Teknik Rapor"),
+            author="Stagepulse JARVIS",
+        )
+        document.build(story, onFirstPage=draw_page, onLaterPages=draw_page)
+        if not destination.is_file() or destination.stat().st_size < 1200:
+            raise RuntimeError("PDF çıktısı doğrulanamadı veya dosya beklenenden küçük.")
+        with destination.open("rb") as handle:
+            if handle.read(5) != b"%PDF-":
+                raise RuntimeError("Oluşturulan dosya geçerli PDF imzasına sahip değil.")
+        return destination
 
     def process(self, command: str, confirmed: bool = False) -> Dict[str, Any]:
+        """Track every command durably and recover pending confirmations after restart."""
+        normalized = _normalize_direct_command(command)
+        if not hasattr(self, "task_journal") or self.task_journal is None:
+            from core.agent_tools import TaskJournal
+            self.task_journal = TaskJournal()
+        if normalized in (
+            "gorevlerim", "islerim", "acik islerim", "yarim kalan isler",
+            "son gorevler", "gorev gecmisim", "islerimin durumu",
+        ):
+            rows = self.task_journal.recent(15)
+            if not rows:
+                return {"success": True, "response": "Henüz kayıtlı görev yok.", "intent": "task_journal"}
+            labels = {
+                "running": "ÇALIŞIYOR",
+                "awaiting_confirmation": "ONAY BEKLİYOR",
+                "succeeded": "TAMAMLANDI",
+                "failed": "HATA",
+                "interrupted": "YARIDA KALDI",
+            }
+            output = ["SON GÖREVLER"]
+            for task in rows:
+                output.append(
+                    f'[{labels.get(task["status"], task["status"].upper())}] '
+                    f'{task["command"]} | {task["updated_at"]}'
+                )
+                if task.get("progress"):
+                    output.append("  " + task["progress"])
+            return {"success": True, "response": "\n".join(output), "intent": "task_journal", "tasks": rows}
+
+        if normalized in ("devam et", "yarim kalan isi yeniden baslat", "yarim kalan ise devam et"):
+            task = self.task_journal.latest_interrupted()
+            if not task:
+                return {"success": True, "response": "Yeniden başlatılmayı bekleyen yarım görev bulunamadı.", "intent": "task_journal"}
+            self.task_journal.update(
+                task["id"], "awaiting_confirmation",
+                "Önceki komut kaldığı adımdan değil, baştan yeniden çalıştırılacak.",
+            )
+            return {
+                "success": False,
+                "response": (
+                    "Yarım kalan görev bulundu:" + chr(10) + task["command"] +
+                    chr(10) + chr(10) +
+                    "Bu sürüm görevi son teknik adımdan değil, komutun başından yeniden çalıştıracak. "
+                    "Önceki işlem dosya oluşturmuş olabilir. Devam etmek için onay ver."
+                ),
+                "intent": "task_resume",
+                "requires_confirmation": True,
+                "pending_command": task["command"],
+                "task_id": task["id"],
+            }
+
+        task = self.task_journal.latest_awaiting(command) if confirmed else None
+        if task:
+            task_id = task["id"]
+            self.task_journal.update(task_id, "running", "Kullanıcı onayı alındı; komut yürütülüyor.")
+        else:
+            task_id = self.task_journal.create(command)
+
+        try:
+            result = self._process_untracked(command, confirmed=confirmed)
+            if not isinstance(result, dict):
+                result = {"success": False, "response": str(result), "intent": "unknown"}
+            if result.get("requires_confirmation"):
+                status, progress = "awaiting_confirmation", "Geri alınamaz veya sistem değişikliği için onay bekleniyor."
+            elif result.get("success"):
+                status, progress = "succeeded", "Komut tamamlandı."
+            else:
+                status, progress = "failed", "Komut hata verdi veya doğrulama başarısız oldu."
+            self.task_journal.update(
+                task_id, status, progress=progress,
+                result=str(result.get("response", "")),
+            )
+            payload = dict(result)
+            payload.setdefault("task_id", task_id)
+            return payload
+        except Exception as exc:
+            logger.exception("Görev yürütme başarısız: " + str(exc))
+            self.task_journal.update(task_id, "failed", "Beklenmeyen hata.", str(exc))
+            return {
+                "success": False,
+                "response": "Görev yürütülürken hata oluştu: " + str(exc),
+                "intent": "task_execution",
+                "task_id": task_id,
+            }
+
+    def _process_untracked(self, command: str, confirmed: bool = False) -> Dict[str, Any]:
         logger.command(command)
 
         # Explicit OS integrations run before generic intent/LLM routing so that
@@ -245,7 +733,7 @@ class CommandProcessor:
             from core.agent_tools import RepositoryManager, PhoneManager
             if RepositoryManager.is_command(command):
                 if not hasattr(self, "_repository_manager"):
-                    self._repository_manager = RepositoryManager()
+                    self._repository_manager = RepositoryManager(ai_brain=self.ai_brain)
                 routed = self._repository_manager.handle_command(command, confirmed=confirmed)
                 if routed is not None:
                     return routed
@@ -299,6 +787,29 @@ class CommandProcessor:
             return {"success": False, "response": "Kalıcı hafıza işlemi başarısız oldu.", "intent": "memory"}
         if memory_response is not None:
             return {"success": True, "response": memory_response, "intent": "memory"}
+
+        # Stagepulse engineering deliverables go through the specialist pipeline
+        # directly, instead of being misrouted as ordinary desktop intents.
+        if self._is_stagepulse_document_request(command):
+            try:
+                ai_response = self._ask_with_memory(command)
+                result = {
+                    "success": True,
+                    "response": ai_response,
+                    "intent": "stagepulse_deliverable",
+                }
+                if self._should_create_stagepulse_pdf(command):
+                    report_path = self._create_stagepulse_pdf(command, ai_response)
+                    result["report_path"] = str(report_path)
+                    result["response"] = str(ai_response).rstrip() + "\n\nPDF taslağı oluşturuldu: " + str(report_path)
+                return result
+            except Exception as exc:
+                logger.exception("Stagepulse teknik görev yürütülemedi: " + str(exc))
+                return {
+                    "success": False,
+                    "response": "Stagepulse teknik görevi tamamlanamadı: " + str(exc),
+                    "intent": "stagepulse_deliverable",
+                }
 
         # Run explicit personal website aliases before generic app/AI recognition.
         # This prevents "Stagepulse.com.tr" from being misheard as Facebook or
@@ -359,7 +870,17 @@ class CommandProcessor:
         if intent == 'unknown' or confidence < 0.3:
             try:
                 ai_response = self._ask_with_memory(command)
-                return {'success': True, 'response': ai_response, 'intent': 'ai'}
+                result = {'success': True, 'response': ai_response, 'intent': 'ai'}
+                if self._should_create_stagepulse_pdf(command):
+                    try:
+                        report_path = self._create_stagepulse_pdf(command, ai_response)
+                        result["report_path"] = str(report_path)
+                        result["response"] = str(ai_response).rstrip() + "\n\nPDF taslağı oluşturuldu: " + str(report_path)
+                    except Exception as report_error:
+                        result["success"] = False
+                        result["report_error"] = str(report_error)
+                        result["response"] = str(ai_response).rstrip() + "\n\nPDF oluşturulamadı: " + str(report_error)
+                return result
             except Exception:
                 pass
             response = self.response_generator.generate('unknown')

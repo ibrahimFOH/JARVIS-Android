@@ -875,11 +875,11 @@ class JarvisGUI:
         ).pack(anchor="e", padx=22, pady=(0, 14))
 
     def _open_ai_settings(self):
-        """Configure optional cloud AI providers without replacing Turkish/local defaults."""
+        """Configure local AI and explicitly enabled free-tier providers only."""
         brain = self.jarvis.command_processor.ai_brain
         win = ctk.CTkToplevel(self.root)
-        win.title("STAGEPULSE // YAPAY ZEKÂ SAĞLAYICISI")
-        win.geometry("650x850")
+        win.title("STAGEPULSE // ÜCRETSİZ YAPAY ZEKÂ")
+        win.geometry("650x720")
         win.minsize(590, 650)
         win.configure(fg_color=BG)
         win.transient(self.root)
@@ -891,14 +891,13 @@ class JarvisGUI:
         actions.pack(fill="x", padx=12, pady=8)
 
         ctk.CTkLabel(
-            content, text="YAPAY ZEKÂ SAĞLAYICISI", text_color=GOLD,
+            content, text="YAPAY ZEKÂ SAĞLAYICISI / ÜCRETSİZ PLAN", text_color=GOLD,
             font=("Consolas", 12, "bold")
         ).pack(anchor="w", padx=20, pady=(16, 5))
-        provider = ctk.StringVar(value=brain.provider)
+        provider = tk.StringVar(value=brain.provider)
         ctk.CTkOptionMenu(
             content, variable=provider,
-            values=["auto", "ollama", "gemini", "groq", "openai", "grok",
-                    "anthropic", "deepseek", "perplexity", "openrouter", "custom"],
+            values=["ollama", "auto", "gemini", "groq"],
             width=550, fg_color="#17191C", button_color=GOLD2,
             button_hover_color=GOLD, text_color=WHITE
         ).pack(anchor="w", padx=20, pady=(0, 10))
@@ -919,46 +918,61 @@ class JarvisGUI:
             return entry
 
         ctk.CTkLabel(
-            content, text="YEREL / GOOGLE / GROQ", text_color=GOLD,
+            content, text="YEREL MODEL (ÜCRETSİZ / ÇEVRİMDIŞI)", text_color=GOLD,
             font=("Consolas", 11, "bold")
         ).pack(anchor="w", padx=20, pady=(12, 3))
         ollama_host = field("OLLAMA ADRESİ", brain.host)
         ollama_model = field("OLLAMA MODELİ", brain.model)
-        gemini_key = field("GEMINI API ANAHTARI", brain.gemini_key, secret=True)
-        gemini_model = field("GEMINI MODELİ", brain.gemini_model)
-        groq_key = field("GROQ API ANAHTARI", brain.groq_key, secret=True)
-        groq_model = field("GROQ MODELİ", brain.groq_model)
 
         ctk.CTkLabel(
-            content, text="DİĞER API SAĞLAYICILARI", text_color=GOLD,
+            content, text="ÜCRETSİZ API KATMANLARI", text_color=GOLD,
             font=("Consolas", 11, "bold")
         ).pack(anchor="w", padx=20, pady=(14, 3))
+        gemini_key = field("GEMINI FREE API ANAHTARI", brain.gemini_key, secret=True)
+        gemini_model = field("GEMINI MODELİ", brain.gemini_model)
+        groq_key = field("GROQ FREE API ANAHTARI", brain.groq_key, secret=True)
+        groq_model = field("GROQ MODELİ", brain.groq_model)
+
+        free_cloud = tk.BooleanVar(master=win, value=brain.free_cloud_enabled)
+        gemini_free = tk.BooleanVar(master=win, value=brain.gemini_free_tier_confirmed)
+        groq_free = tk.BooleanVar(master=win, value=brain.groq_free_plan_confirmed)
+        ctk.CTkCheckBox(
+            content,
+            text="Ücretsiz bulut API isteklerine izin ver",
+            variable=free_cloud, onvalue=True, offvalue=False,
+            text_color=WHITE, fg_color=GOLD2, hover_color=GOLD,
+            border_color=GOLD2, font=("Consolas", 10)
+        ).pack(anchor="w", padx=20, pady=(15, 5))
+        ctk.CTkCheckBox(
+            content,
+            text="Gemini: proje Free Tier, faturalama bağlı değil",
+            variable=gemini_free, onvalue=True, offvalue=False,
+            text_color=WHITE, fg_color=GOLD2, hover_color=GOLD,
+            border_color=GOLD2, font=("Consolas", 10)
+        ).pack(anchor="w", padx=20, pady=3)
+        ctk.CTkCheckBox(
+            content,
+            text="Groq: hesap Free Plan, Developer planına yükseltilmedi",
+            variable=groq_free, onvalue=True, offvalue=False,
+            text_color=WHITE, fg_color=GOLD2, hover_color=GOLD,
+            border_color=GOLD2, font=("Consolas", 10)
+        ).pack(anchor="w", padx=20, pady=(3, 8))
+
         ctk.CTkLabel(
             content,
-            text="API anahtarları yerel ayar dosyasında Windows DPAPI ile şifrelenir. DPAPI başarısız olursa anahtar düz metin kaydedilmez ve kayıt hata verir. Anahtarları kaynak koduna veya GitHub'a yazma.",
+            text=(
+                "KURAL: Ollama yerel çalışır. Gemini yalnızca faturalaması kapalı Free Tier "
+                "projesi ve Groq yalnızca Free Plan hesabı ayrıca onaylandığında kullanılabilir. "
+                "Bu hesap durumlarını JARVIS uzaktan doğrulayamaz; onay vermeden önce sağlayıcı "
+                "konsolundan kontrol et. Kota dolarsa istek durur; ücretli plana yükseltme veya "
+                "ücretli modele geçiş yapılmaz. Gemini Free içeriği Google ürünlerini geliştirmek "
+                "için kullanılabilir; müşteri belgeleri her durumda yerel modelde kalır. OpenAI, "
+                "Grok/XAI, Anthropic, DeepSeek, Perplexity, OpenRouter ve özel ücretli uç noktalar "
+                "devre dışıdır. API anahtarları Windows DPAPI ile şifreli saklanır."
+            ),
             text_color=MUTED, wraplength=550, justify="left",
             font=("Consolas", 9)
-        ).pack(anchor="w", padx=20, pady=(0, 4))
-
-        key_entries, model_entries, url_entries = {}, {}, {}
-        labels = [
-            ("openai", "OPENAI"), ("grok", "GROK / XAI"),
-            ("anthropic", "ANTHROPIC"), ("deepseek", "DEEPSEEK"),
-            ("perplexity", "PERPLEXITY"), ("openrouter", "OPENROUTER"),
-            ("custom", "ÖZEL OPENAI-UYUMLU API"),
-        ]
-        for name, label in labels:
-            default_url, default_model = brain.api_defaults[name]
-            key_entries[name] = field(label + " API ANAHTARI", brain.api_keys.get(name, ""), secret=True)
-            url_entries[name] = field(label + " BASE URL", brain.api_base_urls.get(name, default_url))
-            model_entries[name] = field(label + " MODEL", brain.api_models.get(name, default_model))
-
-        ctk.CTkLabel(
-            content,
-            text="AUTO modu önce yerel Ollama'yı dener; başarısız olursa tanımlı API sağlayıcılarına geçer. Belirli bir sağlayıcı seçildiğinde sessizce başka sağlayıcıya geçilmez. Özel adres için OpenAI Chat Completions uyumlu /chat/completions uç noktası gerekir.",
-            text_color=MUTED, wraplength=550, justify="left",
-            font=("Consolas", 9)
-        ).pack(anchor="w", padx=20, pady=(14, 12))
+        ).pack(anchor="w", padx=20, pady=(4, 14))
 
         def persist():
             brain.configure(
@@ -969,9 +983,9 @@ class JarvisGUI:
                 ollama_model=ollama_model.get(),
                 groq_key=groq_key.get(),
                 groq_model=groq_model.get(),
-                api_keys={key: entry.get() for key, entry in key_entries.items()},
-                api_models={key: entry.get() for key, entry in model_entries.items()},
-                api_base_urls={key: entry.get() for key, entry in url_entries.items()},
+                free_cloud_enabled=free_cloud.get(),
+                gemini_free_tier_confirmed=gemini_free.get(),
+                groq_free_plan_confirmed=groq_free.get(),
             )
             label = getattr(self, "_telemetry_widgets", {}).get("YAPAY ZEKÂ ÇEKİRDEĞİ")
             if label is not None:
