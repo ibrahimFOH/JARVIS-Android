@@ -111,6 +111,17 @@ class FileManager:
         value = re.sub(r"[^a-z0-9]+", " ", value)
         return " ".join(value.split())
 
+    @staticmethod
+    def _system_under_pressure() -> bool:
+        """Do not start/continue broad scans while Windows is under heavy load."""
+        try:
+            import psutil
+            memory = psutil.virtual_memory().percent
+            cpu = psutil.cpu_percent(interval=None)
+            return memory >= 92 or cpu >= 92
+        except Exception:
+            return False
+
     def find_files(self, query: str, location: Optional[str] = None,
                    file_type: Optional[str] = None) -> Dict[str, any]:
         """Search local files first, with bounded traversal and system-folder exclusions."""
@@ -130,8 +141,12 @@ class FileManager:
             covered_roots = set()
             timed_out = False
             truncated = False
+            paused_for_resources = self._system_under_pressure()
+            visited_directories = 0
 
             for search_root in roots:
+                if paused_for_resources:
+                    break
                 if time.monotonic() >= deadline:
                     timed_out = True
                     break
@@ -154,12 +169,24 @@ class FileManager:
                         timed_out = True
                         break
 
+                    visited_directories += 1
+                    if visited_directories % 32 == 0 and self._system_under_pressure():
+                        paused_for_resources = True
+                        break
+
+                    allowed_dirs = []
+                    for name in dirs:
+                        if name.casefold() in self.excluded_directories or name.startswith('.'):
+                            continue
+                        child_key = os.path.normcase(os.path.abspath(os.path.join(root, name)))
+                        if any(
+                            child_key == parent or child_key.startswith(parent + os.sep)
+                            for parent in covered_roots
+                        ):
+                            continue
+                        allowed_dirs.append(name)
                     dirs[:] = sorted(
-                        (
-                            name for name in dirs
-                            if name.casefold() not in self.excluded_directories
-                            and not name.startswith('.')
-                        ),
+                        allowed_dirs,
                         key=lambda name: (
                             0 if name.casefold() in {'stagepulse', 'projects', 'documents', 'desktop', 'downloads'} else 1,
                             name.casefold()
@@ -194,7 +221,7 @@ class FileManager:
                         break
 
                 covered_roots.add(root_key)
-                if timed_out or truncated:
+                if timed_out or truncated or paused_for_resources:
                     break
 
             results.sort(key=lambda item: item['modified'], reverse=True)
@@ -205,6 +232,7 @@ class FileManager:
                 'count': len(results),
                 'truncated': truncated,
                 'timed_out': timed_out,
+                'paused_for_resources': paused_for_resources,
                 'searched_roots': [str(path) for path in roots],
             }
 
