@@ -587,7 +587,7 @@ profil bilgilerini gereksiz yere yanıta kopyalama."""
         if self.provider not in self.FREE_PROVIDERS:
             return "Ücretli veya izin verilmeyen AI sağlayıcısı güvenlik nedeniyle engellendi."
         cloud_context_allowed = (
-            self.cloud_project_data_confirmed
+            getattr(self, "cloud_project_data_confirmed", False)
             if allow_cloud_context is None
             else bool(allow_cloud_context)
         )
