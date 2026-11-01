@@ -14,6 +14,7 @@ from xml.sax.saxutils import escape
 from utils.logger import get_logger
 from utils.config_manager import get_config
 from core.update_manager import WindowsUpdateManager
+from core.license_client import LicenseClient
 
 logger = get_logger()
 config = get_config()
@@ -40,6 +41,11 @@ class JarvisGUI:
         self._android_bridge_server = None
         self._android_bridge_thread = None
         self._android_bridge_button = None
+        self.license_client = LicenseClient(
+            base_url=config.get("licensing.supabase_url", "https://itasctyjzyewcykozuex.supabase.co"),
+            publishable_key=config.get("licensing.publishable_key", "sb_publishable_tP3CMhVAjv6FNtrkYfVEOA_dbF9m8Jb"),
+        )
+        self.license_token = ""
 
         ctk.set_appearance_mode("dark")
         ctk.set_default_color_theme("dark-blue")
@@ -159,6 +165,14 @@ class JarvisGUI:
                 progress_color=GOLD2, button_color=GOLD,
                 text_color=WHITE
             ).pack(anchor="w", padx=12, pady=4)
+
+        ctk.CTkButton(
+            left, text="HESAP / LİSANS", height=32,
+            fg_color="#11100A", hover_color="#28210D",
+            border_width=1, border_color=GOLD2, text_color=GOLD,
+            font=("Consolas", 9, "bold"),
+            command=self._open_license_dialog
+        ).pack(fill="x", padx=12, pady=(10, 4))
 
         center = ctk.CTkFrame(self.root, fg_color=BG, corner_radius=0)
         center.grid(row=1, column=1, sticky="nsew", padx=7, pady=5)
@@ -779,6 +793,82 @@ class JarvisGUI:
         self.chat_display.delete("1.0", "end")
         self.chat_display.configure(state="disabled")
         self._activity("CHAT CLEARED")
+
+    def _open_license_dialog(self):
+        window = ctk.CTkToplevel(self.root)
+        window.title("ORTAK HESAP VE LİSANS")
+        window.geometry("500x430")
+        window.minsize(460, 400)
+        window.configure(fg_color=BG)
+        window.transient(self.root)
+        window.grab_set()
+
+        ctk.CTkLabel(
+            window, text="STAGEPULSE ORTAK HESAP", text_color=GOLD,
+            font=("Consolas", 16, "bold")
+        ).pack(anchor="w", padx=22, pady=(20, 8))
+        ctk.CTkLabel(
+            window,
+            text="Supabase hesabınla giriş yap. Lisans aktivasyonu isteğe bağlıdır; temel JARVIS işlevleri lisans olmadan da çalışır.",
+            text_color=MUTED, wraplength=445, justify="left",
+            font=("Segoe UI", 10)
+        ).pack(anchor="w", padx=22, pady=(0, 14))
+
+        ctk.CTkLabel(window, text="E-POSTA", text_color=GOLD2, font=("Consolas", 9, "bold")).pack(anchor="w", padx=22)
+        email = ctk.CTkEntry(window, height=36, placeholder_text="hesap@ornek.com")
+        email.pack(fill="x", padx=22, pady=(3, 10))
+        ctk.CTkLabel(window, text="ŞİFRE", text_color=GOLD2, font=("Consolas", 9, "bold")).pack(anchor="w", padx=22)
+        password = ctk.CTkEntry(window, height=36, show="•", placeholder_text="Supabase hesap şifresi")
+        password.pack(fill="x", padx=22, pady=(3, 10))
+        ctk.CTkLabel(window, text="LİSANS ANAHTARI", text_color=GOLD2, font=("Consolas", 9, "bold")).pack(anchor="w", padx=22)
+        license_key = ctk.CTkEntry(window, height=36, placeholder_text="JARVIS-...")
+        license_key.pack(fill="x", padx=22, pady=(3, 10))
+
+        status = ctk.CTkLabel(window, text="Oturum açılmadı.", text_color=MUTED, wraplength=445, justify="left")
+        status.pack(anchor="w", padx=22, pady=(2, 8))
+
+        def run_action():
+            email_value = email.get().strip()
+            password_value = password.get()
+            key_value = license_key.get().strip()
+            if not email_value or not password_value:
+                status.configure(text="E-posta ve şifre gerekli.", text_color=RED)
+                return
+            activate_button.configure(state="disabled")
+            status.configure(text="Supabase hesabı doğrulanıyor...", text_color=GOLD)
+
+            def worker():
+                try:
+                    token = self.license_client.sign_in(email_value, password_value)
+                    if key_value:
+                        result = self.license_client.activate(token, key_value)
+                        message = "JARVIS Windows lisansı etkinleştirildi."
+                    else:
+                        result = self.license_client.status(token)
+                        message = "Bu cihazda etkin JARVIS lisansı bulundu." if result.get("licensed") else "Hesap doğrulandı; bu cihazda etkin lisans yok."
+                    self.license_token = token
+                    self.root.after(0, lambda: status.configure(
+                        text=message, text_color=GREEN if result.get("licensed", bool(key_value)) else GOLD
+                    ))
+                    self.root.after(0, lambda: self._activity("JARVIS LICENSE: " + ("ACTIVE" if result.get("licensed", bool(key_value)) else "ACCOUNT VERIFIED")))
+                except Exception as exc:
+                    self.root.after(0, lambda: status.configure(text=str(exc), text_color=RED))
+                finally:
+                    self.root.after(0, lambda: activate_button.configure(state="normal"))
+
+            threading.Thread(target=worker, daemon=True, name="JARVIS-License").start()
+
+        activate_button = ctk.CTkButton(
+            window, text="GİRİŞ YAP / LİSANSI ETKİNLEŞTİR", height=40,
+            fg_color=GOLD2, hover_color=GOLD, text_color="#050505",
+            font=("Consolas", 9, "bold"), command=run_action
+        )
+        activate_button.pack(fill="x", padx=22, pady=(4, 12))
+        ctk.CTkButton(
+            window, text="KAPAT", height=32, fg_color="#11100A",
+            hover_color="#28210D", border_width=1, border_color=GOLD2,
+            text_color=GOLD, command=window.destroy
+        ).pack(anchor="e", padx=22, pady=(0, 14))
 
     def _open_ai_settings(self):
         """Configure optional cloud AI providers without replacing Turkish/local defaults."""
