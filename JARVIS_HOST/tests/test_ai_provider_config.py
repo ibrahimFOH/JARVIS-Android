@@ -466,7 +466,9 @@ def test_stagepulse_github_scan_recommends_only_explicit_open_source_licenses(tm
 
     result = manager.search_stagepulse_repositories()
     by_name = {item["name"]: item for item in result["repositories"]}
-    assert by_name["audio/open-tool"]["install_recommended"] is True
+    assert by_name["audio/open-tool"]["license_allowed"] is True
+    assert by_name["audio/open-tool"]["install_recommended"] is False
+    assert by_name["audio/unknown-license"]["license_allowed"] is False
     assert by_name["audio/unknown-license"]["install_recommended"] is False
     assert by_name["audio/unknown-license"]["license"] == "BELİRSİZ"
 
@@ -562,3 +564,45 @@ def test_stagepulse_task_searches_existing_local_project_files_first(tmp_path):
     assert "Önceki sistem" in context
     assert str(project_file) in context
     assert "tekrar indirme yapma" in context.lower()
+
+
+
+def test_github_install_requests_confirmation_before_inspection(tmp_path, monkeypatch):
+    from core.agent_tools import RepositoryManager
+
+    manager = RepositoryManager(settings_path=tmp_path / "repo.json")
+    calls = []
+    monkeypatch.setattr(
+        manager,
+        "inspect_github_repository",
+        lambda _name: calls.append("inspect") or {"license_allowed": True, "warnings": []},
+    )
+
+    result = manager.handle_command("repo kur audio/open-tool", confirmed=False)
+
+    assert result["requires_confirmation"] is True
+    assert result["pending_command"] == "repo kur audio/open-tool"
+    assert calls == []
+
+
+def test_generic_github_search_returns_license_review_status(tmp_path, monkeypatch):
+    from core.agent_tools import RepositoryManager
+
+    manager = RepositoryManager(settings_path=tmp_path / "repo.json")
+    monkeypatch.setattr(
+        manager,
+        "_search_github_repositories",
+        lambda _query, per_page=5: [{
+            "full_name": "audio/tool",
+            "license": {"spdx_id": "MIT"},
+            "stargazers_count": 42,
+            "html_url": "https://github.com/audio/tool",
+            "description": "Open audio analysis",
+        }],
+    )
+    result = manager.handle_command("github ara audio analysis")
+
+    assert result["success"] is True
+    assert "AÇIK LİSANS" in result["response"]
+    assert "TEKNİK İNCELEME GEREKLİ" in result["response"]
+    assert "https://github.com/audio/tool" in result["response"]
