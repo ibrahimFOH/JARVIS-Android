@@ -12,6 +12,7 @@ def make_brain():
     brain.gemini_model = "gemini-3.8-flash"
     brain.groq_key = ""
     brain.groq_model = "openai/gpt-oss-20b"
+    brain.free_tier_confirmed = False
     brain.host = "http://127.0.0.1:11434"
     brain.model = "qwen3:0.6b"
     brain.api_defaults = {}
@@ -82,3 +83,47 @@ def test_configure_accepts_free_provider_and_rejects_paid_key_injection():
 
     assert brain.provider == "groq"
     assert brain.api_keys == {}
+
+
+def test_paid_gemini_or_groq_model_cannot_be_configured():
+    brain = make_brain()
+
+    with pytest.raises(ValueError, match="ücretsiz Gemini Flash"):
+        brain.configure(gemini_model="gemini-3.8-pro")
+
+    with pytest.raises(ValueError, match="Groq Free Plan"):
+        brain.configure(groq_model="llama-3.3-70b-versatile")
+
+
+@pytest.mark.parametrize("provider", ["gemini", "groq"])
+def test_cloud_provider_requires_explicit_free_billing_confirmation(provider):
+    brain = make_brain()
+
+    result = brain.test_provider(provider)
+
+    assert result["success"] is False
+    assert "faturalandırmanın kapalı olduğunu onayla" in result["message"]
+
+
+def test_gemini_api_is_blocked_before_network_without_free_tier_confirmation(monkeypatch):
+    brain = make_brain()
+    brain.gemini_key = "test-key"
+    calls = []
+    monkeypatch.setattr(brain.session, "post", lambda *args, **kwargs: calls.append(args))
+
+    with pytest.raises(RuntimeError, match="faturalandırmanın kapalı olduğu onaylanmalı"):
+        brain._gemini_api("test")
+
+    assert calls == []
+
+
+def test_groq_api_is_blocked_before_network_without_free_plan_confirmation(monkeypatch):
+    brain = make_brain()
+    brain.groq_key = "test-key"
+    calls = []
+    monkeypatch.setattr(brain.session, "post", lambda *args, **kwargs: calls.append(args))
+
+    with pytest.raises(RuntimeError, match="Free Plan üzerinde olduğu onaylanmalı"):
+        brain._compatible_groq("test")
+
+    assert calls == []
