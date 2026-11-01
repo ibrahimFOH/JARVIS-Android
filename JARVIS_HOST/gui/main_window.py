@@ -934,25 +934,41 @@ class JarvisGUI:
         groq_model = field("GROQ MODELİ", brain.groq_model)
 
         free_cloud = tk.BooleanVar(master=win, value=brain.free_cloud_enabled)
+        gemini_free = tk.BooleanVar(master=win, value=brain.gemini_free_tier_confirmed)
+        groq_free = tk.BooleanVar(master=win, value=brain.groq_free_plan_confirmed)
         ctk.CTkCheckBox(
             content,
-            text="Yalnızca ücretsiz API katmanlarını kullanmaya izin ver",
+            text="Ücretsiz bulut API isteklerine izin ver",
             variable=free_cloud, onvalue=True, offvalue=False,
             text_color=WHITE, fg_color=GOLD2, hover_color=GOLD,
             border_color=GOLD2, font=("Consolas", 10)
-        ).pack(anchor="w", padx=20, pady=(15, 8))
+        ).pack(anchor="w", padx=20, pady=(15, 5))
+        ctk.CTkCheckBox(
+            content,
+            text="Gemini: proje Free Tier, faturalama bağlı değil",
+            variable=gemini_free, onvalue=True, offvalue=False,
+            text_color=WHITE, fg_color=GOLD2, hover_color=GOLD,
+            border_color=GOLD2, font=("Consolas", 10)
+        ).pack(anchor="w", padx=20, pady=3)
+        ctk.CTkCheckBox(
+            content,
+            text="Groq: hesap Free Plan, Developer planına yükseltilmedi",
+            variable=groq_free, onvalue=True, offvalue=False,
+            text_color=WHITE, fg_color=GOLD2, hover_color=GOLD,
+            border_color=GOLD2, font=("Consolas", 10)
+        ).pack(anchor="w", padx=20, pady=(3, 8))
 
         ctk.CTkLabel(
             content,
             text=(
-                "KURAL: Ollama yerel çalışır. Gemini/Groq yalnızca ücretsiz katman açıkça "
-                "etkinleştirilirse kullanılır. Kota dolarsa istek durur; ücretli plana, "
-                "ücretli modele veya başka bir ücretli sağlayıcıya geçiş yapılmaz. "
-                "Google Gemini Free katmanında gönderilen içerikler ürün geliştirmede "
-                "kullanılabilir; gizli müşteri belgelerini bulut API'lerine göndermeyin. "
-                "OpenAI, Grok/XAI, Anthropic, DeepSeek, Perplexity, OpenRouter ve özel "
-                "ücretli API uç noktaları devre dışıdır. API anahtarları Windows DPAPI "
-                "ile şifreli saklanır."
+                "KURAL: Ollama yerel çalışır. Gemini yalnızca faturalaması kapalı Free Tier "
+                "projesi ve Groq yalnızca Free Plan hesabı ayrıca onaylandığında kullanılabilir. "
+                "Bu hesap durumlarını JARVIS uzaktan doğrulayamaz; onay vermeden önce sağlayıcı "
+                "konsolundan kontrol et. Kota dolarsa istek durur; ücretli plana yükseltme veya "
+                "ücretli modele geçiş yapılmaz. Gemini Free içeriği Google ürünlerini geliştirmek "
+                "için kullanılabilir; müşteri belgeleri her durumda yerel modelde kalır. OpenAI, "
+                "Grok/XAI, Anthropic, DeepSeek, Perplexity, OpenRouter ve özel ücretli uç noktalar "
+                "devre dışıdır. API anahtarları Windows DPAPI ile şifreli saklanır."
             ),
             text_color=MUTED, wraplength=550, justify="left",
             font=("Consolas", 9)
@@ -968,6 +984,8 @@ class JarvisGUI:
                 groq_key=groq_key.get(),
                 groq_model=groq_model.get(),
                 free_cloud_enabled=free_cloud.get(),
+                gemini_free_tier_confirmed=gemini_free.get(),
+                groq_free_plan_confirmed=groq_free.get(),
             )
             label = getattr(self, "_telemetry_widgets", {}).get("YAPAY ZEKÂ ÇEKİRDEĞİ")
             if label is not None:
