@@ -26,6 +26,8 @@ def test_expected_optional_providers_are_free_only(tmp_path, monkeypatch):
     assert brain.FREE_CLOUD_PROVIDERS == frozenset({"gemini", "groq"})
     assert brain.provider == "ollama"
     assert brain.free_cloud_enabled is False
+    assert brain.gemini_free_tier_confirmed is False
+    assert brain.groq_free_plan_confirmed is False
 
 
 def test_free_provider_settings_persist_and_reload(tmp_path, monkeypatch):
@@ -169,6 +171,7 @@ def test_auto_provider_uses_only_explicitly_enabled_free_groq_fallback(tmp_path,
     brain.provider = "auto"
     brain.groq_key = "test-key"
     brain.free_cloud_enabled = True
+    brain.groq_free_plan_confirmed = True
     brain.groq_free_plan_confirmed = True
     monkeypatch.setattr(
         brain,
