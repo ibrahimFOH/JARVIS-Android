@@ -225,16 +225,139 @@ class CommandProcessor:
         
         logger.info("Command processor initialized")
     
+    def _collect_stagepulse_context(self, command: str) -> tuple[str, bool]:
+        """Search local project records first; never download a file during discovery."""
+        normalized = _normalize_direct_command(command)
+        stagepulse_terms = (
+            "rider", "stage plot", "stageplan", "pa tasarim", "ses sistemi",
+            "spl", "dugun", "salon", "kir bahcesi", "ekipman listesi",
+            "teklif", "sistem raporu", "sound system", "monitor", "iem",
+        )
+        if not any(term in normalized for term in stagepulse_terms):
+            return "", False
+
+        names = re.findall(
+            r"[A-ZÇĞİÖŞÜ][\\wÇĞİÖŞÜçğıöşü]*(?:\\s+[A-ZÇĞİÖŞÜ][\\wÇĞİÖŞÜçğıöşü]*){1,3}",
+            str(command or ""),
+        )
+        names = list(dict.fromkeys(name.strip() for name in names if len(name.strip()) > 2))
+        found = {}
+        for name in names:
+            for query in (name, name.split()[0]):
+                try:
+                    result = self.file_manager.find_files(query)
+                except Exception as exc:
+                    logger.warning("Yerel proje dosyası aranamadı: " + str(exc))
+                    continue
+                for item in result.get("files", []):
+                    path = str(item.get("path", ""))
+                    if path:
+                        found.setdefault(path, item)
+                    if len(found) >= 12:
+                        break
+                if len(found) >= 12:
+                    break
+            if len(found) >= 12:
+                break
+
+        sections = [
+            "STAGEPULSE GÖREV AKIŞI:",
+            "1. Önce bilgisayardaki mevcut proje dosyalarını ve arşivi kullan; tekrar indirme yapma.",
+            "2. Kroki, ölçü, envanter, önceki teklif ve raporlardaki doğrulanmış bilgileri ayır.",
+            "3. Eksik üretici verilerini yalnızca üreticinin/resmî kaynağın sayfasından araştır.",
+            "4. Mekân geometrisi, kapsama, açı, SPL ve ekipman uyumluluğunu ayrı ayrı doğrula.",
+            "5. İstenen rider, stage plot, ekipman listesi, maliyet ve sistem raporu çıktısını hazırla.",
+            "6. Kaynak, tarih, varsayım, bilinmeyen ve gerçek ölçüm/tahmin ayrımını raporla.",
+            "7. Araştırmayla bulunabilen bilgileri kullanıcıya sorma; yalnızca hesabı etkileyen kritik eksikleri sor.",
+            "Dosya bulunamazsa varmış gibi davranma; indirme gerekip gerekmediğini kaynak doğrulamasından sonra kararlaştır.",
+        ]
+        if not names:
+            sections.append("Proje/kurum adı komuttan güvenilir biçimde çıkarılamadı; kullanıcıdan tekrar istemeden önce mevcut komut bağlamında ara.")
+        else:
+            sections.append("Tespit edilen proje/kurum adları: " + " | ".join(names))
+
+        if not found:
+            sections.append("YEREL DOSYA TARAMASI: Belirtilen adlarla eşleşen dosya bulunamadı. Bu, tüm disklerin tarandığı anlamına gelmez; yapılandırılmış arama konumları kullanıldı.")
+        else:
+            sections.append("YEREL DOSYA TARAMASI: " + str(len(found)) + " mevcut dosya bulundu. Bu dosyaları yeniden indirme.")
+        total_chars = 0
+        for path, item in found.items():
+            file_path = Path(path)
+            sections.append(
+                f"\nDOSYA: {file_path.name}\nYOL: {file_path}\nBOYUT: {item.get('size', 'bilinmiyor')}"
+            )
+            suffix = file_path.suffix.lower()
+            extracted = ""
+            try:
+                if suffix == ".pdf":
+                    from pypdf import PdfReader
+                    reader = PdfReader(str(file_path))
+                    pages = []
+                    for page in reader.pages[:10]:
+                        pages.append(page.extract_text() or "")
+                    extracted = "\n".join(pages)
+                    if not extracted.strip():
+                        sections.append("PDF metin içermiyor veya taranmış görüntü; görsel incelemesi/OCR gerekli.")
+                elif suffix in (".txt", ".md", ".csv", ".json", ".xml", ".yaml", ".yml", ".ini"):
+                    extracted = file_path.read_text(encoding="utf-8", errors="replace")
+                elif suffix in (".jpg", ".jpeg", ".png", ".webp", ".tif", ".tiff", ".bmp"):
+                    sections.append("GÖRSEL: Dosya mevcut; bu sürümde yerel görsel içerik çözümlemesi henüz bağlı değil. Görselden ölçü/yerleşim çıkarılmış gibi davranma.")
+            except Exception as exc:
+                sections.append("DOSYA OKUMA UYARISI: " + str(exc))
+            if extracted:
+                remaining = max(0, 14000 - total_chars)
+                if remaining:
+                    content = extracted[:remaining]
+                    sections.append("DOSYA İÇERİĞİ (çıkarılmış metin):\n" + content)
+                    total_chars += len(content)
+                else:
+                    sections.append("Metin bağlamı sınırına ulaşıldı; dosya bulundu ancak içeriğinin tamamı modele aktarılmadı.")
+            if total_chars >= 14000:
+                break
+        return "\n".join(sections), True
+
     def _ask_with_memory(self, prompt: str) -> str:
-        """Use saved facts as prompt context, never as search terms."""
+        """Use specialist guidance and local project files without sending private data to cloud."""
         try:
             facts = self.memory.context(limit=15)
         except Exception as exc:
             logger.warning("Kalıcı hafıza okunamadı: " + str(exc))
             facts = ""
-        if not facts:
-            return self.ai_brain.ask(prompt)
-        return self.ai_brain.ask(prompt, memory_context=facts)
+
+        task_context = ""
+        private_task = False
+        try:
+            task_context, private_task = self._collect_stagepulse_context(prompt)
+        except Exception as exc:
+            logger.warning("Stagepulse görev bağlamı hazırlanamadı: " + str(exc))
+
+        expert_context = ""
+        try:
+            from core.specialist_agents import prepare_expert_task, route_agent
+            agent_id = route_agent(prompt)
+            normalized = _normalize_direct_command(prompt)
+            if not agent_id and private_task:
+                agent_id = "audio_system_designer"
+            if agent_id:
+                instructions, tool_output = prepare_expert_task(agent_id, prompt)
+                expert_context = instructions
+                if tool_output:
+                    expert_context += "\n\nDOĞRULANABİLİR HESAPLAMA SONUCU:\n" + tool_output
+        except Exception as exc:
+            logger.warning("Uzman görev yönlendirmesi başarısız: " + str(exc))
+
+        context_parts = [part for part in (facts, task_context) if part]
+        memory_context = "\n\n".join(context_parts)
+        task_prompt = str(prompt or "")
+        if expert_context:
+            task_prompt = expert_context + "\n\nKULLANICI EMRİ:\n" + task_prompt
+
+        # Project, venue, client, rider and local archive content are private by default.
+        return self.ai_brain.ask(
+            task_prompt,
+            memory_context=memory_context,
+            allow_cloud=not private_task,
+        )
 
     def process(self, command: str, confirmed: bool = False) -> Dict[str, Any]:
         logger.command(command)
