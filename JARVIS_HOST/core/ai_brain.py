@@ -509,14 +509,26 @@ profil bilgilerini gereksiz yere yanıta kopyalama."""
         for selected in dict.fromkeys(order):
             try:
                 if selected == "ollama":
-                    answer = self._ollama(prompt, context, max_output_tokens=max_output_tokens)
+                    answer = (
+                        self._ollama(prompt, context)
+                        if max_output_tokens is None
+                        else self._ollama(prompt, context, max_output_tokens=max_output_tokens)
+                    )
                     if not answer or answer.startswith("Ollama bağlantısında sorun oluştu:"):
                         raise RuntimeError(answer or "Ollama boş yanıt döndürdü.")
                     return answer
                 if selected == "gemini":
-                    return self._gemini_api(prompt, context, max_output_tokens=max_output_tokens)
+                    return (
+                        self._gemini_api(prompt, context)
+                        if max_output_tokens is None
+                        else self._gemini_api(prompt, context, max_output_tokens=max_output_tokens)
+                    )
                 if selected == "groq":
-                    return self._compatible_groq(prompt, context, max_output_tokens=max_output_tokens)
+                    return (
+                        self._compatible_groq(prompt, context)
+                        if max_output_tokens is None
+                        else self._compatible_groq(prompt, context, max_output_tokens=max_output_tokens)
+                    )
                 if selected in self.api_defaults:
                     return self._compatible_api(selected, prompt, context)
                 raise RuntimeError("Bilinmeyen sağlayıcı: " + selected)
