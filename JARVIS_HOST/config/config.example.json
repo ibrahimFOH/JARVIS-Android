@@ -9,7 +9,7 @@
     "enabled": true,
     "wake_word": "jarvis",
     "continuous_listening": true,
-    "recognition_engine": "google",
+    "recognition_engine": "vosk",
     "recognition_timeout": 5,
     "phrase_time_limit": 10,
     "tts_engine": "auto",
@@ -19,7 +19,9 @@
     "tts_volume": 0.9,
     "energy_threshold": 4000,
     "dynamic_energy_threshold": true,
-    "recognition_language": "tr-TR"
+    "recognition_language": "tr-TR",
+    "vosk_model_path": "",
+    "wake_word_enabled": true
   },
   "personality": {
     "formality_level": "professional",
