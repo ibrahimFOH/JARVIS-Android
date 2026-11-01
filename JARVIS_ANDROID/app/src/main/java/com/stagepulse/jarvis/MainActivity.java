@@ -76,7 +76,7 @@ public class MainActivity extends Activity {
         initSystemTtsFallback();
         initSpeech();
         append("JARVIS","PATRON, bağımsız Android çekirdeği hazır.");
-        checkSavedLicenseStatus();
+        checkCurrentLicenseStatus();
         checkForUpdates(false);
     }
 
