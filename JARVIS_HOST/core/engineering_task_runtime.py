@@ -428,7 +428,7 @@ class EngineeringTaskRuntime:
             "pdf": str(pdf_path) if pdf_created else None,
         }
         required_section = re.search(
-            r"(?is)##\\s*Gerekli Bilgiler\\s*(.*?)(?=##\\s|$)",
+            r"(?is)##\s*Gerekli Bilgiler\s*(.*?)(?=##\s|$)",
             answer,
         )
         required_text = _norm(required_section.group(1)) if required_section else ""
