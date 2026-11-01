@@ -19,63 +19,40 @@ def test_ollama_remains_the_default_provider(tmp_path, monkeypatch):
     assert brain.model == "qwen3:0.6b"
 
 
-def test_expected_optional_providers_are_available(tmp_path, monkeypatch):
+
+def test_only_free_optional_providers_are_available(tmp_path, monkeypatch):
     brain = fresh_brain(tmp_path, monkeypatch)
-    expected = {
-        "openai", "grok", "anthropic", "deepseek",
-        "perplexity", "openrouter", "custom",
-    }
-    assert expected <= set(brain.api_defaults)
-    assert {"auto", "gemini", "groq", "ollama"} <= {
-        "auto", "gemini", "groq", "ollama", *brain.api_defaults
-    }
+    assert brain.api_defaults == {}
+    assert AIBrain.FREE_PROVIDERS == {"auto", "gemini", "groq", "ollama"}
 
 
-def test_provider_settings_persist_and_reload(tmp_path, monkeypatch):
+def test_free_provider_settings_persist_and_reload(tmp_path, monkeypatch):
     brain = fresh_brain(tmp_path, monkeypatch)
     brain.configure(
-        provider="openai",
-        api_keys={"openai": "not-a-real-secret"},
-        api_models={"openai": "test-model"},
-        api_base_urls={"openai": "https://example.invalid/v1"},
+        provider="groq",
+        groq_key="free-plan-test-key",
+        groq_free_confirmed=True,
     )
-    saved = (tmp_path / "ai_settings.json").read_text(encoding="utf-8")
-    assert '"provider": "openai"' in saved
     reloaded = fresh_brain(tmp_path, monkeypatch)
-    assert reloaded.provider == "openai"
-    assert reloaded.api_keys["openai"] == "not-a-real-secret"
-    assert reloaded.api_models["openai"] == "test-model"
-    assert reloaded.api_base_urls["openai"] == "https://example.invalid/v1"
+    assert reloaded.provider == "groq"
+    assert reloaded.groq_key == "free-plan-test-key"
+    assert reloaded.groq_free_confirmed is True
+    assert reloaded.api_keys == {}
 
 
-def test_openai_compatible_provider_uses_selected_url_model_and_key(tmp_path, monkeypatch):
+def test_generic_paid_or_custom_api_adapter_is_blocked_without_network(tmp_path, monkeypatch):
     brain = fresh_brain(tmp_path, monkeypatch)
-    brain.api_keys["openai"] = "test-secret"
-    brain.api_models["openai"] = "unit-test-model"
-    brain.api_base_urls["openai"] = "https://example.invalid/v1"
-
-    class Response:
-        ok = True
-        status_code = 200
-        text = ""
-
-        def json(self):
-            return {"choices": [{"message": {"content": "Yanıt tamam"}}]}
+    calls = []
 
     class Session:
-        call = None
+        def post(self, *args, **kwargs):
+            calls.append((args, kwargs))
+            raise AssertionError("Paid/custom API should never be called")
 
-        def post(self, url, **kwargs):
-            self.call = (url, kwargs)
-            return Response()
-
-    session = Session()
-    brain.session = session
-    assert brain._compatible_api("openai", "test prompt") == "Yanıt tamam"
-    assert session.call[0] == "https://example.invalid/v1/chat/completions"
-    assert session.call[1]["json"]["model"] == "unit-test-model"
-    assert session.call[1]["headers"]["Authorization"] == "Bearer test-secret"
-
+    brain.session = Session()
+    with pytest.raises(RuntimeError, match="Genel/ücretli API uç noktaları devre dışı"):
+        brain._compatible_api("openai", "test prompt")
+    assert calls == []
 
 def test_auto_provider_connection_check_rejects_ollama_failure(tmp_path, monkeypatch):
     brain = fresh_brain(tmp_path, monkeypatch)
@@ -94,12 +71,13 @@ def test_auto_provider_connection_check_accepts_a_real_response(tmp_path, monkey
     assert result["success"] is True
 
 
+
 def test_groq_missing_key_reports_failure_without_network(tmp_path, monkeypatch):
     brain = fresh_brain(tmp_path, monkeypatch)
+    brain.groq_free_confirmed = True
     result = brain.test_provider("groq")
     assert result["success"] is False
     assert "anahtarı boş" in result["message"].lower()
-
 
 def test_personal_profile_is_not_hardcoded_in_source(tmp_path, monkeypatch):
     brain = fresh_brain(tmp_path, monkeypatch)
@@ -131,7 +109,8 @@ def test_onefile_first_launch_finds_bundled_turkish_default_config(tmp_path, mon
     assert config.get("personality.language") == "tr-TR"
 
 
-def test_legacy_api_provider_settings_are_preserved(tmp_path, monkeypatch):
+
+def test_legacy_paid_provider_settings_are_disabled(tmp_path, monkeypatch):
     import utils.config_manager as config_module
 
     legacy_ai = {
@@ -158,17 +137,19 @@ def test_legacy_api_provider_settings_are_preserved(tmp_path, monkeypatch):
         staticmethod(lambda: tmp_path / "no-settings-yet.json")
     )
     brain = AIBrain()
-    assert brain.provider == "openai"
+    assert brain.provider == "ollama"
     assert brain.gemini_key == "legacy-gemini-key"
-    assert brain.api_keys["openai"] == "legacy-openai-key"
-    assert brain.api_models["openai"] == "legacy-model"
-    assert brain.api_base_urls["openai"] == "https://example.invalid/v1"
+    assert brain.gemini_model == AIBrain.FREE_MODELS["gemini"]
+    assert brain.api_keys == {}
+    assert brain.api_models == {}
+    assert brain.api_base_urls == {}
 
 
-def test_auto_provider_uses_configured_groq_fallback(tmp_path, monkeypatch):
+def test_auto_provider_uses_only_confirmed_free_groq_fallback(tmp_path, monkeypatch):
     brain = fresh_brain(tmp_path, monkeypatch)
     brain.provider = "auto"
     brain.groq_key = "test-key"
+    brain.groq_free_confirmed = True
     monkeypatch.setattr(
         brain, "_ollama",
         lambda _prompt, _context="": "Ollama bağlantısında sorun oluştu: sunucu kapalı",
@@ -178,7 +159,6 @@ def test_auto_provider_uses_configured_groq_fallback(tmp_path, monkeypatch):
         lambda _prompt, _context="": "Türkçe yedek yanıt",
     )
     assert brain.ask("Bir test sorusu") == "Türkçe yedek yanıt"
-
 
 def test_repository_manager_add_commit_and_status(tmp_path):
     import subprocess
@@ -268,17 +248,15 @@ def test_default_config_path_does_not_depend_on_current_working_directory(tmp_pa
         tmp_path / "installed" / "config" / "config.json"
     )
 
-def test_default_cloud_models_use_current_model_aliases(tmp_path, monkeypatch):
+
+def test_only_allowlisted_free_cloud_models_are_configured(tmp_path, monkeypatch):
     brain = fresh_brain(tmp_path, monkeypatch)
-    assert brain.gemini_model == "gemini-3.8-flash"
-    assert brain.api_defaults["openai"][1] == "gpt-6-luna"
-    assert brain.api_defaults["grok"][1] == "grok-4.7"
-    assert brain.api_defaults["anthropic"][1] == "claude-sonnet-4-6"
-    assert brain.api_defaults["deepseek"][1] == "deepseek-flash"
-    assert brain.api_defaults["openrouter"][1] == "openai/gpt-6-luna"
+    assert brain.gemini_model == AIBrain.FREE_MODELS["gemini"]
+    assert brain.groq_model == AIBrain.FREE_MODELS["groq"]
+    assert brain.api_defaults == {}
 
 
-def test_legacy_cloud_model_aliases_migrate_to_current_defaults(tmp_path, monkeypatch):
+def test_legacy_paid_cloud_model_aliases_are_disabled(tmp_path, monkeypatch):
     import json
 
     settings_path = tmp_path / "ai_settings.json"
@@ -295,9 +273,13 @@ def test_legacy_cloud_model_aliases_migrate_to_current_defaults(tmp_path, monkey
 
     brain = AIBrain()
 
-    assert brain.api_models["openai"] == "gpt-6-luna"
-    assert brain.api_models["grok"] == "grok-4.7"
-    assert brain.api_models["openrouter"] == "openai/gpt-6-luna"
+    assert brain.provider == "ollama"
+    assert brain.api_models == {}
+    assert brain.api_keys == {}
+    saved = json.loads(settings_path.read_text(encoding="utf-8"))
+    assert saved["provider"] == "ollama"
+    assert saved.get("api_models", {}) == {}
+    assert saved.get("api_keys", {}) == {}
 
 def test_dpapi_failure_does_not_fall_back_to_plaintext(monkeypatch):
     original_import = builtins.__import__
@@ -314,8 +296,10 @@ def test_dpapi_failure_does_not_fall_back_to_plaintext(monkeypatch):
 
 
 
-def test_legacy_plaintext_api_keys_are_migrated_to_dpapi(tmp_path, monkeypatch):
+
+def test_legacy_plaintext_paid_keys_are_not_loaded_into_active_providers(tmp_path, monkeypatch):
     import json
+    import hashlib
     import utils.config_manager as config_module
 
     settings_path = tmp_path / "ai_settings.json"
@@ -343,7 +327,6 @@ def test_legacy_plaintext_api_keys_are_migrated_to_dpapi(tmp_path, monkeypatch):
 
     monkeypatch.setattr(config_module, "get_config", lambda: LegacyConfig())
     monkeypatch.setattr(AIBrain, "_settings_file", staticmethod(lambda: settings_path))
-    import hashlib
 
     def fake_protect(secret):
         if not secret:
@@ -355,15 +338,19 @@ def test_legacy_plaintext_api_keys_are_migrated_to_dpapi(tmp_path, monkeypatch):
     brain = AIBrain()
 
     persisted = settings_path.read_text(encoding="utf-8")
+    assert brain.provider == "ollama"
     assert brain.gemini_key == "legacy-gemini-secret"
-    assert brain.api_keys["openai"] == "legacy-openai-secret"
+    assert brain.api_keys == {}
     assert "legacy-gemini-secret" not in persisted
     assert "legacy-openai-secret" not in persisted
     saved = json.loads(persisted)
-    assert saved["gemini_api_key"] == {"dpapi": hashlib.sha256(b"test-encrypted:legacy-gemini-secret").hexdigest()}
-    assert saved["api_keys"]["openai"] == {"dpapi": hashlib.sha256(b"test-encrypted:legacy-openai-secret").hexdigest()}
-    assert legacy_ai["providers"]["openai"]["api_key"] == {"dpapi": hashlib.sha256(b"test-encrypted:legacy-openai-secret").hexdigest()}
-
+    assert saved["gemini_api_key"] == {
+        "dpapi": hashlib.sha256(b"test-encrypted:legacy-gemini-secret").hexdigest()
+    }
+    assert saved.get("api_keys", {}) == {}
+    assert legacy_ai["providers"]["openai"]["api_key"] == {
+        "dpapi": hashlib.sha256(b"test-encrypted:legacy-openai-secret").hexdigest()
+    }
 
 def test_failed_plaintext_migration_preserves_original_credentials(tmp_path, monkeypatch):
     import json
@@ -402,47 +389,20 @@ def test_failed_plaintext_migration_preserves_original_credentials(tmp_path, mon
 
 
 
-def test_gpt6_chat_completions_use_supported_sampling_parameters(tmp_path, monkeypatch):
+
+def test_gpt6_paid_chat_completions_are_disabled(tmp_path, monkeypatch):
     brain = fresh_brain(tmp_path, monkeypatch)
-    brain.api_keys["openai"] = "test-secret"
-
-    class Response:
-        ok = True
-        status_code = 200
-        text = ""
-
-        def json(self):
-            return {"choices": [{"message": {"content": "Yanıt tamam"}}]}
+    calls = []
 
     class Session:
-        def __init__(self):
-            self.calls = []
+        def post(self, *args, **kwargs):
+            calls.append((args, kwargs))
+            raise AssertionError("Paid API endpoint must not be called")
 
-        def post(self, url, **kwargs):
-            self.calls.append((url, kwargs))
-            return Response()
-
-    session = Session()
-    brain.session = session
-
-    brain.api_models["openai"] = "gpt-6-luna"
-    assert brain._compatible_api("openai", "test prompt") == "Yanıt tamam"
-    luna_payload = session.calls[-1][1]["json"]
-    assert luna_payload["reasoning_effort"] == "none"
-    assert luna_payload["temperature"] == 0.2
-
-    brain.api_models["openai"] = "gpt-6-astra"
-    assert brain._compatible_api("openai", "test prompt") == "Yanıt tamam"
-    astra_payload = session.calls[-1][1]["json"]
-    assert "temperature" not in astra_payload
-    assert "reasoning_effort" not in astra_payload
-
-    brain.api_models["openrouter"] = "openai/gpt-6-luna"
-    brain.api_keys["openrouter"] = "test-secret"
-    assert brain._compatible_api("openrouter", "test prompt") == "Yanıt tamam"
-    router_payload = session.calls[-1][1]["json"]
-    assert router_payload["reasoning_effort"] == "none"
-
+    brain.session = Session()
+    with pytest.raises(RuntimeError, match="Genel/ücretli API uç noktaları devre dışı"):
+        brain._compatible_api("openai", "test prompt")
+    assert calls == []
 
 def test_fast_turkish_responses_use_command_processors_real_process_method():
     from core.command_processor import CommandProcessor
