@@ -5,7 +5,7 @@ from core.command_processor import CommandProcessor
 
 
 class _Brain:
-    def ask(self, prompt):
+    def ask(self, prompt, max_output_tokens=None):
         payload = json.loads(prompt.split("Kaynaklar: ", 1)[1])
         return json.dumps({
             "translations": {
