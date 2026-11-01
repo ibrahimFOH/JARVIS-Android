@@ -107,14 +107,24 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Verify Windows release version
+      - name: Verify Windows release version and Authenticode secrets
         shell: pwsh
+        env:
+          WINDOWS_SIGNING_PFX_BASE64: ${{ secrets.WINDOWS_SIGNING_PFX_BASE64 }}
+          WINDOWS_SIGNING_PFX_PASSWORD: ${{ secrets.WINDOWS_SIGNING_PFX_PASSWORD }}
         run: |
           $version = (Get-Content "JARVIS_HOST/VERSION" -Raw).Trim()
           $expected = "v$version"
           if ($env:GITHUB_REF_NAME -ne $expected) {
             throw "Release tag must be $expected, got $env:GITHUB_REF_NAME"
           }
+          if ([string]::IsNullOrWhiteSpace($env:WINDOWS_SIGNING_PFX_BASE64) -or [string]::IsNullOrWhiteSpace($env:WINDOWS_SIGNING_PFX_PASSWORD)) {
+            throw "Windows Authenticode signing secrets are required. Configure WINDOWS_SIGNING_PFX_BASE64 and WINDOWS_SIGNING_PFX_PASSWORD before creating a release tag."
+          }
+          $pfx = Join-Path $env:RUNNER_TEMP "jarvis-authenticode.pfx"
+          [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:WINDOWS_SIGNING_PFX_BASE64))
+          if ((Get-Item $pfx).Length -lt 1024) { throw "Windows signing certificate file is invalid." }
+          "JARVIS_SIGNING_PFX=$pfx" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -137,6 +147,15 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "Single-file Windows EXE build failed" }
           $exe = "dist\StagepulseJARVIS.exe"
           if (!(Test-Path $exe)) { throw "StagepulseJARVIS.exe was not created" }
+          $signtool = Get-ChildItem "$env:ProgramFiles(x86)\Windows Kits\10\bin" -Recurse -Filter signtool.exe -ErrorAction SilentlyContinue |
+            Where-Object { $_.FullName -match '\\x64\\signtool\.exe$' } |
+            Sort-Object FullName -Descending |
+            Select-Object -First 1
+          if ($null -eq $signtool) { throw "Windows SDK signtool.exe was not found." }
+          & $signtool.FullName sign /fd SHA256 /tr "http://timestamp.digicert.com" /td SHA256 /f $env:JARVIS_SIGNING_PFX /p $env:WINDOWS_SIGNING_PFX_PASSWORD $exe
+          if ($LASTEXITCODE -ne 0) { throw "Authenticode signing failed." }
+          & $signtool.FullName verify /pa /v $exe
+          if ($LASTEXITCODE -ne 0) { throw "Authenticode signature verification failed." }
           $packageDir = Join-Path $env:RUNNER_TEMP "StagepulseJARVIS-Windows"
           New-Item -ItemType Directory -Force -Path $packageDir | Out-Null
           Copy-Item -LiteralPath $exe -Destination (Join-Path $packageDir "StagepulseJARVIS.exe") -Force
