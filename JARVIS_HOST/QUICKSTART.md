@@ -48,11 +48,13 @@ JARVIS, sağlayıcı hesabının ödeme durumunu kendisi doğrulayamaz; ücretsi
 
 ## 4. Sesli kullanım
 
-Arayüzde **Sesli kontrol** ve **Sürekli dinle** anahtarlarını kullanın. Mikrofon iznini ve varsayılan Windows kayıt aygıtını kontrol edin. Varsayılan konuşma tanıma hizmeti internet isteyebilir. Yerel TTS veya yerel Ollama, konuşma tanımanın da çevrimdışı olduğu anlamına gelmez.
+Arayüzde **Sesli kontrol** ve **Sürekli dinle** anahtarlarını kullanın. Mikrofon iznini ve varsayılan Windows kayıt aygıtını kontrol edin. Konuşma tanıma ve `Jarvis` uyandırma sözcüğü yerel Türkçe Vosk modeliyle çevrimdışı çalışır.
 
-### Uyandırma sözcüğü yedeği
+### Yerel Türkçe model
 
-Picovoice anahtarı `advanced.api_keys.picovoice_key` tanımlıysa Porcupine kullanılır. Anahtar yoksa JARVIS otomatik olarak çevrimiçi Google konuşma tanıma tabanlı uyandırma yedeğine geçer. Bu yedek internet bağlantısı ister; Porcupine kadar düşük gecikmeli veya hatasız değildir. Mikrofon erişimi Windows gizlilik ayarlarından açık olmalıdır.
+JARVIS önce şu konumlarda mevcut modeli arar: kullanıcı yapılandırmasındaki yol, `%APPDATA%\\StagepulseJARVIS\\models\\vosk-model-small-tr-0.3`, uygulama `models` klasörü, İndirilenler ve Stagepulse model arşivi. Bulursa yeniden indirme yapmaz. Bulamazsa Vosk'un resmi HTTPS kaynağından yaklaşık 35 MB'lık Türkçe küçük modeli indirir; arşiv boyutunu, CRC değerlerini, dosya yollarını ve model klasör yapısını doğrular. Model `%APPDATA%\\StagepulseJARVIS\\models` altında tutulur. Kaynak sayfa sabit bir yayın SHA-256 değeri sunmadığından indirilen arşiv özeti yerel kayıt olarak saklanır; yayıncı imzası varmış gibi gösterilmez. `voice.vosk_model_path` ile başka bir kurulum yolu belirtilebilir.
+
+Picovoice/Porcupine, çevrimiçi Google Speech Recognition ve ücretli/çevrimiçi konuşma tanıma yedekleri kullanılmaz. Model indirilemezse ses tanıma kapalı kalır ve Türkçe hata raporlanır; ücretli servise geçiş yapılmaz.
 
 ## 5. Android bağlantısı
 
