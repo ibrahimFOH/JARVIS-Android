@@ -60,7 +60,7 @@ def test_file_deletion_is_denied_when_not_explicitly_enabled(monkeypatch):
     result = processor.process("test dosyasını sil")
 
     assert result["success"] is False
-    assert result["requires_confirmation"] is False
+    assert result.get("requires_confirmation") is False, result
     assert "devre dışı" in result["response"].lower()
     assert processor.deleted == []
 
@@ -71,7 +71,7 @@ def test_file_deletion_requires_explicit_confirmation(monkeypatch):
     pending = processor.process("test dosyasını sil")
 
     assert pending["success"] is False
-    assert pending["requires_confirmation"] is True
+    assert pending.get("requires_confirmation") is True, pending
     assert pending["pending_command"] == "test dosyasını sil"
     assert processor.deleted == []
 
