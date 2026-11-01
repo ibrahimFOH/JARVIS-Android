@@ -49,6 +49,10 @@ API anahtarları Windows DPAPI korumasıyla saklanır. Şifreleme başarısız o
 
 Arayüzde **Sesli kontrol** ve **Sürekli dinle** anahtarlarını kullanın. Mikrofon iznini ve varsayılan Windows kayıt aygıtını kontrol edin. Varsayılan konuşma tanıma hizmeti internet isteyebilir. Yerel TTS veya yerel Ollama, konuşma tanımanın da çevrimdışı olduğu anlamına gelmez.
 
+### Uyandırma sözcüğü yedeği
+
+Picovoice anahtarı `advanced.api_keys.picovoice_key` tanımlıysa Porcupine kullanılır. Anahtar yoksa JARVIS otomatik olarak çevrimiçi Google konuşma tanıma tabanlı uyandırma yedeğine geçer. Bu yedek internet bağlantısı ister; Porcupine kadar düşük gecikmeli veya hatasız değildir. Mikrofon erişimi Windows gizlilik ayarlarından açık olmalıdır.
+
 ## 5. Android bağlantısı
 
 1. Windows JARVIS'i açın.
