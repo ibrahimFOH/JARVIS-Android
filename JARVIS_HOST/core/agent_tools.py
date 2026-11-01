@@ -274,6 +274,117 @@ class RepositoryManager:
             ),
         }
 
+    def install_github_repository(self, repository, confirmed=False):
+        """Clone only reviewed repositories; isolate supported Python dependencies."""
+        full_name = self._safe_repository_name(repository)
+        if not confirmed:
+            return {
+                "success": False, "intent": "github_install",
+                "requires_confirmation": True,
+                "pending_command": "repo kur " + full_name,
+                "response": (
+                    full_name + " deposu lisans ve güvenlik incelemesinden sonra ayrı bir klasöre alınacak. "
+                    "Kurulum yönetici yetkisi olmadan, proje içi sanal ortamda ve yalnızca hazır wheel paketleriyle yapılır. "
+                    "Devam etmek için onay gerekli."
+                ),
+            }
+
+        review = self.inspect_github_repository(full_name)
+        if not review.get("license_allowed"):
+            return {
+                "success": False, "intent": "github_install",
+                "response": "Açık ve izin verilen lisans doğrulanamadı; kurulum engellendi.",
+            }
+        if review.get("warnings"):
+            return {
+                "success": False, "intent": "github_install",
+                "response": "Dosya ağacı güvenlik uyarısı verdi; otomatik kurulum durduruldu.\n" +
+                            "\n".join(review["warnings"]),
+            }
+
+        parent = Path(os.environ.get("USERPROFILE", str(Path.home()))) / "Documents" / "Stagepulse-Repositories"
+        parent.mkdir(parents=True, exist_ok=True)
+        destination = parent / full_name.split("/", 1)[1]
+        if destination.exists():
+            if not (destination / ".git").is_dir():
+                return {
+                    "success": False, "intent": "github_install",
+                    "response": "Hedef klasör Git deposu değil; mevcut dosyalara dokunulmadı: " + str(destination),
+                }
+            clone_message = "Mevcut yerel depo bulundu; yeniden klonlanmadı."
+        else:
+            result = self._run_git(
+                parent, "clone", "--depth", "1",
+                "https://github.com/" + full_name + ".git", str(destination), timeout=240,
+            )
+            if not result["ok"]:
+                return {
+                    "success": False, "intent": "github_install",
+                    "response": "Depo klonlanamadı: " + (result["stderr"] or result["stdout"]),
+                }
+            clone_message = "Kaynak kodu klonlandı."
+
+        translated_path = destination / "README_TR.md"
+        if translated_path.is_file():
+            translation_status = "README_TR.md zaten var; üzerine yazılmadı."
+        elif review.get("readme_translation_tr"):
+            translated_path.write_text(review["readme_translation_tr"], encoding="utf-8")
+            translation_status = "README Türkçeye çevrildi: " + str(translated_path)
+        else:
+            translation_status = "README çevirisi üretilemedi; kaynak README korundu."
+
+        install_status = "Kaynak alındı; otomatik kurulum için doğrulanmış paket tarifi bulunamadı."
+        requirements = destination / "requirements.txt"
+        if requirements.is_file():
+            lines = requirements.read_text(encoding="utf-8", errors="replace").splitlines()
+            active = [line.strip() for line in lines if line.strip() and not line.lstrip().startswith("#")]
+            unsafe = [
+                line for line in active
+                if line.startswith(("-", ".", "/", "\\"))
+                or "://" in line or "git+" in line.lower()
+                or not re.match(
+                    r"^[A-Za-z0-9_.-]+(?:\[[A-Za-z0-9_,.-]+\])?(?:\s*(?:==|>=|<=|~=|!=|>|<)\s*[A-Za-z0-9.*+!_-]+)?(?:\s*#.*)?$",
+                    line,
+                )
+            ]
+            if unsafe:
+                install_status = "Bağımlılık listesinde URL, yerel yol veya pip seçeneği var; otomatik kurulum yapılmadı: " + "; ".join(unsafe[:5])
+            else:
+                venv_path = destination / ".venv"
+                if not venv_path.exists():
+                    create = subprocess.run(
+                        [sys.executable, "-m", "venv", str(venv_path)],
+                        cwd=str(destination), stdin=subprocess.DEVNULL,
+                        capture_output=True, text=True, timeout=180, shell=False,
+                    )
+                    if create.returncode != 0:
+                        return {
+                            "success": False, "intent": "github_install",
+                            "response": "İzole Python ortamı oluşturulamadı: " + create.stderr[-2500:],
+                        }
+                python_exe = venv_path / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
+                pip_result = subprocess.run(
+                    [str(python_exe), "-m", "pip", "install", "--only-binary=:all:", "-r", str(requirements)],
+                    cwd=str(destination), stdin=subprocess.DEVNULL,
+                    capture_output=True, text=True, timeout=900, shell=False,
+                )
+                if pip_result.returncode == 0:
+                    install_status = "Bağımlılıklar yönetici yetkisi olmadan, proje içindeki .venv ortamına ve yalnızca wheel paketleriyle kuruldu."
+                else:
+                    install_status = (
+                        "İzole kurulum tamamlanamadı; sistem Python'una dokunulmadı.\n" +
+                        pip_result.stderr[-3500:]
+                    )
+
+        return {
+            "success": True, "intent": "github_install", "path": str(destination),
+            "response": (
+                full_name + " için işlem tamamlandı.\n" + clone_message + "\n" +
+                translation_status + "\n" + install_status +
+                "\nLisans: " + review["license"] + "\nKaynak: " + review["url"]
+            ),
+        }
+
     def _root(self):
         if self.repo_path is None:
             return None, "Git deposu bağlı değil. Önce 'repo bağla C:\\Projeler\\Depo' veya 'repo bağla https://github.com/kullanici/depo.git' komutunu kullan."
@@ -439,6 +550,38 @@ class RepositoryManager:
                 "intent": "github_research",
                 "data": result,
             }
+
+        search_match = re.match(
+            r"^(?:github|repo)\s+(?:ara|araştır|arastir)\s+(.+)$",
+            text, re.IGNORECASE,
+        )
+        if search_match:
+            query = search_match.group(1).strip().strip('"').strip("'")
+            try:
+                items = self._search_github_repositories(query, per_page=5)
+                lines = ["GitHub arama sonuçları: " + query]
+                for item in items:
+                    license_data = item.get("license") or {}
+                    spdx = str(license_data.get("spdx_id", "")).upper() or "BELİRSİZ"
+                    eligible = spdx in self.ALLOWED_LICENSES
+                    lines.append(
+                        ("AÇIK LİSANS" if eligible else "LİSANS DOĞRULANMADI") +
+                        f' | {item.get("full_name", "")} | {spdx} | {item.get("stargazers_count", 0)} yıldız | ' +
+                        str(item.get("html_url", "")) + "\\n" + str(item.get("description") or "Açıklama yok")
+                    )
+                return {
+                    "success": True, "response": "\\n\\n".join(lines),
+                    "intent": "github_research", "data": items,
+                }
+            except Exception as exc:
+                return {"success": False, "response": "GitHub araması başarısız: " + str(exc), "intent": "github_research"}
+
+        install_match = re.match(
+            r"^(?:repo|depo|github)\s+kur\s+([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)$",
+            text, re.IGNORECASE,
+        )
+        if install_match:
+            return self.install_github_repository(install_match.group(1), confirmed=confirmed)
 
         inspect_match = re.match(
             r"^(?:github|repo|depo)\s+(?:incele|analiz et)\s+([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)$",
