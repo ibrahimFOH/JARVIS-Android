@@ -29,7 +29,7 @@ def main() -> int:
         "--collect-all", "pypdf",
         "--collect-all", "reportlab",
         "--collect-all", "speech_recognition",
-        "--collect-all", "pvporcupine",
+        "--collect-all", "vosk",
         "--collect-all", "pyaudio",
         "--collect-all", "PIL",
         "--collect-all", "pyautogui",
