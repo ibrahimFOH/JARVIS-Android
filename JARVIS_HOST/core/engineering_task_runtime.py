@@ -103,7 +103,7 @@ class EngineeringTaskRuntime:
                 if not result.get("success"):
                     errors.append(str(result.get("message", "Yerel arama başarısız.")))
                     continue
-                incomplete = incomplete or bool(result.get("timed_out") or result.get("truncated"))
+                incomplete = incomplete or bool(result.get("timed_out") or result.get("truncated") or result.get("paused_for_resources"))
                 for item in result.get("files", []):
                     path = str(item.get("path", ""))
                     key = os.path.normcase(path)
