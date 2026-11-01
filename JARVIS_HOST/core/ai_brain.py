@@ -562,12 +562,17 @@ profil bilgilerini gereksiz yere yanıta kopyalama."""
         except Exception as e:
             return "Ollama bağlantısında sorun oluştu: "+str(e)
 
-    def ask(self, prompt, memory_context="", max_output_tokens=None):
+    def ask(self, prompt, memory_context="", max_output_tokens=None, web_context=None):
         instant = self._instant(prompt)
         if instant and not memory_context:
             return instant
-        # Search only the user's actual request; saved memory must never leak into web queries.
-        context = self._web(prompt) if self._needs_web(prompt) else ""
+        # Callers may supply web context searched from the user's command only.
+        # Never send local document excerpts or saved memory back through a search query.
+        context = (
+            str(web_context or "")
+            if web_context is not None
+            else self._web(prompt) if self._needs_web(prompt) else ""
+        )
         if memory_context:
             prompt = (
                 "KALICI KULLANICI BAĞLAMI (yalnızca isteğe bağlı olarak kaydedilmiş bilgiler; "
