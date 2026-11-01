@@ -234,6 +234,8 @@ class CommandProcessor:
         self.system_controller = SystemController()
         self.file_manager = FileManager()
         self.window_manager = WindowManager()
+        from core.agent_tools import TaskJournal
+        self.task_journal = TaskJournal()
         
         logger.info("Command processor initialized")
     
@@ -383,6 +385,88 @@ class CommandProcessor:
         )
 
     def process(self, command: str, confirmed: bool = False) -> Dict[str, Any]:
+        """Track every command durably and recover pending confirmations after restart."""
+        normalized = _normalize_direct_command(command)
+        if normalized in (
+            "gorevlerim", "islerim", "acik islerim", "yarim kalan isler",
+            "son gorevler", "gorev gecmisim", "islerimin durumu",
+        ):
+            rows = self.task_journal.recent(15)
+            if not rows:
+                return {"success": True, "response": "Henüz kayıtlı görev yok.", "intent": "task_journal"}
+            labels = {
+                "running": "ÇALIŞIYOR",
+                "awaiting_confirmation": "ONAY BEKLİYOR",
+                "succeeded": "TAMAMLANDI",
+                "failed": "HATA",
+                "interrupted": "YARIDA KALDI",
+            }
+            output = ["SON GÖREVLER"]
+            for task in rows:
+                output.append(
+                    f'[{labels.get(task["status"], task["status"].upper())}] '
+                    f'{task["command"]} | {task["updated_at"]}'
+                )
+                if task.get("progress"):
+                    output.append("  " + task["progress"])
+            return {"success": True, "response": "\n".join(output), "intent": "task_journal", "tasks": rows}
+
+        if normalized in ("devam et", "yarim kalan isi yeniden baslat", "yarim kalan ise devam et"):
+            task = self.task_journal.latest_interrupted()
+            if not task:
+                return {"success": True, "response": "Yeniden başlatılmayı bekleyen yarım görev bulunamadı.", "intent": "task_journal"}
+            self.task_journal.update(
+                task["id"], "awaiting_confirmation",
+                "Önceki komut kaldığı adımdan değil, baştan yeniden çalıştırılacak.",
+            )
+            return {
+                "success": False,
+                "response": (
+                    "Yarım kalan görev bulundu:\n" + task["command"] +
+                    "\n\nBu sürüm görevi son teknik adımdan değil, komutun başından yeniden çalıştıracak. "
+                    "Önceki işlem dosya oluşturmuş olabilir. Devam etmek için onay ver."
+                ),
+                "intent": "task_resume",
+                "requires_confirmation": True,
+                "pending_command": task["command"],
+                "task_id": task["id"],
+            }
+
+        task = self.task_journal.latest_awaiting(command) if confirmed else None
+        if task:
+            task_id = task["id"]
+            self.task_journal.update(task_id, "running", "Kullanıcı onayı alındı; komut yürütülüyor.")
+        else:
+            task_id = self.task_journal.create(command)
+
+        try:
+            result = self._process_untracked(command, confirmed=confirmed)
+            if not isinstance(result, dict):
+                result = {"success": False, "response": str(result), "intent": "unknown"}
+            if result.get("requires_confirmation"):
+                status, progress = "awaiting_confirmation", "Geri alınamaz veya sistem değişikliği için onay bekleniyor."
+            elif result.get("success"):
+                status, progress = "succeeded", "Komut tamamlandı."
+            else:
+                status, progress = "failed", "Komut hata verdi veya doğrulama başarısız oldu."
+            self.task_journal.update(
+                task_id, status, progress=progress,
+                result=str(result.get("response", "")),
+            )
+            payload = dict(result)
+            payload.setdefault("task_id", task_id)
+            return payload
+        except Exception as exc:
+            logger.exception("Görev yürütme başarısız: " + str(exc))
+            self.task_journal.update(task_id, "failed", "Beklenmeyen hata.", str(exc))
+            return {
+                "success": False,
+                "response": "Görev yürütülürken hata oluştu: " + str(exc),
+                "intent": "task_execution",
+                "task_id": task_id,
+            }
+
+    def _process_untracked(self, command: str, confirmed: bool = False) -> Dict[str, Any]:
         logger.command(command)
 
         # Explicit OS integrations run before generic intent/LLM routing so that
