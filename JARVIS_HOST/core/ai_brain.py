@@ -291,21 +291,12 @@ class AIBrain:
             self.host = ollama_host.strip().rstrip("/")
         if ollama_model and ollama_model.strip():
             self.model = ollama_model.strip()
-        if isinstance(api_keys, dict):
-            for key, value in api_keys.items():
-                name = str(key).lower()
-                if name in self.api_defaults:
-                    self.api_keys[name] = str(value).strip()
-        if isinstance(api_models, dict):
-            for key, value in api_models.items():
-                name = str(key).lower()
-                if name in self.api_defaults and str(value).strip():
-                    self.api_models[name] = str(value).strip()
-        if isinstance(api_base_urls, dict):
-            for key, value in api_base_urls.items():
-                name = str(key).lower()
-                if name in self.api_defaults and str(value).strip():
-                    self.api_base_urls[name] = str(value).strip().rstrip("/")
+        if isinstance(api_keys, dict) and any(str(value).strip() for value in api_keys.values()):
+            raise ValueError("Genel/ücretli API anahtarları kabul edilmiyor. Yalnızca Gemini Free ve Groq Free alanlarını kullan.")
+        if isinstance(api_models, dict) and any(str(value).strip() for value in api_models.values()):
+            raise ValueError("Ücretli veya özel sağlayıcı modelleri devre dışı.")
+        if isinstance(api_base_urls, dict) and any(str(value).strip() for value in api_base_urls.values()):
+            raise ValueError("Özel API uç noktaları devre dışı.")
         self._persist_settings()
 
     def _compatible_api(self, provider, prompt, context=""):
