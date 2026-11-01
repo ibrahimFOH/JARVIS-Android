@@ -891,7 +891,7 @@ class JarvisGUI:
         actions.pack(fill="x", padx=12, pady=8)
 
         ctk.CTkLabel(
-            content, text="SAĞLAYICI SEÇİMİ", text_color=GOLD,
+            content, text="YAPAY ZEKÂ SAĞLAYICISI / ÜCRETSİZ PLAN", text_color=GOLD,
             font=("Consolas", 12, "bold")
         ).pack(anchor="w", padx=20, pady=(16, 5))
         provider = tk.StringVar(value=brain.provider)
