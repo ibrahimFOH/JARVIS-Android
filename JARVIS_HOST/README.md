@@ -17,7 +17,7 @@ Windows 10/11 x64 ve Python 3.11 x64 gerekir. `QUICKSTART.md` içindeki adımlar
 
 ## Yapay zekâ sağlayıcıları
 
-Yerel Ollama ile birlikte Google Gemini, OpenAI, Grok/xAI, Anthropic, DeepSeek, Perplexity, Groq ve OpenRouter sağlayıcıları yapılandırılabilir. AUTO modu önce Ollama'yı dener ve yalnızca ayarlanmış yedek sağlayıcılara geçer. API anahtarları arayüzden girilir; Windows DPAPI ile korunur ve koruma başarısız olursa düz metin kaydedilmez.
+Yalnızca ücretsiz kullanım kabul edilir. Yerel Ollama varsayılandır ve API ücreti oluşturmaz. Bulut sağlayıcılarında yalnızca Gemini Free Tier ve Groq Free Plan etkinleştirilebilir. Her sağlayıcı için API anahtarına ek olarak ücretsiz plan/faturalandırma kapalı onayı gerekir; JARVIS hesap faturalandırmasını sağlayıcı hesabından okuyamaz. Ücretsiz kota dolarsa istek reddedilir veya durur; ücretli modele, plana ya da başka ücretli API'ye geçiş yapılmaz. xAI Grok API ve diğer ücretli/özel uç noktalar kapalıdır. API anahtarları arayüzden girilir; Windows DPAPI ile korunur ve koruma başarısız olursa düz metin kaydedilmez.
 
 ## Ses
 
