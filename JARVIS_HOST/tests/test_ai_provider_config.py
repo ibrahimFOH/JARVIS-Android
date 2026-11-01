@@ -731,7 +731,7 @@ def test_local_image_analysis_sends_image_only_to_local_vision_model(tmp_path, m
     assert "Sahne ve seyirci alanı" in result
     assert len(calls) == 2
     assert calls[0][0] == "http://127.0.0.1:11434/api/show"
-    assert calls[1][0] == "http://localhost:11434/api/chat"
+    assert calls[1][0] == "http://127.0.0.1:11434/api/chat"
     user_message = calls[1][1]["json"]["messages"][1]
     assert user_message["images"] == [base64.b64encode(image_bytes).decode("ascii")]
     assert "venue.png" not in str(calls[1][1]["json"])
