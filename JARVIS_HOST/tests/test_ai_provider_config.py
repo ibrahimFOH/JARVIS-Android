@@ -535,3 +535,30 @@ def test_private_task_uses_ollama_even_when_free_cloud_provider_is_selected(tmp_
     )
     assert result == "Yalnızca yerel yanıt"
     assert calls == []
+
+
+
+def test_stagepulse_task_searches_existing_local_project_files_first(tmp_path):
+    from core.command_processor import CommandProcessor
+    from modules.file_manager import FileManager
+
+    project_file = tmp_path / "Elif Kır Bahçesi - sistem ve teklif.md"
+    project_file.write_text(
+        "Önceki sistem: iki aktif PA, iki subwoofer.\nBütçe: eski teklif dosyasında.",
+        encoding="utf-8",
+    )
+    file_manager = FileManager()
+    file_manager.search_locations = [str(tmp_path)]
+    file_manager.max_results = 50
+
+    processor = CommandProcessor.__new__(CommandProcessor)
+    processor.file_manager = file_manager
+
+    context, is_private = processor._collect_stagepulse_context(
+        "Elif Kır Bahçesi'nin işlemlerini Nişanengi Düğün Salonu'na göre hazırla"
+    )
+
+    assert is_private is True
+    assert "Önceki sistem" in context
+    assert str(project_file) in context
+    assert "tekrar indirme yapma" in context.lower()
