@@ -269,39 +269,49 @@ class AIBrain:
                   ollama_host=None, ollama_model=None,
                   groq_key=None, groq_model=None, api_keys=None, api_models=None,
                   api_base_urls=None, free_cloud_enabled=None):
-        if free_cloud_enabled is not None:
-            self.free_cloud_enabled = bool(free_cloud_enabled)
-        if provider is not None:
-            value = str(provider).strip().lower()
-            if value not in FREE_PROVIDERS:
-                raise ValueError("Ücretli veya doğrulanmamış API sağlayıcıları devre dışı.")
-            if value in FREE_CLOUD_PROVIDERS and not self.free_cloud_enabled:
-                raise ValueError("Gemini/Groq kullanımı için ücretsiz bulut erişimini ayrıca etkinleştir.")
-            self.provider = value
-        if gemini_key is not None:
-            self.gemini_key = gemini_key.strip()
+        # Validate the entire requested configuration before mutating live state.
+        # A rejected paid provider must not leave a cloud-enabled partial state.
+        new_cloud_enabled = (
+            self.free_cloud_enabled if free_cloud_enabled is None else bool(free_cloud_enabled)
+        )
+        new_provider = self.provider if provider is None else str(provider).strip().lower()
+        if new_provider not in FREE_PROVIDERS:
+            raise ValueError("Ücretli veya doğrulanmamış API sağlayıcıları devre dışı.")
+        if new_provider in FREE_CLOUD_PROVIDERS and not new_cloud_enabled:
+            raise ValueError("Gemini/Groq kullanımı için ücretsiz bulut erişimini ayrıca etkinleştir.")
+
+        new_gemini_model = self.gemini_model
         if gemini_model and gemini_model.strip():
-            model = gemini_model.strip()
-            if model not in FREE_GEMINI_MODELS:
+            new_gemini_model = gemini_model.strip()
+            if new_gemini_model not in FREE_GEMINI_MODELS:
                 raise ValueError("Seçilen Gemini modeli ücretsiz model izin listesinde değil.")
-            self.gemini_model = model
-        if groq_key is not None:
-            self.groq_key = groq_key.strip()
+
+        new_groq_model = self.groq_model
         if groq_model and groq_model.strip():
-            model = groq_model.strip()
-            if model not in FREE_GROQ_MODELS:
+            new_groq_model = groq_model.strip()
+            if new_groq_model not in FREE_GROQ_MODELS:
                 raise ValueError("Seçilen Groq modeli ücretsiz model izin listesinde değil.")
-            self.groq_model = model
-        if ollama_host and ollama_host.strip():
-            self.host = ollama_host.strip().rstrip("/")
-        if ollama_model and ollama_model.strip():
-            self.model = ollama_model.strip()
+
         if isinstance(api_keys, dict) and any(str(value).strip() for value in api_keys.values()):
             raise ValueError("Genel/ücretli API anahtarları kabul edilmiyor. Yalnızca Gemini Free ve Groq Free alanlarını kullan.")
         if isinstance(api_models, dict) and any(str(value).strip() for value in api_models.values()):
             raise ValueError("Ücretli veya özel sağlayıcı modelleri devre dışı.")
         if isinstance(api_base_urls, dict) and any(str(value).strip() for value in api_base_urls.values()):
             raise ValueError("Özel API uç noktaları devre dışı.")
+
+        # All checks passed. Commit the new in-memory configuration together.
+        self.free_cloud_enabled = new_cloud_enabled
+        self.provider = new_provider
+        self.gemini_model = new_gemini_model
+        self.groq_model = new_groq_model
+        if gemini_key is not None:
+            self.gemini_key = str(gemini_key).strip()
+        if groq_key is not None:
+            self.groq_key = str(groq_key).strip()
+        if ollama_host and ollama_host.strip():
+            self.host = ollama_host.strip().rstrip("/")
+        if ollama_model and ollama_model.strip():
+            self.model = ollama_model.strip()
         self._persist_settings()
 
     def _compatible_api(self, provider, prompt, context=""):
