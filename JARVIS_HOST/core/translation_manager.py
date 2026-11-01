@@ -51,7 +51,7 @@ class TurkishTranslationManager:
             "id değerini aynen koru. Açıklama ekleme. Yalnızca geçerli JSON döndür: "
             '{"translations":{"0":"çeviri","1":"çeviri"}}. Kaynaklar: ' + payload
         )
-        answer = self.ai_brain.ask(prompt)
+        answer = self.ai_brain.ask(prompt, max_output_tokens=1024)
         if not answer or answer.startswith("Yapay zekâ yanıtı alınamadı."):
             raise TranslationError("Ücretsiz yapay zekâ sağlayıcısı çeviri üretemedi: " + str(answer))
         cleaned = re.sub(r"^\s*\x60{3}(?:json)?\s*|\s*\x60{3}\s*$", "", answer.strip(), flags=re.IGNORECASE)
