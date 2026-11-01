@@ -249,6 +249,11 @@ def _stagepulse_software_research_command(command: str):
                 lines.append("Açıklama: " + str(item["description"])[:240])
             if item.get("windows_support"):
                 lines.append("Windows: " + str(item["windows_support"]))
+            if item.get("local_install_status"):
+                lines.append("Yerel kurulum: " + str(item["local_install_status"]))
+            for installed in item.get("installed_on_pc", []):
+                lines.append("Mevcut kurulum: " + str(installed.get("display_name", "")) +
+                             (" " + str(installed.get("version", "")) if installed.get("version") else ""))
             locale = item.get("turkish_localization") or {}
             if locale:
                 lines.append("Türkçe: " + str(locale.get("status", "Durum bilinmiyor")))
