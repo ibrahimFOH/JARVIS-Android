@@ -909,17 +909,28 @@ def _jarvis_ai_fallback(self, command):
             "intent": "ai_error"
         }
 
-def _jarvis_process_with_ai(self, command):
+def _jarvis_process_with_ai(self, command, confirmed=False):
     try:
-        result = _JARVIS_ORIGINAL_PROCESS(self, command)
+        result = _JARVIS_ORIGINAL_PROCESS(self, command, confirmed=confirmed)
     except Exception:
         return _jarvis_ai_fallback(self, command)
 
     if not isinstance(result, dict):
         return _jarvis_ai_fallback(self, command)
 
-    response = str(result.get("response", "") or "")
+    # Never turn a denied or confirmation-gated system action into an AI success.
+    # Preserve the original pending command and pass explicit confirmation through
+    # every wrapper layer.
+    if result.get("requires_confirmation") is True:
+        return result
     intent = str(result.get("intent", "") or "").lower()
+    if not result.get("success", False) and intent in {
+        "delete_file", "shutdown", "restart", "close_app",
+        "system_integration", "security_denied",
+    }:
+        return result
+
+    response = str(result.get("response", "") or "")
     success = bool(result.get("success", False))
 
     if success and intent not in ("unknown", "ai", "ai_error"):
@@ -1023,11 +1034,11 @@ try:
 
         return None
 
-    def _jarvis_fast_process_command(self, command):
+    def _jarvis_fast_process_command(self, command, confirmed=False):
         local = _jarvis_fast_local_response(command)
         if local is not None:
             return local
-        return _jarvis_original_process(self, command)
+        return _jarvis_original_process(self, command, confirmed=confirmed)
 
     CommandProcessor.process = _jarvis_fast_process_command
 
