@@ -18,7 +18,7 @@ pillow>=10.0.0
 numpy>=1.26.0  # Compatible with Python 3.12
 
 # GUI
-customtkinter>=5.2.0
+customtkinter>=6.0.0
 pystray>=0.19.5  # System tray
 
 # File Operations
