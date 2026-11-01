@@ -154,3 +154,38 @@ def test_auto_mode_does_not_call_cloud_without_provider_specific_confirmation(mo
 
     assert result.startswith("Yapay zekâ yanıtı alınamadı.")
     assert cloud_calls == []
+
+
+
+def test_private_project_context_is_blocked_from_cloud_without_consent(monkeypatch):
+    brain = make_brain()
+    brain.provider = "groq"
+    brain.groq_key = "free-plan-test-key"
+    brain.groq_free_confirmed = True
+    calls = []
+    monkeypatch.setattr(
+        brain, "_compatible_groq",
+        lambda *args, **kwargs: calls.append("groq"),
+    )
+
+    result = brain.ask("Özel müşteri dosyasını analiz et", allow_cloud_context=False)
+
+    assert "bulut API'sine gönderilmedi" in result
+    assert calls == []
+
+
+def test_normal_chat_can_use_confirmed_free_cloud_provider(monkeypatch):
+    brain = make_brain()
+    brain.provider = "groq"
+    brain.groq_key = "free-plan-test-key"
+    brain.groq_free_confirmed = True
+    calls = []
+    monkeypatch.setattr(
+        brain, "_compatible_groq",
+        lambda *args, **kwargs: (calls.append("groq") or "Türkçe yanıt"),
+    )
+
+    result = brain.ask("Kısa bir ses mühendisliği önerisi ver")
+
+    assert result == "Türkçe yanıt"
+    assert calls == ["groq"]
