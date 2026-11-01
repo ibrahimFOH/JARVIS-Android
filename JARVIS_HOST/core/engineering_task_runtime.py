@@ -369,12 +369,34 @@ class EngineeringTaskRuntime:
                 memory_context = str(self.memory.context(limit=10) or "")
             except Exception:
                 pass
-        answer = self.ai_brain.ask(
-            prompt,
-            memory_context=memory_context,
-            max_output_tokens=2200,
-            web_context=web_context,
+        cloud_data_allowed = bool(
+            getattr(self.ai_brain, "cloud_project_data_confirmed", False)
         )
+        gemini_allowed = bool(
+            getattr(self.ai_brain, "gemini_free_confirmed", False)
+        )
+        image_transfer = bool(
+            image_files
+            and cloud_data_allowed
+            and gemini_allowed
+            and getattr(self.ai_brain, "provider", "") in ("auto", "gemini")
+        )
+
+        if image_transfer:
+            answer = self.ai_brain.ask_with_images(
+                prompt,
+                image_files,
+                max_output_tokens=2200,
+                confirm_external_transfer=True,
+            )
+        else:
+            answer = self.ai_brain.ask(
+                prompt,
+                memory_context=memory_context,
+                max_output_tokens=2200,
+                web_context=web_context,
+                allow_cloud_context=cloud_data_allowed,
+            )
 
         if not answer or answer.startswith("Yapay zekâ yanıtı alınamadı."):
             record["status"] = "waiting_for_ai_provider"
@@ -405,7 +427,18 @@ class EngineeringTaskRuntime:
             "markdown": str(md_path),
             "pdf": str(pdf_path) if pdf_created else None,
         }
-        record["status"] = "draft_ready"
+        required_section = re.search(
+            r"(?is)##\\s*Gerekli Bilgiler\\s*(.*?)(?=##\\s|$)",
+            answer,
+        )
+        required_text = _norm(required_section.group(1)) if required_section else ""
+        no_missing_data = (
+            not required_text
+            or required_text in {"yok", "bulunmadi", "gerekli bilgi yok", "eksik bilgi yok", "tbc yok"}
+        )
+        record["status"] = "draft_ready" if no_missing_data and not local["incomplete"] else "waiting_for_user_input"
+        if image_files and not image_transfer:
+            record["status"] = "waiting_for_visual_review"
         record["updated_at"] = datetime.now(timezone.utc).isoformat()
         checkpoint("rapor_uretimi", "completed", {
             "markdown": str(md_path), "pdf_created": pdf_created,
@@ -423,12 +456,16 @@ class EngineeringTaskRuntime:
             "Rapor: " + str(md_path),
             "PDF: " + (str(pdf_path) if pdf_created else "Türkçe font/üretim doğrulanamadı; Markdown hazır."),
         ]
-        if images_pending:
+        if images_pending and image_transfer:
+            lines.append("Görseller ücretsiz Gemini katmanına, açık veri aktarım onayıyla gönderildi.")
+        elif images_pending:
             lines.append(
                 "Görsel veya taranmış PDF çözümlemesi bekliyor: " +
                 ", ".join(images_pending[:4]) +
-                ". Ücretsiz Gemini'ye aktarım ayrıca onay olmadan yapılmadı."
+                ". Görsel aktarımı için ücretsiz Gemini onayı ve proje verisi aktarım izni gerekli."
             )
+        if record["status"] == "waiting_for_user_input":
+            lines.append("Durum: Kritik eksik bilgi veya tamamlanmamış yerel tarama nedeniyle kullanıcı/veri bekleniyor.")
         return {
             "success": True,
             "response": "\n".join(lines),
