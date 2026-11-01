@@ -86,6 +86,8 @@ class RepositoryManager:
                 "stagepulse araclarini tara", "stagepulse araclarini arastir",
                 "github repolarini tara", "github repolarini arastir",
             ))
+            or ("acik kaynak" in normalized and any(word in normalized for word in ("ara", "arastir", "bul")))
+            or ("github" in normalized and any(word in normalized for word in ("ara", "tara", "arastir", "bul")))
         )
 
     @staticmethod
@@ -182,12 +184,43 @@ class RepositoryManager:
             key=lambda item: (item["license_allowed"], item["stars"], item["updated"]),
             reverse=True,
         )
+        evaluation = ""
+        if ordered and self.ai_brain is not None:
+            summary = [
+                {
+                    "name": item["name"],
+                    "description": item["description"],
+                    "license": item["license"],
+                    "language": item["language"],
+                    "stars": item["stars"],
+                    "areas": item["areas"],
+                    "url": item["url"],
+                }
+                for item in ordered[:10]
+            ]
+            prompt = (
+                "Stagepulse'un PA/FOH/monitor-IEM/RF/Dante/DMX/ses ölçümü/stage plot/teknik rider "
+                "hizmetleri açısından aşağıdaki açık GitHub depo adaylarını değerlendir. Yalnızca "
+                "verilen açıklama, lisans, dil, ilgi alanı ve yıldız sayılarını kullan. En fazla 5 "
+                "gerçekten ilgili adayı kısa gerekçeyle sırala; ne yaptığını belli olmayanı önerme. "
+                "Lisansı BELİRSİZ olanı kurulum için önerme. Bu yalnızca ön elemedir; kod güvenliği "
+                "ve gerçek kurulum uyumluluğu henüz doğrulanmadı.\n\nADAYLAR:\n" +
+                json.dumps(summary, ensure_ascii=False)
+            )
+            try:
+                evaluation = self.ai_brain.ask(prompt, allow_cloud=True)
+                if not evaluation or evaluation.startswith("Yapay zekâ yanıtı alınamadı."):
+                    evaluation = ""
+            except Exception as exc:
+                failures.append("JARVIS aday değerlendirmesi: " + str(exc))
+
         return {
             "success": bool(ordered),
             "repositories": ordered[:15],
             "failures": failures,
+            "ai_evaluation": evaluation,
             "message": (
-                "GitHub taraması tamamlandı. Lisans ve güvenlik incelemesi olmadan hiçbir depo kurulmayacak."
+                "GitHub taraması tamamlandı. Arama sonuçları ön adaydır; lisans ve kod güvenliği onayı olmadan depo kurulmayacak."
                 if ordered else "Uygun GitHub deposu bulunamadı veya ücretsiz GitHub API erişimi kullanılamıyor."
             ),
         }
@@ -543,6 +576,8 @@ class RepositoryManager:
                     f'{status} | {item["name"]} | {item["license"]} | {item["stars"]} yıldız | '
                     f'{", ".join(item["areas"])} | {item["url"]}\n{item["description"]}'
                 )
+            if result.get("ai_evaluation"):
+                lines.append("JARVIS ÖN DEĞERLENDİRMESİ:\\n" + result["ai_evaluation"])
             if result["failures"]:
                 lines.append("Erişim uyarıları: " + " | ".join(result["failures"][:3]))
             return {
