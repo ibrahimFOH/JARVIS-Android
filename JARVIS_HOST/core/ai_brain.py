@@ -71,6 +71,7 @@ class AIBrain:
             logger.warning("Groq modeli izin listesi dışındaydı; sabit ücretsiz plan modeli seçildi.")
         self.gemini_free_confirmed = bool(saved.get("gemini_free_confirmed", False))
         self.groq_free_confirmed = bool(saved.get("groq_free_confirmed", False))
+        self.cloud_project_data_confirmed = bool(saved.get("cloud_project_data_confirmed", False))
         self.host = os.environ.get("OLLAMA_HOST", saved.get("ollama_host", legacy_ai.get("ollama_url", self.host))).rstrip("/")
         self.model = os.environ.get("OLLAMA_MODEL", saved.get("ollama_model", legacy_ai.get("ollama_model", self.model)))
         # Önceki sürümlerde kaydedilmiş genel/ücretli sağlayıcı anahtarları
@@ -246,6 +247,7 @@ class AIBrain:
             "provider": self.provider,
             "gemini_free_confirmed": bool(self.gemini_free_confirmed),
             "groq_free_confirmed": bool(self.groq_free_confirmed),
+            "cloud_project_data_confirmed": bool(self.cloud_project_data_confirmed),
             "gemini_api_key": self._protect_key(self.gemini_key),
             "gemini_model": self.gemini_model,
             "groq_api_key": self._protect_key(self.groq_key),
@@ -265,7 +267,7 @@ class AIBrain:
                   ollama_host=None, ollama_model=None,
                   groq_key=None, groq_model=None, api_keys=None, api_models=None,
                   api_base_urls=None, gemini_free_confirmed=None,
-                  groq_free_confirmed=None):
+                  groq_free_confirmed=None, cloud_project_data_confirmed=None):
         if provider is not None:
             value = str(provider).strip().lower()
             if value not in self.FREE_PROVIDERS:
@@ -288,6 +290,8 @@ class AIBrain:
             self.gemini_free_confirmed = bool(gemini_free_confirmed)
         if groq_free_confirmed is not None:
             self.groq_free_confirmed = bool(groq_free_confirmed)
+        if cloud_project_data_confirmed is not None:
+            self.cloud_project_data_confirmed = bool(cloud_project_data_confirmed)
         if ollama_host and ollama_host.strip():
             self.host = ollama_host.strip().rstrip("/")
         if ollama_model and ollama_model.strip():
@@ -562,7 +566,8 @@ profil bilgilerini gereksiz yere yanıta kopyalama."""
         except Exception as e:
             return "Ollama bağlantısında sorun oluştu: "+str(e)
 
-    def ask(self, prompt, memory_context="", max_output_tokens=None, web_context=None):
+    def ask(self, prompt, memory_context="", max_output_tokens=None, web_context=None,
+            allow_cloud_context=None):
         instant = self._instant(prompt)
         if instant and not memory_context:
             return instant
@@ -581,10 +586,20 @@ profil bilgilerini gereksiz yere yanıta kopyalama."""
             )
         if self.provider not in self.FREE_PROVIDERS:
             return "Ücretli veya izin verilmeyen AI sağlayıcısı güvenlik nedeniyle engellendi."
+        cloud_context_allowed = (
+            self.cloud_project_data_confirmed
+            if allow_cloud_context is None
+            else bool(allow_cloud_context)
+        )
+        if self.provider in ("gemini", "groq") and not cloud_context_allowed:
+            return (
+                "Yerel proje verileri bulut API'sine gönderilmedi. "
+                "Yapay zekâ ayarlarında proje verisi aktarım iznini ayrıca aç veya yerel Ollama kullan."
+            )
         available = []
-        if self.groq_free_confirmed and self.groq_key:
+        if cloud_context_allowed and self.groq_free_confirmed and self.groq_key:
             available.append("groq")
-        if self.gemini_free_confirmed and self.gemini_key:
+        if cloud_context_allowed and self.gemini_free_confirmed and self.gemini_key:
             available.append("gemini")
         # AUTO yalnızca yerel Ollama ve ücretsiz katmanlarda açıkça yapılandırılmış
         # Gemini/Groq bağlantılarını dener. Kota dolduğunda başka ücretli servise
