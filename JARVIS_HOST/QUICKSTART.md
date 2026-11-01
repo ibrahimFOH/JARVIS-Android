@@ -72,7 +72,7 @@ Yazılım araştırması için doğal dilde şu tür emirler verilebilir:
 - `Stagepulse için ücretsiz ses mühendisliği yazılımlarını tara`
 - `Dante ve stage plot için açık kaynak araçları bul`
 
-Araştırıcı; GitHub kaynağını, lisansı, güncellenme tarihini, Windows desteğine dair işaretleri, yayın dosyalarını ve Türkçe dil dosyalarını denetler. Önce bilgisayardaki kurulum kaydını kontrol eder. Bu araştırma komutu kendi başına dosya indirmez veya program kurmaz; kurulumdan önce kaynak, dijital imza/hash, uyumluluk ve kullanıcı onayı gerekir. Lisansı belirsiz, arşivlenmiş veya doğrulanamayan yazılım otomatik olarak kurulmaz.
+Araştırıcı; GitHub kaynağını, lisansı, güncellenme tarihini, Windows desteğine dair işaretleri, yayın dosyalarını ve Türkçe dil dosyalarını denetler. Önce bilgisayardaki kurulum kaydını kontrol eder. Bu araştırma komutu kendi başına dosya indirmez veya program kurmaz; kurulumdan önce kaynak, dijital imza/hash, uyumluluk ve kullanıcı onayı gerekir. Lisansı belirsiz, arşivlenmiş veya doğrulanamayan yazılım otomatik olarak kurulmaz. Qt tabanlı yazılımlarda `Türkçeye çevir C:\\Yol\\uygulama_de_DE.ts` komutuyla, kaynak dosyayı ezmeden ayrı `tr_TR` dil kataloğu üretilebilir. Yer tutucu ve XML doğrulaması geçmeden çıktı kabul edilmez; uygulamada etkinleştirme/derleme ayrıca kontrol edilmelidir.
 
 ## 7. Sorun giderme
 
