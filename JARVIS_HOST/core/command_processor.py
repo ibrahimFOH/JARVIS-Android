@@ -293,6 +293,7 @@ class CommandProcessor:
         else:
             sections.append("YEREL DOSYA TARAMASI: " + str(len(found)) + " mevcut dosya bulundu. Bu dosyaları yeniden indirme.")
         total_chars = 0
+        local_images = []
         for path, item in found.items():
             file_path = Path(path)
             sections.append(
@@ -313,7 +314,8 @@ class CommandProcessor:
                 elif suffix in (".txt", ".md", ".csv", ".json", ".xml", ".yaml", ".yml", ".ini"):
                     extracted = file_path.read_text(encoding="utf-8", errors="replace")
                 elif suffix in (".jpg", ".jpeg", ".png", ".webp", ".tif", ".tiff", ".bmp"):
-                    sections.append("GÖRSEL: Dosya mevcut; bu sürümde yerel görsel içerik çözümlemesi henüz bağlı değil. Görselden ölçü/yerleşim çıkarılmış gibi davranma.")
+                    local_images.append(str(file_path))
+                    sections.append("GÖRSEL: Dosya bulundu; içerik yalnızca yerel Ollama görsel modeli destekliyorsa incelenecek.")
             except Exception as exc:
                 sections.append("DOSYA OKUMA UYARISI: " + str(exc))
             if extracted:
@@ -326,6 +328,15 @@ class CommandProcessor:
                     sections.append("Metin bağlamı sınırına ulaşıldı; dosya bulundu ancak içeriğinin tamamı modele aktarılmadı.")
             if total_chars >= 14000:
                 break
+        if local_images:
+            try:
+                vision_result = self.ai_brain.analyze_local_images(
+                    local_images,
+                    "Bu Stagepulse proje krokisini incele. Ölçüler, sahne, PA noktaları, seyirci alanı, engeller, girişler ve okunabilen notları ayır. Görülmeyen ölçüyü tahmin etme.",
+                )
+                sections.append("YEREL GÖRSEL ANALİZİ:\n" + str(vision_result))
+            except Exception as exc:
+                sections.append("YEREL GÖRSEL ANALİZİ BAŞARISIZ: " + str(exc))
         return "\n".join(sections), True
 
     def _ask_with_memory(self, prompt: str) -> str:
