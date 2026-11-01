@@ -1,6 +1,7 @@
 """Ücretli API uç noktalarının kapalı kaldığını doğrulayan regresyon testleri."""
 
 import pytest
+from types import SimpleNamespace
 
 from core.ai_brain import AIBrain
 
@@ -20,6 +21,7 @@ def make_brain():
     brain.api_keys = {}
     brain.api_models = {}
     brain.api_base_urls = {}
+    brain.session = SimpleNamespace(post=lambda *args, **kwargs: None)
     brain._persist_settings = lambda: None
     return brain
 
