@@ -119,3 +119,41 @@ def test_continuous_listening_uses_generations_after_rapid_restart():
     assert len(calls) == 2
     assert not jarvis.listening_continuously
 
+
+
+def test_wake_word_start_reports_missing_engine():
+    from voice.wake_word import WakeWordDetector
+
+    detector = WakeWordDetector.__new__(WakeWordDetector)
+    detector.is_listening = False
+    detector.porcupine = None
+    assert detector.start(lambda: None) is False
+
+
+def test_simple_wake_word_stops_when_microphone_is_unavailable(monkeypatch):
+    import voice.speech_recognition as speech_module
+    from voice.wake_word import SimpleWakeWordDetector
+
+    calls = []
+
+    class FakeRecognizer:
+        def __init__(self):
+            pass
+
+        def listen(self, timeout=2):
+            calls.append(timeout)
+            return {
+                "success": False,
+                "error": "microphone_unavailable",
+                "message": "Mikrofon bulunamadı.",
+            }
+
+    monkeypatch.setattr(speech_module, "SpeechRecognizer", FakeRecognizer)
+    detector = SimpleWakeWordDetector("jarvis")
+
+    assert detector.start(lambda: None) is True
+    detector.listen_thread.join(timeout=2)
+
+    assert not detector.listen_thread.is_alive()
+    assert detector.is_listening is False
+    assert calls == [2]
