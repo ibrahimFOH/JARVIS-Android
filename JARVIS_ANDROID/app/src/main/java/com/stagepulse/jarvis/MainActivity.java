@@ -11,9 +11,6 @@ import android.content.pm.PackageManager;
 import android.content.pm.PackageInstaller;
 import android.os.*;
 import android.provider.Settings;
-import android.util.Base64;
-import android.security.keystore.KeyGenParameterSpec;
-import android.security.keystore.KeyProperties;
 import android.graphics.Canvas;
 import android.graphics.Paint;
 import android.graphics.pdf.PdfDocument;
@@ -32,12 +29,6 @@ import java.util.concurrent.*;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.security.MessageDigest;
-import java.security.KeyStore;
-import java.nio.ByteBuffer;
-import javax.crypto.Cipher;
-import javax.crypto.KeyGenerator;
-import javax.crypto.SecretKey;
-import javax.crypto.spec.GCMParameterSpec;
 import java.nio.charset.StandardCharsets;
 import org.json.JSONObject;
 
@@ -59,7 +50,7 @@ public class MainActivity extends Activity {
     private AgencyAgent activeAgent;
     private android.content.SharedPreferences bridgePrefs;
     private android.content.SharedPreferences updatePrefs;
-    private android.content.SharedPreferences licensePrefs;
+    private String licenseAccessToken = "";
     private static final String SUPABASE_URL = "https://itasctyjzyewcykozuex.supabase.co";
     private static final String SUPABASE_PUBLISHABLE_KEY = "sb_publishable_tP3CMhVAjv6FNtrkYfVEOA_dbF9m8Jb";
     private final UpdateManager updateManager = new UpdateManager();
@@ -76,7 +67,6 @@ public class MainActivity extends Activity {
         super.onCreate(b);
         bridgePrefs = getSharedPreferences("jarvis_bridge", MODE_PRIVATE);
         updatePrefs = getSharedPreferences("jarvis_updates", MODE_PRIVATE);
-        licensePrefs = getSharedPreferences("jarvis_license_session_v1", MODE_PRIVATE);
         String pendingPath = updatePrefs.getString("pending_apk", "");
         if (!pendingPath.isEmpty()) {
             File candidate = new File(pendingPath);
@@ -567,64 +557,6 @@ public class MainActivity extends Activity {
         return hex.toString();
     }
 
-    private SecretKey licenseSessionKey() throws Exception {
-        String alias = "stagepulse.jarvis.license.session.v1";
-        KeyStore store = KeyStore.getInstance("AndroidKeyStore");
-        store.load(null);
-        if (store.containsAlias(alias)) return (SecretKey) store.getKey(alias, null);
-        KeyGenerator generator = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, "AndroidKeyStore");
-        generator.init(new KeyGenParameterSpec.Builder(
-                alias, KeyProperties.PURPOSE_ENCRYPT | KeyProperties.PURPOSE_DECRYPT)
-                .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
-                .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
-                .setRandomizedEncryptionRequired(true)
-                .build());
-        return generator.generateKey();
-    }
-
-    private void saveLicenseSession(JSONObject session, String email) throws Exception {
-        String access = session.optString("access_token");
-        String refresh = session.optString("refresh_token");
-        if (access.isEmpty() || refresh.isEmpty()) throw new Exception("Supabase oturumu yenileme belirteci döndürmedi.");
-        JSONObject stored = new JSONObject()
-                .put("access_token", access)
-                .put("refresh_token", refresh)
-                .put("email", email == null ? "" : email.trim())
-                .put("saved_at", System.currentTimeMillis());
-        Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
-        cipher.init(Cipher.ENCRYPT_MODE, licenseSessionKey());
-        byte[] encrypted = cipher.doFinal(stored.toString().getBytes(StandardCharsets.UTF_8));
-        byte[] iv = cipher.getIV();
-        ByteBuffer packed = ByteBuffer.allocate(iv.length + encrypted.length);
-        packed.put(iv);
-        packed.put(encrypted);
-        licensePrefs.edit().putString("session", Base64.encodeToString(packed.array(), Base64.NO_WRAP)).apply();
-    }
-
-    private JSONObject readLicenseSession() throws Exception {
-        String encoded = licensePrefs.getString("session", "");
-        if (encoded.isEmpty()) return null;
-        byte[] packed = Base64.decode(encoded, Base64.DEFAULT);
-        if (packed.length <= 12) throw new Exception("Kayıtlı lisans oturumu bozuk.");
-        byte[] iv = Arrays.copyOfRange(packed, 0, 12);
-        byte[] encrypted = Arrays.copyOfRange(packed, 12, packed.length);
-        Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
-        cipher.init(Cipher.DECRYPT_MODE, licenseSessionKey(), new GCMParameterSpec(128, iv));
-        return new JSONObject(new String(cipher.doFinal(encrypted), StandardCharsets.UTF_8));
-    }
-
-    private JSONObject refreshLicenseSession(JSONObject session) throws Exception {
-        String refresh = session == null ? "" : session.optString("refresh_token");
-        if (refresh.isEmpty()) throw new Exception("Kayıtlı oturum süresi doldu. Yeniden giriş yap.");
-        JSONObject refreshed = postSupabaseJson(
-                "/auth/v1/token?grant_type=refresh_token",
-                new JSONObject().put("refresh_token", refresh),
-                ""
-        );
-        saveLicenseSession(refreshed, session.optString("email"));
-        return refreshed;
-    }
-
     private JSONObject licenseCoreRequest(String action, String token, String licenseKey) throws Exception {
         JSONObject body = new JSONObject()
                 .put("action", action)
@@ -635,26 +567,24 @@ public class MainActivity extends Activity {
         return postSupabaseJson("/functions/v1/license-core", body, token);
     }
 
-    private void checkSavedLicenseStatus() {
+    private void checkCurrentLicenseStatus() {
+        if (licenseAccessToken.isEmpty()) return;
         io.submit(() -> {
             try {
-                JSONObject stored = readLicenseSession();
-                if (stored == null) return;
-                JSONObject session = refreshLicenseSession(stored);
-                JSONObject result = licenseCoreRequest("status", session.getString("access_token"), "");
+                JSONObject result = licenseCoreRequest("status", licenseAccessToken, "");
                 boolean active = result.optBoolean("licensed", false);
                 runOnUiThread(() -> {
                     status.setText(active ? "● LİSANSLI" : "● LİSANS GEREKLİ");
                     status.setTextColor(active ? gold() : muted());
                     append("JARVIS", active
                             ? "Ortak Stagepulse hesabı ve Android lisansı doğrulandı."
-                            : "Ortak hesap bulundu; bu cihazda etkin JARVIS Android lisansı yok.");
+                            : "Hesap açık; bu cihazda etkin JARVIS Android lisansı yok.");
                 });
             } catch (Exception e) {
                 runOnUiThread(() -> {
                     status.setText("● LİSANS DURUMU ÇEVRİMDIŞI");
                     status.setTextColor(muted());
-                    append("JARVIS", "Lisans sunucusuna şu anda ulaşılamıyor. Yerel Android işlevleri kullanılabilir.");
+                    append("JARVIS", "Lisans sunucusuna ulaşılamadı. Yerel Android işlevleri kullanılabilir.");
                 });
             }
         });
@@ -667,7 +597,6 @@ public class MainActivity extends Activity {
         EditText email = new EditText(this);
         email.setSingleLine(true);
         email.setHint("Supabase hesap e-postası");
-        email.setText(licensePrefs.getString("email_hint", ""));
         email.setInputType(android.text.InputType.TYPE_CLASS_TEXT | android.text.InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS);
         EditText password = new EditText(this);
         password.setSingleLine(true);
@@ -681,35 +610,25 @@ public class MainActivity extends Activity {
         box.addView(licenseKey);
         new AlertDialog.Builder(this)
             .setTitle("ORTAK HESAP / JARVIS LİSANSI")
-            .setMessage("Stagepulse ortak hesabınla giriş yap. Oturum Android Keystore ile şifrelenir. Lisans isteğe bağlıdır; yerel JARVIS işlevleri çevrimdışı da çalışır.")
+            .setMessage("Stagepulse ortak hesabınla giriş yap. Oturum yalnızca uygulama açıkken bellekte tutulur. Lisans isteğe bağlıdır; yerel JARVIS işlevleri çevrimdışı da çalışır.")
             .setView(box)
             .setPositiveButton("GİRİŞ YAP / LİSANSI ETKİNLEŞTİR", (dialog, which) -> {
                 String emailValue = email.getText().toString().trim();
                 String passwordValue = password.getText().toString();
                 String keyValue = licenseKey.getText().toString().trim();
-                if (emailValue.isEmpty()) emailValue = licensePrefs.getString("email_hint", "");
-                if (emailValue.isEmpty()) {
-                    toast("Stagepulse hesap e-postası gerekli.");
+                if (emailValue.isEmpty() || passwordValue.isEmpty()) {
+                    toast("Ortak hesap e-postası ve şifresi gerekli.");
                     return;
                 }
-                final String accountEmail = emailValue;
                 status.setText("● HESAP DOĞRULANIYOR");
                 io.submit(() -> {
                     try {
-                        JSONObject session;
-                        if (!passwordValue.isEmpty()) {
-                            JSONObject authBody = new JSONObject();
-                            authBody.put("email", accountEmail);
-                            authBody.put("password", passwordValue);
-                            session = postSupabaseJson("/auth/v1/token?grant_type=password", authBody, "");
-                            saveLicenseSession(session, accountEmail);
-                            licensePrefs.edit().putString("email_hint", accountEmail).apply();
-                        } else {
-                            JSONObject stored = readLicenseSession();
-                            if (stored == null) throw new Exception("Yeni giriş için hesap şifresi gerekli.");
-                            session = refreshLicenseSession(stored);
-                        }
-                        String token = session.getString("access_token");
+                        JSONObject authBody = new JSONObject()
+                                .put("email", emailValue)
+                                .put("password", passwordValue);
+                        JSONObject auth = postSupabaseJson("/auth/v1/token?grant_type=password", authBody, "");
+                        String token = auth.getString("access_token");
+                        licenseAccessToken = token;
                         JSONObject result = keyValue.isEmpty()
                                 ? licenseCoreRequest("status", token, "")
                                 : licenseCoreRequest("activate", token, keyValue);
@@ -723,6 +642,7 @@ public class MainActivity extends Activity {
                             if (active && !keyValue.isEmpty()) speak("JARVIS lisansı etkinleştirildi.");
                         });
                     } catch (Exception e) {
+                        licenseAccessToken = "";
                         runOnUiThread(() -> {
                             status.setText("● LİSANS DOĞRULANAMADI");
                             status.setTextColor(0xFFFF5555);
@@ -731,7 +651,7 @@ public class MainActivity extends Activity {
                     }
                 });
             })
-            .setNeutralButton("KAYITLI OTURUMU KONTROL ET", (dialog, which) -> checkSavedLicenseStatus())
+            .setNeutralButton("LİSANSI KONTROL ET", (dialog, which) -> checkCurrentLicenseStatus())
             .setNegativeButton("KAPAT", null)
             .show();
     }
