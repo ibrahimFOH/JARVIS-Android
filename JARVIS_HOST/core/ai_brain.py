@@ -11,6 +11,12 @@ from urllib.parse import quote
 
 logger = logging.getLogger(__name__)
 
+# Ücretli uç noktalar izin listesi dışında tutulur.
+FREE_PROVIDERS = frozenset({"auto", "ollama", "gemini", "groq"})
+FREE_CLOUD_PROVIDERS = frozenset({"gemini", "groq"})
+FREE_GEMINI_MODELS = frozenset({"gemini-3.8-flash", "gemini-3.6-flash", "gemini-3.5-flash-lite"})
+FREE_GROQ_MODELS = frozenset({"openai/gpt-oss-20b", "llama-3.3-70b-versatile", "llama-3.1-8b-instant"})
+
 class AIBrain:
     def __init__(self):
         self.session = requests.Session()
@@ -59,6 +65,12 @@ class AIBrain:
             "GROQ_API_KEY", self._unprotect_key(saved.get("groq_api_key", legacy_value("groq", "api_key", "")))
         ).strip()
         self.groq_model = os.environ.get("GROQ_MODEL", saved.get("groq_model", legacy_value("groq", "model", "openai/gpt-oss-20b")))
+        if self.gemini_model not in FREE_GEMINI_MODELS:
+            self.gemini_model = "gemini-3.8-flash"
+        if self.groq_model not in FREE_GROQ_MODELS:
+            self.groq_model = "openai/gpt-oss-20b"
+        # Bulut servisleri varsayılan olarak kapalıdır; kullanıcı ayrıca etkinleştirir.
+        self.free_cloud_enabled = bool(saved.get("free_cloud_enabled", False))
         self.host = os.environ.get("OLLAMA_HOST", saved.get("ollama_host", legacy_ai.get("ollama_url", self.host))).rstrip("/")
         self.model = os.environ.get("OLLAMA_MODEL", saved.get("ollama_model", legacy_ai.get("ollama_model", self.model)))
         self.api_keys = {
@@ -105,7 +117,9 @@ class AIBrain:
         self.provider = str(
             saved.get("provider", os.environ.get("JARVIS_AI_PROVIDER", legacy_ai.get("provider", "ollama")))
         ).strip().lower()
-        if self.provider not in ("auto", "gemini", "groq", "ollama", *self.api_defaults.keys()):
+        if self.provider not in FREE_PROVIDERS:
+            self.provider = "ollama"
+        if self.provider in FREE_CLOUD_PROVIDERS and not self.free_cloud_enabled:
             self.provider = "ollama"
 
         # Older releases stored provider API keys as cleartext in ai_settings.json
@@ -230,6 +244,7 @@ class AIBrain:
     def _persist_settings(self):
         payload = {
             "provider": self.provider,
+            "free_cloud_enabled": self.free_cloud_enabled,
             "gemini_api_key": self._protect_key(self.gemini_key),
             "gemini_model": self.gemini_model,
             "groq_api_key": self._protect_key(self.groq_key),
@@ -248,21 +263,30 @@ class AIBrain:
     def configure(self, provider=None, gemini_key=None, gemini_model=None,
                   ollama_host=None, ollama_model=None,
                   groq_key=None, groq_model=None, api_keys=None, api_models=None,
-                  api_base_urls=None):
+                  api_base_urls=None, free_cloud_enabled=None):
+        if free_cloud_enabled is not None:
+            self.free_cloud_enabled = bool(free_cloud_enabled)
         if provider is not None:
             value = str(provider).strip().lower()
-            allowed = ("auto", "gemini", "groq", "ollama", *self.api_defaults.keys())
-            if value not in allowed:
-                raise ValueError("Desteklenmeyen AI sağlayıcısı: " + value)
+            if value not in FREE_PROVIDERS:
+                raise ValueError("Ücretli veya doğrulanmamış API sağlayıcıları devre dışı.")
+            if value in FREE_CLOUD_PROVIDERS and not self.free_cloud_enabled:
+                raise ValueError("Gemini/Groq kullanımı için ücretsiz bulut erişimini ayrıca etkinleştir.")
             self.provider = value
         if gemini_key is not None:
             self.gemini_key = gemini_key.strip()
         if gemini_model and gemini_model.strip():
-            self.gemini_model = gemini_model.strip()
+            model = gemini_model.strip()
+            if model not in FREE_GEMINI_MODELS:
+                raise ValueError("Seçilen Gemini modeli ücretsiz model izin listesinde değil.")
+            self.gemini_model = model
         if groq_key is not None:
             self.groq_key = groq_key.strip()
         if groq_model and groq_model.strip():
-            self.groq_model = groq_model.strip()
+            model = groq_model.strip()
+            if model not in FREE_GROQ_MODELS:
+                raise ValueError("Seçilen Groq modeli ücretsiz model izin listesinde değil.")
+            self.groq_model = model
         if ollama_host and ollama_host.strip():
             self.host = ollama_host.strip().rstrip("/")
         if ollama_model and ollama_model.strip():
@@ -285,6 +309,7 @@ class AIBrain:
         self._persist_settings()
 
     def _compatible_api(self, provider, prompt, context=""):
+        raise RuntimeError("Ücretli/özel API uç noktaları JARVIS ücretsiz kullanım politikasında tamamen devre dışıdır.")
         key = self.api_keys.get(provider, "")
         default_url, default_model = self.api_defaults[provider]
         base_url = self.api_base_urls.get(provider, default_url).rstrip("/")
@@ -347,6 +372,10 @@ class AIBrain:
         return str(answer).strip()
 
     def _gemini_api(self, prompt, context=""):
+        if not self.free_cloud_enabled:
+            raise RuntimeError("Bulut AI kapalı; Gemini isteği gönderilmedi.")
+        if self.gemini_model not in FREE_GEMINI_MODELS:
+            raise RuntimeError("Gemini modeli ücretsiz izin listesinde değil; istek gönderilmedi.")
         if not self.gemini_key:
             raise RuntimeError("Gemini API anahtarı boş. AI PROVIDER ayarlarından ekleyin.")
         user_text = prompt + (("\n\nWEB VERİSİ:\n" + context) if context else "")
@@ -374,6 +403,14 @@ class AIBrain:
 
     def test_provider(self, provider=None):
         target = (provider or self.provider).strip().lower()
+        if target not in FREE_PROVIDERS:
+            return {"success": False, "message": "Ücretli veya doğrulanmamış API sağlayıcısı engellendi; ağ isteği gönderilmedi."}
+        if target in FREE_CLOUD_PROVIDERS and not self.free_cloud_enabled:
+            return {"success": False, "message": "Ücretsiz bulut erişimi kapalı; ağ isteği gönderilmedi."}
+        if target == "gemini" and self.gemini_model not in FREE_GEMINI_MODELS:
+            return {"success": False, "message": "Gemini modeli ücretsiz izin listesinde değil; ağ isteği gönderilmedi."}
+        if target == "groq" and self.groq_model not in FREE_GROQ_MODELS:
+            return {"success": False, "message": "Groq modeli ücretsiz izin listesinde değil; ağ isteği gönderilmedi."}
         try:
             if target == "auto":
                 answer = self.ask("Sadece 'Bağlantı başarılı' yaz.")
@@ -480,6 +517,10 @@ profil bilgilerini gereksiz yere yanıta kopyalama."""
             return "Ollama bağlantısında sorun oluştu: "+str(e)
 
     def ask(self, prompt, memory_context=""):
+        if self.provider not in FREE_PROVIDERS:
+            return "Ücretli veya doğrulanmamış API sağlayıcısı engellendi; hiçbir API isteği gönderilmedi."
+        if self.provider in FREE_CLOUD_PROVIDERS and not self.free_cloud_enabled:
+            return "Bulut AI kapalı; ücretsiz bulut erişimini ayarlardan etkinleştir. Hiçbir bulut isteği gönderilmedi."
         instant = self._instant(prompt)
         if instant and not memory_context:
             return instant
@@ -492,11 +533,11 @@ profil bilgilerini gereksiz yere yanıta kopyalama."""
                 "\n\nKULLANICI İSTEĞİ:\n" + str(prompt or "")
             )
         available = []
-        if self.groq_key:
-            available.append("groq")
-        if self.gemini_key:
-            available.append("gemini")
-        available.extend(name for name in self.api_defaults if self.api_keys.get(name))
+        if self.free_cloud_enabled:
+            if self.groq_key and self.groq_model in FREE_GROQ_MODELS:
+                available.append("groq")
+            if self.gemini_key and self.gemini_model in FREE_GEMINI_MODELS:
+                available.append("gemini")
         # A named provider is an explicit user choice. Do not silently transmit
         # prompts to another service or incur cloud charges when it fails. "auto"
         # prefers local Ollama, then uses configured cloud providers only on failure.
@@ -517,13 +558,17 @@ profil bilgilerini gereksiz yere yanıta kopyalama."""
                 if selected == "groq":
                     return self._compatible_groq(prompt, context)
                 if selected in self.api_defaults:
-                    return self._compatible_api(selected, prompt, context)
+                    raise RuntimeError("Ücretli API sağlayıcısı engellendi; istek gönderilmedi.")
                 raise RuntimeError("Bilinmeyen sağlayıcı: " + selected)
             except Exception as exc:
                 errors.append(selected.upper() + ": " + str(exc))
         return "Yapay zekâ yanıtı alınamadı. Denenen sağlayıcılar: " + " | ".join(errors)
 
     def _compatible_groq(self, prompt, context=""):
+        if not self.free_cloud_enabled:
+            raise RuntimeError("Bulut AI kapalı; Groq isteği gönderilmedi.")
+        if self.groq_model not in FREE_GROQ_MODELS:
+            raise RuntimeError("Groq modeli ücretsiz izin listesinde değil; istek gönderilmedi.")
         user_text = prompt + (("\n\nWEB VERİSİ:\n" + context) if context else "")
         response = self.session.post(
             "https://api.groq.com/openai/v1/chat/completions",
