@@ -663,3 +663,83 @@ def test_rejected_generic_api_config_does_not_enable_cloud(tmp_path, monkeypatch
         )
 
     assert (brain.provider, brain.free_cloud_enabled, brain.groq_key) == before
+
+
+
+def test_local_image_analysis_stops_when_ollama_model_has_no_vision(tmp_path, monkeypatch):
+    brain = fresh_brain(tmp_path, monkeypatch)
+    image_path = tmp_path / "venue.png"
+    image_path.write_bytes(b"fake-image")
+    calls = []
+
+    class Response:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {"capabilities": ["completion"]}
+
+    def fake_post(url, **kwargs):
+        calls.append(url)
+        return Response()
+
+    monkeypatch.setattr("core.ai_brain.requests.post", fake_post)
+    result = brain.analyze_local_images([image_path], "Krokini incele")
+
+    assert "görsel yeteneği bildirmiyor" in result.lower()
+    assert calls == ["http://localhost:11434/api/show"]
+
+
+def test_local_image_analysis_sends_image_only_to_local_vision_model(tmp_path, monkeypatch):
+    import base64
+    from core.ai_brain import AIBrain
+
+    brain = fresh_brain(tmp_path, monkeypatch)
+    image_path = tmp_path / "venue.png"
+    image_bytes = b"local-sketch-bytes"
+    image_path.write_bytes(image_bytes)
+    calls = []
+
+    class Response:
+        def __init__(self, payload):
+            self.payload = payload
+
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return self.payload
+
+    def fake_post(url, **kwargs):
+        calls.append((url, kwargs))
+        if url.endswith("/api/show"):
+            return Response({"capabilities": ["completion", "vision"]})
+        return Response({"message": {"content": "Sahne ve seyirci alanı görüntüde işaretlenmiş."}})
+
+    monkeypatch.setattr("core.ai_brain.requests.post", fake_post)
+    result = brain.analyze_local_images([image_path], "Krokiyi incele")
+
+    assert "Sahne ve seyirci alanı" in result
+    assert len(calls) == 2
+    assert calls[0][0] == "http://localhost:11434/api/show"
+    assert calls[1][0] == "http://localhost:11434/api/chat"
+    user_message = calls[1][1]["json"]["messages"][1]
+    assert user_message["images"] == [base64.b64encode(image_bytes).decode("ascii")]
+    assert "venue.png" not in str(calls[1][1]["json"])
+
+
+def test_local_image_analysis_rejects_remote_ollama_host(tmp_path, monkeypatch):
+    brain = fresh_brain(tmp_path, monkeypatch)
+    image_path = tmp_path / "venue.png"
+    image_path.write_bytes(b"image")
+    brain.host = "https://remote.example:11434"
+    calls = []
+    monkeypatch.setattr(
+        "core.ai_brain.requests.post",
+        lambda *args, **kwargs: calls.append(args) or None,
+    )
+
+    result = brain.analyze_local_images([image_path], "Krokini incele")
+
+    assert "yerel adres değil" in result.lower()
+    assert calls == []
