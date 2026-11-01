@@ -586,10 +586,10 @@ profil bilgilerini gereksiz yere yanıta kopyalama."""
             )
         if self.provider not in self.FREE_PROVIDERS:
             return "Ücretli veya izin verilmeyen AI sağlayıcısı güvenlik nedeniyle engellendi."
+        # Normal sohbetler, kullanıcının ücretsiz bulut sağlayıcısını seçmesiyle çalışır.
+        # Yerel proje belgeleri/özel bağlamı gönderen görevler ise bu izni açıkça vermelidir.
         cloud_context_allowed = (
-            getattr(self, "cloud_project_data_confirmed", False)
-            if allow_cloud_context is None
-            else bool(allow_cloud_context)
+            True if allow_cloud_context is None else bool(allow_cloud_context)
         )
         if self.provider in ("gemini", "groq") and not cloud_context_allowed:
             return (
