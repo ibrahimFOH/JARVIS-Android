@@ -63,28 +63,27 @@ class WakeWordDetector:
             logger.error(f"Error initializing wake word detector: {e}")
     
     def start(self, callback: Callable):
-        """
-        Start listening for wake word
-        
-        Args:
-            callback: Function to call when wake word is detected
-        """
+        """Start wake-word capture only when the Porcupine engine is available."""
         if self.is_listening:
             logger.warning("Wake word detector already running")
-            return
-        
+            return True
+
         if not self.porcupine:
-            logger.warning("Wake word detector not available")
-            return
-        
+            logger.warning("Wake word detector not available; check Picovoice key and engine setup.")
+            return False
+
         self.is_listening = True
         self.stop_event.clear()
-        self.listen_thread = Thread(target=self._listen_loop, args=(callback,))
-        self.listen_thread.daemon = True
-        self.listen_thread.start()
-        
-        logger.info(f"Wake word detection started. Listening for '{self.wake_word}'...")
-    
+        self.listen_thread = Thread(target=self._listen_loop, args=(callback,), daemon=True)
+        try:
+            self.listen_thread.start()
+            logger.info(f"Wake word detection started. Listening for '{self.wake_word}'...")
+            return True
+        except Exception as exc:
+            self.is_listening = False
+            logger.error(f"Wake word thread could not start: {exc}")
+            return False
+
     def stop(self):
         """Stop listening for wake word"""
         if not self.is_listening:
@@ -170,34 +169,61 @@ class SimpleWakeWordDetector:
         self.listen_thread = None
     
     def start(self, callback: Callable):
-        """Start listening for wake word"""
+        """Start fallback recognition and stop cleanly when capture is unavailable."""
         if self.is_listening:
-            return
-        
-        from voice.speech_recognition import SpeechRecognizer
-        
+            return True
+
+        try:
+            from voice.speech_recognition import SpeechRecognizer
+            recognizer = SpeechRecognizer()
+        except Exception as exc:
+            logger.error(f"Simple wake word microphone could not initialize: {exc}")
+            self.is_listening = False
+            return False
+
         self.is_listening = True
         self.stop_event.clear()
-        
-        recognizer = SpeechRecognizer()
-        
+
         def listen_loop():
             logger.info(f"Simple wake word detection started for '{self.wake_word}'")
-            
-            while self.is_listening and not self.stop_event.is_set():
-                result = recognizer.listen(timeout=2)
-                
-                if result['success']:
-                    text = result['text'].lower()
-                    if self.wake_word.lower() in text:
+            try:
+                while self.is_listening and not self.stop_event.is_set():
+                    result = recognizer.listen(timeout=2)
+                    error = result.get("error")
+                    if error == "microphone_unavailable":
+                        logger.error("Wake word detection stopped: microphone unavailable.")
+                        break
+                    if error == "recognition_service_unavailable":
+                        logger.warning("Wake word recognition service unavailable; retrying after a short pause.")
+                        if self.stop_event.wait(1.5):
+                            break
+                        continue
+                    if not result.get("success"):
+                        if error not in ("timeout", "no_recognition"):
+                            logger.warning("Wake word capture issue: " + str(result.get("message", error or "unknown")))
+                            if self.stop_event.wait(0.5):
+                                break
+                        continue
+
+                    text = str(result.get("text", "")).lower()
+                    if self.wake_word.lower() in text and callback:
                         logger.info(f"Wake word '{self.wake_word}' detected!")
-                        if callback:
-                            callback()
-        
-        self.listen_thread = Thread(target=listen_loop)
-        self.listen_thread.daemon = True
-        self.listen_thread.start()
-    
+                        callback()
+            except Exception as exc:
+                logger.error(f"Simple wake word loop failed: {exc}")
+            finally:
+                self.is_listening = False
+                logger.info("Simple wake word detection stopped.")
+
+        self.listen_thread = Thread(target=listen_loop, daemon=True, name="JARVIS-Simple-WakeWord")
+        try:
+            self.listen_thread.start()
+            return True
+        except Exception as exc:
+            self.is_listening = False
+            logger.error(f"Simple wake word thread could not start: {exc}")
+            return False
+
     def stop(self):
         """Stop listening"""
         self.is_listening = False
