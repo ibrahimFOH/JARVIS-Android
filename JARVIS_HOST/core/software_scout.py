@@ -8,8 +8,11 @@ ve doğrulanabilir yayın bütünlüğü gerektirir.
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any
+import os
 import re
+import shutil
 import requests
 
 
@@ -174,6 +177,65 @@ class StagepulseSoftwareScout:
             ),
         }
 
+    @staticmethod
+    def find_installed_program(names: list[str]) -> list[dict[str, str]]:
+        """Check Windows uninstall registry and PATH before suggesting any download."""
+        wanted = [str(name).casefold() for name in names if str(name).strip()]
+        found = []
+        seen = set()
+
+        for name in names:
+            executable = shutil.which(str(name))
+            if executable:
+                key = os.path.normcase(executable)
+                if key not in seen:
+                    found.append({"display_name": str(name), "path": executable, "source": "PATH"})
+                    seen.add(key)
+
+        if os.name != "nt":
+            return found
+
+        try:
+            import winreg
+        except ImportError:
+            return found
+
+        registry_roots = (
+            (winreg.HKEY_CURRENT_USER, r"Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall"),
+            (winreg.HKEY_LOCAL_MACHINE, r"Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall"),
+            (winreg.HKEY_LOCAL_MACHINE, r"Software\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\Uninstall"),
+        )
+
+        for hive, root_path in registry_roots:
+            try:
+                with winreg.OpenKey(hive, root_path) as root:
+                    count = winreg.QueryInfoKey(root)[0]
+                    for index in range(count):
+                        try:
+                            subkey_name = winreg.EnumKey(root, index)
+                            with winreg.OpenKey(root, subkey_name) as entry:
+                                display_name = str(winreg.QueryValueEx(entry, "DisplayName")[0])
+                                display_version = str(winreg.QueryValueEx(entry, "DisplayVersion")[0]) if _has_value(entry, "DisplayVersion") else ""
+                                install_location = str(winreg.QueryValueEx(entry, "InstallLocation")[0]) if _has_value(entry, "InstallLocation") else ""
+                        except (OSError, WindowsError):
+                            continue
+
+                        folded = display_name.casefold()
+                        if wanted and any(term in folded for term in wanted):
+                            key = os.path.normcase(install_location or display_name)
+                            if key not in seen:
+                                found.append({
+                                    "display_name": display_name,
+                                    "version": display_version,
+                                    "path": install_location,
+                                    "source": "Windows uninstall registry",
+                                })
+                                seen.add(key)
+            except OSError:
+                continue
+
+        return found
+
     def scan(self, category: str = "all", per_category: int = 3) -> dict[str, Any]:
         selected = (
             list(STAGEPULSE_CATEGORIES)
@@ -200,6 +262,15 @@ class StagepulseSoftwareScout:
                     item = self.inspect_repository(full_name)
                     item["category"] = key
                     item["category_label"] = spec["label"]
+                    program_names = {
+                        "mcallegari/qlcplus": ["QLC+", "Q Light Controller"],
+                    }.get(str(item.get("full_name", "")).casefold(), [])
+                    item["installed_on_pc"] = self.find_installed_program(program_names)
+                    item["local_install_status"] = (
+                        "Bu yazılım bilgisayarda kurulu; yeniden indirme/kurulum önerilmez."
+                        if item["installed_on_pc"]
+                        else "Bilgisayarda kurulu olduğuna dair kayıt bulunamadı; bu sonuç tek başına yokluğunu kanıtlamaz."
+                    )
                     item["stagepulse_services"] = spec["services"]
                     item["recommendation"] = (
                         "İncelemeye değer"
