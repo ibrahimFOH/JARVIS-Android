@@ -357,7 +357,10 @@ class AIBrain:
             raise RuntimeError("Gemini metin yanıtı döndürmedi.")
         return answer.strip()
 
-    def ask_with_images(self, prompt, image_paths, max_output_tokens=1200):
+    def ask_with_images(
+        self, prompt, image_paths, max_output_tokens=1200,
+        confirm_external_transfer=False,
+    ):
         """Analyze local image files only through a confirmed, free Gemini tier."""
         if self.provider not in ("auto", "gemini"):
             raise RuntimeError(
@@ -366,6 +369,10 @@ class AIBrain:
         if not self.gemini_free_confirmed:
             raise RuntimeError(
                 "Görsel Gemini'ye gönderilmedi. Önce Gemini Free Tier ve faturalandırmanın kapalı olduğunu onayla."
+            )
+        if not confirm_external_transfer:
+            raise RuntimeError(
+                "Yerel görsel dış servise gönderilmedi. Görsel verilerinin ücretsiz Gemini hizmetine aktarılması ayrıca onaylanmalı."
             )
         if self.gemini_model != self.FREE_MODELS["gemini"] or not self.gemini_key:
             raise RuntimeError("Görsel analizi için izinli Gemini modeli ve API anahtarı gerekli.")
