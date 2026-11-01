@@ -294,7 +294,7 @@ class CommandProcessor:
         # Never send local document contents, customer notes, measurements or prices to search engines.
         public_research = []
         public_identifiers = list(names[:3])
-        model_ids = re.findall(r"\\b[A-Z]{2,}[A-Za-z0-9-]{1,}\\b", str(command or ""))
+        model_ids = re.findall(r"\b[A-Z]{2,}[A-Za-z0-9-]{1,}\b", str(command or ""))
         for model_id in model_ids[:3]:
             if model_id not in public_identifiers:
                 public_identifiers.append(model_id)
@@ -304,14 +304,14 @@ class CommandProcessor:
                 excerpt = self.ai_brain._web(query)
                 if excerpt:
                     public_research.append(
-                        "ARAMA TERİMİ: " + identifier + "\\n" + str(excerpt)[:2200]
+                        "ARAMA TERİMİ: " + identifier + "\n" + str(excerpt)[:2200]
                     )
             except Exception as exc:
                 logger.warning("Kamuya açık bilgi araştırması başarısız (%s): %s", identifier, exc)
         if public_research:
             sections.append(
-                "KAMUYA AÇIK WEB ARAMA SONUÇLARI (arama motoru metni; resmî kaynakla ayrıca doğrula):\\n" +
-                "\\n\\n".join(public_research)
+                "KAMUYA AÇIK WEB ARAMA SONUÇLARI (arama motoru metni; resmî kaynakla ayrıca doğrula):\n" +
+                "\n\n".join(public_research)
             )
         else:
             sections.append("KAMUYA AÇIK WEB ARAŞTIRMASI: Sonuç alınamadı veya ağ erişimi yok. Doğrulanmamış bilgileri gerçek kabul etme.")
