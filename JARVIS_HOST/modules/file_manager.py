@@ -198,7 +198,7 @@ class FileManager:
                     break
 
             results.sort(key=lambda item: item['modified'], reverse=True)
-            logger.info("Yerel aramada %s dosya bulundu.", len(results))
+            logger.info(f"Yerel aramada {len(results)} dosya bulundu.")
             return {
                 'success': True,
                 'files': results,
