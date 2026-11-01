@@ -132,5 +132,11 @@
     "host": "127.0.0.1",
     "port": 8765,
     "token": ""
+  },
+  "licensing": {
+    "enabled": true,
+    "supabase_url": "https://itasctyjzyewcykozuex.supabase.co",
+    "publishable_key": "sb_publishable_tP3CMhVAjv6FNtrkYfVEOA_dbF9m8Jb",
+    "app_id": "jarvis-windows"
   }
 }
