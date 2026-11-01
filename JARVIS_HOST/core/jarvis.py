@@ -213,8 +213,11 @@ class Jarvis:
             if not self.stop_event.is_set():
                 self.speak("Evet, Patron?", wait=True)
                 self.process_voice_command()
-        self.wake_word_detector.start(on_wake_word)
-        return True
+        try:
+            return bool(self.wake_word_detector.start(on_wake_word))
+        except Exception as exc:
+            logger.warning("Uyandırma sözcüğü algılayıcısı başlatılamadı: " + str(exc))
+            return False
 
     def speak(self, text: str, wait: bool = True) -> bool:
         if not text or self.text_to_speech is None:
