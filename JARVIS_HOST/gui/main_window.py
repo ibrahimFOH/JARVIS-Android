@@ -924,26 +924,43 @@ class JarvisGUI:
         ollama_host = field("OLLAMA YEREL ADRESİ", brain.host)
         ollama_model = field("OLLAMA MODELİ", brain.model)
         gemini_key = field("GEMINI ÜCRETSİZ KATMAN API ANAHTARI", brain.gemini_key, secret=True)
-        gemini_model = field("GEMINI MODELİ", brain.gemini_model)
         groq_key = field("GROQ FREE PLAN API ANAHTARI", brain.groq_key, secret=True)
-        groq_model = field("GROQ MODELİ", brain.groq_model)
 
         ctk.CTkLabel(
             content,
-            text="Kesin ücretsiz kullanım: Ollama yerel çalışır ve API ücreti oluşturmaz. Gemini anahtarını yalnızca ücretsiz kota etkin ve faturalandırma kapalı AI Studio projesinden; Groq anahtarını yalnızca Free Plan hesabından kullan. JARVIS ücretli OpenAI, Grok/xAI, Anthropic, DeepSeek, Perplexity, OpenRouter ve özel API uç noktalarını devre dışı bırakır. Ücretsiz kota dolarsa ücretli plana geçmez; istek başarısız olur. Anahtarlar Windows DPAPI ile şifrelenir; DPAPI başarısızsa düz metin kaydedilmez.",
+            text="Kilitli model listesi: Gemini 3.8 Flash ve Groq GPT-OSS 20B. Model seçimi serbest bırakılmamıştır; böylece ücretli modellere geçiş yapılamaz.",
             text_color=MUTED, wraplength=550, justify="left",
             font=("Consolas", 9)
-        ).pack(anchor="w", padx=20, pady=(10, 12))
+        ).pack(anchor="w", padx=20, pady=(8, 5))
+
+        free_tier_var = ctk.BooleanVar(value=brain.free_tier_confirmed)
+        ctk.CTkCheckBox(
+            content,
+            text="Onaylıyorum: Gemini ücretsiz katmanında, Groq hesabım Free Plan'da ve hiçbirinde faturalandırma etkin değil.",
+            variable=free_tier_var,
+            text_color=WHITE,
+            fg_color=GOLD2,
+            hover_color=GOLD,
+            border_color=GOLD2,
+            font=("Consolas", 9),
+            wraplength=535
+        ).pack(anchor="w", padx=20, pady=(8, 8))
+
+        ctk.CTkLabel(
+            content,
+            text="ÖNEMLİ: JARVIS ödeme planını sağlayıcı hesabından okuyamaz. Bu onay yalnızca gerçekten ücretsiz ve faturalandırmasız hesap kullandığında verilmelidir. Onay yoksa bulut API isteği gönderilmez. Gemini ücretsiz katmanı ve Groq Free Plan kotaları dolarsa otomatik ücretli plana geçilmez; istek durur. Ollama yerel çalışır ve API ücreti oluşturmaz. API anahtarları Windows DPAPI ile şifrelenir; DPAPI başarısızsa düz metin kaydedilmez. Ücretli OpenAI, Grok/xAI, Anthropic, DeepSeek, Perplexity, OpenRouter ve özel API uç noktaları kapalıdır.",
+            text_color=MUTED, wraplength=550, justify="left",
+            font=("Consolas", 9)
+        ).pack(anchor="w", padx=20, pady=(5, 12))
 
         def persist():
             brain.configure(
                 provider=provider.get(),
                 gemini_key=gemini_key.get(),
-                gemini_model=gemini_model.get(),
                 ollama_host=ollama_host.get(),
                 ollama_model=ollama_model.get(),
                 groq_key=groq_key.get(),
-                groq_model=groq_model.get(),
+                free_tier_confirmed=free_tier_var.get(),
             )
             label = getattr(self, "_telemetry_widgets", {}).get("YAPAY ZEKÂ ÇEKİRDEĞİ")
             if label is not None:
