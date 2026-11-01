@@ -58,7 +58,7 @@ class SpeechRecognizer:
             self.vosk_model = Model(str(self.vosk_model_path))
             logger.info("Yerel Türkçe Vosk modeli hazır: " + str(self.vosk_model_path))
             return True
-        except (ImportError, VoskModelError, Exception) as exc:
+        except Exception as exc:
             self.model_error = str(exc)
             self.vosk_model = None
             logger.error("Yerel Türkçe konuşma modeli yüklenemedi: " + self.model_error)
