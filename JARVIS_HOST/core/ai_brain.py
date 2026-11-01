@@ -512,16 +512,16 @@ profil bilgilerini gereksiz yere yanıta kopyalama."""
         except Exception as e:
             return "Ollama bağlantısında sorun oluştu: "+str(e)
 
-    def ask(self, prompt, memory_context=""):
+    def ask(self, prompt, memory_context="", allow_cloud=True):
         if self.provider not in FREE_PROVIDERS:
             return "Ücretli veya doğrulanmamış API sağlayıcısı engellendi; hiçbir API isteği gönderilmedi."
-        if self.provider in FREE_CLOUD_PROVIDERS and not self.free_cloud_enabled:
+        if allow_cloud and self.provider in FREE_CLOUD_PROVIDERS and not self.free_cloud_enabled:
             return "Bulut AI kapalı; ücretsiz bulut erişimini ayarlardan etkinleştir. Hiçbir bulut isteği gönderilmedi."
         instant = self._instant(prompt)
         if instant and not memory_context:
             return instant
         # Search only the user's actual request; saved memory must never leak into web queries.
-        context = self._web(prompt) if self._needs_web(prompt) else ""
+        context = self._web(prompt) if allow_cloud and self._needs_web(prompt) else ""
         if memory_context:
             prompt = (
                 "KALICI KULLANICI BAĞLAMI (yalnızca isteğe bağlı olarak kaydedilmiş bilgiler; "
@@ -529,7 +529,7 @@ profil bilgilerini gereksiz yere yanıta kopyalama."""
                 "\n\nKULLANICI İSTEĞİ:\n" + str(prompt or "")
             )
         available = []
-        if self.free_cloud_enabled:
+        if allow_cloud and self.free_cloud_enabled:
             if self.groq_key and self.groq_model in FREE_GROQ_MODELS:
                 available.append("groq")
             if self.gemini_key and self.gemini_model in FREE_GEMINI_MODELS:
@@ -537,7 +537,9 @@ profil bilgilerini gereksiz yere yanıta kopyalama."""
         # A named provider is an explicit user choice. Do not silently transmit
         # prompts to another service or incur cloud charges when it fails. "auto"
         # prefers local Ollama, then uses configured cloud providers only on failure.
-        if self.provider == "auto":
+        if not allow_cloud and self.provider in FREE_CLOUD_PROVIDERS:
+            order = ["ollama"]
+        elif self.provider == "auto":
             order = ["ollama"] + available
         else:
             order = [self.provider]
