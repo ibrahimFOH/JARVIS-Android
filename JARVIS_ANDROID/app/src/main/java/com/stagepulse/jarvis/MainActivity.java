@@ -26,6 +26,11 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.*;
 import java.util.concurrent.*;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.security.MessageDigest;
+import java.nio.charset.StandardCharsets;
+import org.json.JSONObject;
 
 public class MainActivity extends Activity {
     private static final int REQ_AUDIO=9001;
@@ -45,6 +50,9 @@ public class MainActivity extends Activity {
     private AgencyAgent activeAgent;
     private android.content.SharedPreferences bridgePrefs;
     private android.content.SharedPreferences updatePrefs;
+    private volatile String licenseAccessToken = "";
+    private static final String SUPABASE_URL = "https://itasctyjzyewcykozuex.supabase.co";
+    private static final String SUPABASE_PUBLISHABLE_KEY = "sb_publishable_tP3CMhVAjv6FNtrkYfVEOA_dbF9m8Jb";
     private final UpdateManager updateManager = new UpdateManager();
     private File pendingUpdateFile;
     private String pendingUpdateVersion = "";
@@ -160,8 +168,9 @@ public class MainActivity extends Activity {
         Button openPdf=button("PDF AÇ");
         Button savePdf=button("SOHBET PDF");
         Button clear=button("TEMİZLE");
-        Button[] controls={voice,agents,host,update,call,openPdf,savePdf,clear};
-        int[] widths={78,100,112,96,70,82,112,86};
+        Button account=button("HESAP / LİSANS");
+        Button[] controls={voice,agents,host,update,call,openPdf,savePdf,clear,account};
+        int[] widths={78,100,112,96,70,82,112,86,116};
         for(int i=0;i<controls.length;i++){
             controls[i].setTextSize(10);
             controls[i].setMinWidth(0);
@@ -183,6 +192,7 @@ public class MainActivity extends Activity {
         voice.setOnClickListener(v->listen());
         agents.setOnClickListener(v->showAgents());
         host.setOnClickListener(v->showHostSettings());
+        account.setOnClickListener(v->showLicenseSettings());
         update.setOnClickListener(v->checkForUpdates(true));
         call.setOnClickListener(v->pickContactForCall());
         openPdf.setOnClickListener(v->openPdf());
@@ -502,6 +512,114 @@ public class MainActivity extends Activity {
         if (pendingUpdateFile != null && !updateInstallInProgress && installPermissionGranted) {
             beginUpdateInstall();
         }
+    }
+
+    private JSONObject postSupabaseJson(String path, JSONObject payload, String accessToken) throws Exception {
+        HttpURLConnection connection = (HttpURLConnection) new URL(SUPABASE_URL + path).openConnection();
+        connection.setRequestMethod("POST");
+        connection.setConnectTimeout(15000);
+        connection.setReadTimeout(20000);
+        connection.setRequestProperty("Content-Type", "application/json");
+        connection.setRequestProperty("apikey", SUPABASE_PUBLISHABLE_KEY);
+        if (accessToken != null && !accessToken.isEmpty()) {
+            connection.setRequestProperty("Authorization", "Bearer " + accessToken);
+        }
+        connection.setDoOutput(true);
+        try (OutputStream output = connection.getOutputStream()) {
+            output.write(payload.toString().getBytes(StandardCharsets.UTF_8));
+        }
+        int code = connection.getResponseCode();
+        InputStream stream = code >= 400 ? connection.getErrorStream() : connection.getInputStream();
+        StringBuilder response = new StringBuilder();
+        if (stream != null) {
+            try (java.io.BufferedReader reader = new java.io.BufferedReader(
+                    new java.io.InputStreamReader(stream, StandardCharsets.UTF_8))) {
+                String line;
+                while ((line = reader.readLine()) != null) response.append(line);
+            }
+        }
+        connection.disconnect();
+        JSONObject result = response.length() == 0 ? new JSONObject() : new JSONObject(response.toString());
+        if (code < 200 || code >= 300) {
+            String error = result.optString("error", result.optString("msg", result.optString("message", "HTTP " + code)));
+            throw new Exception(error);
+        }
+        return result;
+    }
+
+    private String androidDeviceHash() throws Exception {
+        String androidId = Settings.Secure.getString(getContentResolver(), Settings.Secure.ANDROID_ID);
+        if (androidId == null || androidId.trim().isEmpty()) throw new Exception("Android cihaz kimliği okunamadı.");
+        byte[] digest = MessageDigest.getInstance("SHA-256").digest(androidId.getBytes(StandardCharsets.UTF_8));
+        StringBuilder hex = new StringBuilder();
+        for (byte b : digest) hex.append(String.format(Locale.ROOT, "%02x", b));
+        return hex.toString();
+    }
+
+    private void showLicenseSettings() {
+        LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+        box.setPadding(20, 8, 20, 0);
+        EditText email = new EditText(this);
+        email.setSingleLine(true);
+        email.setHint("Supabase hesap e-postası");
+        email.setInputType(android.text.InputType.TYPE_CLASS_TEXT | android.text.InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS);
+        EditText password = new EditText(this);
+        password.setSingleLine(true);
+        password.setHint("Hesap şifresi");
+        password.setInputType(android.text.InputType.TYPE_CLASS_TEXT | android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD);
+        EditText licenseKey = new EditText(this);
+        licenseKey.setSingleLine(true);
+        licenseKey.setHint("JARVIS lisans anahtarı");
+        box.addView(email);
+        box.addView(password);
+        box.addView(licenseKey);
+        new AlertDialog.Builder(this)
+            .setTitle("ORTAK HESAP / JARVIS LİSANSI")
+            .setMessage("Stagepulse ortak hesabınla giriş yap. Lisans aktivasyonu isteğe bağlıdır; temel Android JARVIS işlevleri lisans olmadan da çalışır.")
+            .setView(box)
+            .setPositiveButton("GİRİŞ YAP VE ETKİNLEŞTİR", (dialog, which) -> {
+                String emailValue = email.getText().toString().trim();
+                String passwordValue = password.getText().toString();
+                String keyValue = licenseKey.getText().toString().trim();
+                if (emailValue.isEmpty() || passwordValue.isEmpty() || keyValue.isEmpty()) {
+                    toast("E-posta, şifre ve lisans anahtarı gerekli.");
+                    return;
+                }
+                status.setText("● HESAP DOĞRULANIYOR");
+                io.submit(() -> {
+                    try {
+                        JSONObject authBody = new JSONObject();
+                        authBody.put("email", emailValue);
+                        authBody.put("password", passwordValue);
+                        JSONObject auth = postSupabaseJson("/auth/v1/token?grant_type=password", authBody, "");
+                        String token = auth.getString("access_token");
+
+                        JSONObject activationBody = new JSONObject();
+                        activationBody.put("action", "activate");
+                        activationBody.put("app_id", "jarvis-android");
+                        activationBody.put("platform", "android");
+                        activationBody.put("device_hash", androidDeviceHash());
+                        activationBody.put("license_key", keyValue);
+                        JSONObject activation = postSupabaseJson("/functions/v1/license-core", activationBody, token);
+                        licenseAccessToken = token;
+                        runOnUiThread(() -> {
+                            status.setText("● LİSANSLI");
+                            status.setTextColor(gold());
+                            append("JARVIS", "Ortak hesap doğrulandı. Android lisansı etkinleştirildi.");
+                            speak("JARVIS lisansı etkinleştirildi.");
+                        });
+                    } catch (Exception e) {
+                        runOnUiThread(() -> {
+                            status.setText("● LİSANS DOĞRULANAMADI");
+                            status.setTextColor(0xFFFF5555);
+                            append("JARVIS", "Hesap veya lisans doğrulanamadı: " + e.getMessage());
+                        });
+                    }
+                });
+            })
+            .setNegativeButton("İPTAL", null)
+            .show();
     }
 
     private void showHostSettings(){
