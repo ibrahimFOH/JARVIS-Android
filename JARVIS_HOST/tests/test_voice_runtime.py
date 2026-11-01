@@ -63,6 +63,8 @@ def test_voice_button_pauses_and_resumes_continuous_listening():
     assert '"VOICE INPUT: CONTINUOUS LISTENING PAUSED"' in source
     assert "self.jarvis.stop_listening()" in source
     assert "self.jarvis.process_voice_command()" in source
+    assert "started = self.jarvis.start_wake_word_detection()" in source
+    assert "self.wake_word_var.set(False)" in source
     assert "self.root.after(600, self._resume_continuous_listening_after_voice)" in source
     assert "CONTINUOUS LISTENING RESUMED" in source
     assert "SÜREKLİ DİNLEME ETKİN; ayrı kayıt başlatılmadı." not in source
@@ -138,7 +140,8 @@ def test_simple_wake_word_stops_when_microphone_is_unavailable(monkeypatch):
 
     class FakeRecognizer:
         def __init__(self):
-            pass
+            self.microphone = object()
+            self.microphone_error = ""
 
         def listen(self, timeout=2):
             calls.append(timeout)
@@ -157,3 +160,48 @@ def test_simple_wake_word_stops_when_microphone_is_unavailable(monkeypatch):
     assert not detector.listen_thread.is_alive()
     assert detector.is_listening is False
     assert calls == [2]
+
+def test_simple_wake_word_refuses_to_start_without_microphone(monkeypatch):
+    import voice.speech_recognition as speech_module
+    from voice.wake_word import SimpleWakeWordDetector
+
+    class FakeRecognizer:
+        def __init__(self):
+            self.microphone = None
+            self.microphone_error = "no input device"
+
+    monkeypatch.setattr(speech_module, "SpeechRecognizer", FakeRecognizer)
+    detector = SimpleWakeWordDetector("jarvis")
+
+    assert detector.start(lambda: None) is False
+    assert detector.is_listening is False
+    assert detector.listen_thread is None
+
+
+
+def test_jarvis_uses_online_wake_word_fallback_without_porcupine_key(monkeypatch):
+    import core.jarvis as jarvis_module
+
+    class FakeConfig:
+        def get(self, key, default=None):
+            if key in ("voice.enabled", "voice.wake_word_enabled"):
+                return True
+            return default
+
+    class PrimaryWakeWord:
+        porcupine = None
+
+    class OnlineFallback:
+        pass
+
+    monkeypatch.setattr(jarvis_module, "config", FakeConfig())
+    monkeypatch.setattr(jarvis_module, "CommandProcessor", lambda: object())
+    monkeypatch.setattr(jarvis_module, "ResponseGenerator", lambda: object())
+    monkeypatch.setattr(jarvis_module, "SpeechRecognizer", lambda: object())
+    monkeypatch.setattr(jarvis_module, "TextToSpeech", lambda: object())
+    monkeypatch.setattr(jarvis_module, "WakeWordDetector", PrimaryWakeWord)
+    monkeypatch.setattr(jarvis_module, "SimpleWakeWordDetector", OnlineFallback)
+    monkeypatch.setattr(jarvis_module, "log_startup", lambda: None)
+
+    jarvis = jarvis_module.Jarvis()
+    assert isinstance(jarvis.wake_word_detector, OnlineFallback)

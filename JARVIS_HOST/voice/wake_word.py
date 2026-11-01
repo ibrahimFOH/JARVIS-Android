@@ -181,6 +181,12 @@ class SimpleWakeWordDetector:
             self.is_listening = False
             return False
 
+        if getattr(recognizer, "microphone", None) is None:
+            detail = getattr(recognizer, "microphone_error", "") or "Mikrofon kullanılamıyor."
+            logger.error("Simple wake word cannot start without a usable microphone: " + str(detail))
+            self.is_listening = False
+            return False
+
         self.is_listening = True
         self.stop_event.clear()
 

@@ -628,7 +628,11 @@ class JarvisGUI:
 
     def _toggle_wake_word(self):
         if self.wake_word_var.get():
-            self.jarvis.start_wake_word_detection()
+            started = self.jarvis.start_wake_word_detection()
+            if not started:
+                self.wake_word_var.set(False)
+                self._activity("WAKE WORD UNAVAILABLE")
+                return
             self._activity("WAKE WORD ENABLED")
         elif self.jarvis.wake_word_detector:
             self.jarvis.wake_word_detector.stop()
