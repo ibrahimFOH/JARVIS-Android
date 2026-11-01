@@ -193,9 +193,15 @@ def test_repository_manager_add_commit_and_status(tmp_path):
     bound = manager.bind(str(repo))
     assert bound["success"] is True
     (repo / "sample.txt").write_text("Stagepulse test", encoding="utf-8")
-    added = manager.handle_command("git add .")
+    add_pending = manager.handle_command("git add .")
+    assert add_pending["success"] is False
+    assert add_pending["requires_confirmation"] is True
+    added = manager.handle_command("git add .", confirmed=True)
     assert added["success"] is True
-    committed = manager.handle_command("git commit Initial test commit")
+    commit_pending = manager.handle_command("git commit Initial test commit")
+    assert commit_pending["success"] is False
+    assert commit_pending["requires_confirmation"] is True
+    committed = manager.handle_command("git commit Initial test commit", confirmed=True)
     assert committed["success"] is True
     status = manager.handle_command("git status")
     assert status["success"] is True
@@ -212,7 +218,9 @@ def test_repository_manager_refuses_pull_with_uncommitted_files(tmp_path):
     manager = RepositoryManager(settings_path=tmp_path / "repository.json")
     assert manager.bind(str(repo))["success"] is True
     (repo / "untracked.txt").write_text("keep me", encoding="utf-8")
-    result = manager.handle_command("git pull")
+    pending = manager.handle_command("git pull")
+    assert pending["requires_confirmation"] is True
+    result = manager.handle_command("git pull", confirmed=True)
     assert result["success"] is False
     assert "Yerel değişiklikler var" in result["response"]
 
