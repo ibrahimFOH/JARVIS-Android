@@ -606,3 +606,60 @@ def test_generic_github_search_returns_license_review_status(tmp_path, monkeypat
     assert "AÇIK LİSANS" in result["response"]
     assert "TEKNİK İNCELEME GEREKLİ" in result["response"]
     assert "https://github.com/audio/tool" in result["response"]
+
+
+
+def test_rejected_provider_configuration_does_not_mutate_any_setting(tmp_path, monkeypatch):
+    brain = fresh_brain(tmp_path, monkeypatch)
+    before = {
+        "provider": brain.provider,
+        "free_cloud_enabled": brain.free_cloud_enabled,
+        "gemini_key": brain.gemini_key,
+        "gemini_model": brain.gemini_model,
+        "groq_key": brain.groq_key,
+        "groq_model": brain.groq_model,
+    }
+
+    with pytest.raises(ValueError, match="Ücretli"):
+        brain.configure(
+            provider="openai",
+            free_cloud_enabled=True,
+            groq_key="must-not-be-saved",
+            groq_model="openai/gpt-oss-20b",
+        )
+
+    assert brain.provider == before["provider"]
+    assert brain.free_cloud_enabled == before["free_cloud_enabled"]
+    assert brain.gemini_key == before["gemini_key"]
+    assert brain.gemini_model == before["gemini_model"]
+    assert brain.groq_key == before["groq_key"]
+    assert brain.groq_model == before["groq_model"]
+
+
+def test_rejected_free_model_configuration_is_transactional(tmp_path, monkeypatch):
+    brain = fresh_brain(tmp_path, monkeypatch)
+    before = (brain.provider, brain.free_cloud_enabled, brain.gemini_model, brain.groq_key)
+
+    with pytest.raises(ValueError, match="Gemini modeli"):
+        brain.configure(
+            provider="gemini",
+            free_cloud_enabled=True,
+            gemini_model="paid-or-unknown-model",
+            groq_key="must-not-be-applied",
+        )
+
+    assert (brain.provider, brain.free_cloud_enabled, brain.gemini_model, brain.groq_key) == before
+
+
+def test_rejected_generic_api_config_does_not_enable_cloud(tmp_path, monkeypatch):
+    brain = fresh_brain(tmp_path, monkeypatch)
+    before = (brain.provider, brain.free_cloud_enabled, brain.groq_key)
+
+    with pytest.raises(ValueError, match="Genel/ücretli"):
+        brain.configure(
+            free_cloud_enabled=True,
+            groq_key="must-not-be-applied",
+            api_keys={"openai": "paid-key"},
+        )
+
+    assert (brain.provider, brain.free_cloud_enabled, brain.groq_key) == before
