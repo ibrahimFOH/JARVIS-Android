@@ -206,6 +206,74 @@ def _resolve_direct_website(command: str):
     return None
 
 
+def _stagepulse_software_research_command(command: str):
+    """Run Stagepulse-scoped, free-software discovery from a natural-language order."""
+    normalized = _normalize_direct_command(command)
+    triggers = (
+        "github", "yazilim tara", "yazilim arastir", "program arastir",
+        "ses muhendisligi yazilim", "dmx program", "ses sistemi yazilim",
+        "stage plot yazilim", "ucretsiz yazilim bul",
+    )
+    if not any(token in normalized for token in triggers):
+        return None
+
+    category = "all"
+    if any(token in normalized for token in ("dmx", "isik", "aydinlatma", "lighting")):
+        category = "lighting"
+    elif any(token in normalized for token in ("akustik", "oda olc", "rew", "spl olc", "olcum yazilim")):
+        category = "room_measurement"
+    elif any(token in normalized for token in ("line array", "linearray", "pa tasarim", "hoparlor tasarim", "ses sistemi tasarim")):
+        category = "loudspeaker_design"
+    elif any(token in normalized for token in ("dante", "aes67", "ses ag")):
+        category = "audio_network"
+    elif any(token in normalized for token in ("stage plot", "stageplot", "sahne plani", "rider")):
+        category = "stage_plot"
+
+    try:
+        from core.software_scout import StagepulseSoftwareScout
+        report = StagepulseSoftwareScout().scan(category=category, per_category=2)
+        items = report.get("results", [])
+        lines = [
+            "Stagepulse hizmetlerine göre ücretsiz yazılım araştırması tamamlandı.",
+            "Kapsam: " + category,
+        ]
+        if not items:
+            lines.append("Bu taramada doğrulanabilir depo adayı bulunamadı.")
+        for item in items:
+            lines.append("")
+            lines.append(str(item.get("full_name") or "Bilinmeyen depo"))
+            lines.append("Öneri: " + str(item.get("recommendation", "Doğrulanamadı")))
+            if item.get("license"):
+                lines.append("Lisans: " + str(item["license"]) + " | " + str(item.get("license_state", "")))
+            if item.get("description"):
+                lines.append("Açıklama: " + str(item["description"])[:240])
+            if item.get("windows_support"):
+                lines.append("Windows: " + str(item["windows_support"]))
+            locale = item.get("turkish_localization") or {}
+            if locale:
+                lines.append("Türkçe: " + str(locale.get("status", "Durum bilinmiyor")))
+            release = item.get("release") or {}
+            lines.append("Yayın: " + (str(release.get("tag")) or "Yayın etiketi bulunamadı"))
+            if item.get("html_url"):
+                lines.append("Kaynak: " + str(item["html_url"]))
+        lines.append("")
+        lines.append("Kurulum güvenliği: Önce bilgisayarda mevcut kurulum aranır. Bu tarama hiçbir şey indirmez veya kurmaz.")
+        lines.append("Ücretli eklenti, deneme sürümü veya ücretli API gerektiren özellikler öneri kapsamı dışındadır.")
+        return {
+            "success": True,
+            "response": "\n".join(lines),
+            "intent": "stagepulse_software_research",
+            "data": items,
+        }
+    except Exception as exc:
+        logger.warning("Stagepulse yazılım araştırması başarısız: " + str(exc))
+        return {
+            "success": False,
+            "response": "Stagepulse yazılım araştırması tamamlanamadı: " + str(exc),
+            "intent": "stagepulse_software_research",
+        }
+
+
 class CommandProcessor:
     """Processes and executes commands"""
     
@@ -238,6 +306,10 @@ class CommandProcessor:
 
     def process(self, command: str, confirmed: bool = False) -> Dict[str, Any]:
         logger.command(command)
+
+        software_result = _stagepulse_software_research_command(command)
+        if software_result is not None:
+            return software_result
 
         # Explicit OS integrations run before generic intent/LLM routing so that
         # Git operations and dialer requests execute rather than merely being described.
