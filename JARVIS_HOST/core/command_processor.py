@@ -290,6 +290,32 @@ class CommandProcessor:
         else:
             sections.append("Tespit edilen proje/kurum adları: " + " | ".join(names))
 
+        # Search public web information using names from the user's command only.
+        # Never send local document contents, customer notes, measurements or prices to search engines.
+        public_research = []
+        public_identifiers = list(names[:3])
+        model_ids = re.findall(r"\\b[A-Z]{2,}[A-Za-z0-9-]{1,}\\b", str(command or ""))
+        for model_id in model_ids[:3]:
+            if model_id not in public_identifiers:
+                public_identifiers.append(model_id)
+        for identifier in public_identifiers[:4]:
+            try:
+                query = f'"{identifier}" resmi site adres kapasite teknik özellik'
+                excerpt = self.ai_brain._web(query)
+                if excerpt:
+                    public_research.append(
+                        "ARAMA TERİMİ: " + identifier + "\\n" + str(excerpt)[:2200]
+                    )
+            except Exception as exc:
+                logger.warning("Kamuya açık bilgi araştırması başarısız (%s): %s", identifier, exc)
+        if public_research:
+            sections.append(
+                "KAMUYA AÇIK WEB ARAMA SONUÇLARI (arama motoru metni; resmî kaynakla ayrıca doğrula):\\n" +
+                "\\n\\n".join(public_research)
+            )
+        else:
+            sections.append("KAMUYA AÇIK WEB ARAŞTIRMASI: Sonuç alınamadı veya ağ erişimi yok. Doğrulanmamış bilgileri gerçek kabul etme.")
+
         if not found:
             sections.append("YEREL DOSYA TARAMASI: Belirtilen adlarla eşleşen dosya bulunamadı. Bu, tüm disklerin tarandığı anlamına gelmez; yapılandırılmış arama konumları kullanıldı.")
         else:
@@ -385,14 +411,36 @@ class CommandProcessor:
         )
 
     @staticmethod
+    def _is_stagepulse_document_request(command: str) -> bool:
+        normalized = _normalize_direct_command(command)
+        subject_terms = (
+            "stagepulse", "dugun salonu", "kir bahcesi", "mekan",
+            "pa", "ses sistemi", "rider", "stage plot", "stageplot",
+            "input list", "ekipman", "teklif", "rapor", "spl",
+            "monitor", "iem", "dante", "rf", "sistem tasarim",
+        )
+        action_terms = (
+            "hazirla", "olustur", "cikar", "tasarla", "hesapla",
+            "duzenle", "guncelle", "planla", "karsilastir", "yaz",
+        )
+        return (
+            any(term in normalized for term in subject_terms)
+            and any(term in normalized for term in action_terms)
+        )
+
+    @staticmethod
     def _should_create_stagepulse_pdf(command: str) -> bool:
         normalized = _normalize_direct_command(command)
         report_terms = (
             "rapor", "teklif", "rider", "stage plot", "stageplot",
             "input list", "ekipman listesi", "sistem listesi",
-            "pa tasarim raporu", "ses sistemi raporu",
+            "pa tasarim raporu", "ses sistemi raporu", "dugun salonu",
+            "kir bahcesi", "mekan",
         )
-        return any(term in normalized for term in report_terms)
+        return (
+            any(term in normalized for term in report_terms)
+            or CommandProcessor._is_stagepulse_document_request(command)
+        )
 
     def _create_stagepulse_pdf(self, command: str, content: str) -> Path:
         """Create a Turkish, branded PDF only for explicit Stagepulse deliverable requests."""
@@ -735,6 +783,29 @@ class CommandProcessor:
             return {"success": False, "response": "Kalıcı hafıza işlemi başarısız oldu.", "intent": "memory"}
         if memory_response is not None:
             return {"success": True, "response": memory_response, "intent": "memory"}
+
+        # Stagepulse engineering deliverables go through the specialist pipeline
+        # directly, instead of being misrouted as ordinary desktop intents.
+        if self._is_stagepulse_document_request(command):
+            try:
+                ai_response = self._ask_with_memory(command)
+                result = {
+                    "success": True,
+                    "response": ai_response,
+                    "intent": "stagepulse_deliverable",
+                }
+                if self._should_create_stagepulse_pdf(command):
+                    report_path = self._create_stagepulse_pdf(command, ai_response)
+                    result["report_path"] = str(report_path)
+                    result["response"] = str(ai_response).rstrip() + "\n\nPDF taslağı oluşturuldu: " + str(report_path)
+                return result
+            except Exception as exc:
+                logger.exception("Stagepulse teknik görev yürütülemedi: " + str(exc))
+                return {
+                    "success": False,
+                    "response": "Stagepulse teknik görevi tamamlanamadı: " + str(exc),
+                    "intent": "stagepulse_deliverable",
+                }
 
         # Run explicit personal website aliases before generic app/AI recognition.
         # This prevents "Stagepulse.com.tr" from being misheard as Facebook or
