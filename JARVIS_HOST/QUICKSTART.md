@@ -66,6 +66,14 @@ Picovoice anahtarı `advanced.api_keys.picovoice_key` tanımlıysa Porcupine kul
 
 JARVIS web araması, bağlı yerel Git deposu üzerinde durum/karşılaştırma/commit/push/pull işlemleri ve Stagepulse sayfalarına yönlendirme desteği sunar. Depoda değişiklik yapmadan önce doğru klasörün bağlandığını kontrol edin. Git kimlik doğrulaması Windows Git Credential Manager veya SSH üzerinden yapılır. Oturum gerektiren yönetim sayfalarında kullanıcı girişi kullanıcı tarafından tamamlanmalıdır.
 
+Yazılım araştırması için doğal dilde şu tür emirler verilebilir:
+
+- `GitHub'da DMX ışık kontrol yazılımlarını araştır`
+- `Stagepulse için ücretsiz ses mühendisliği yazılımlarını tara`
+- `Dante ve stage plot için açık kaynak araçları bul`
+
+Araştırıcı; GitHub kaynağını, lisansı, güncellenme tarihini, Windows desteğine dair işaretleri, yayın dosyalarını ve Türkçe dil dosyalarını denetler. Önce bilgisayardaki kurulum kaydını kontrol eder. Bu araştırma komutu kendi başına dosya indirmez veya program kurmaz; kurulumdan önce kaynak, dijital imza/hash, uyumluluk ve kullanıcı onayı gerekir. Lisansı belirsiz, arşivlenmiş veya doğrulanamayan yazılım otomatik olarak kurulmaz.
+
 ## 7. Sorun giderme
 
 - Mikrofon görünmüyorsa Windows Gizlilik > Mikrofon erişimini ve varsayılan kayıt aygıtını kontrol edin.
