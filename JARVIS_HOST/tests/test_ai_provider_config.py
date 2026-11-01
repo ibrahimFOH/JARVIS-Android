@@ -870,3 +870,76 @@ def test_resume_command_requires_confirmation_and_reuses_interrupted_job(tmp_pat
     resumed = processor.process(command, confirmed=True)
     assert resumed["task_id"] == task_id
     assert processor.task_journal.recent(1)[0]["status"] == "succeeded"
+
+
+
+def test_stagepulse_venue_job_routes_to_engineering_and_pdf_pipeline():
+    from core.command_processor import CommandProcessor
+
+    command = "Elif Kır Bahçesi'nin işlemlerini Nişanengi Düğün Salonu'na göre hazırla"
+    assert CommandProcessor._is_stagepulse_document_request(command)
+    assert CommandProcessor._should_create_stagepulse_pdf(command)
+
+
+def test_stagepulse_pdf_export_creates_readable_turkish_pdf(tmp_path, monkeypatch):
+    from pathlib import Path
+    from pypdf import PdfReader
+    from core.command_processor import CommandProcessor
+
+    monkeypatch.setattr(Path, "home", lambda: tmp_path)
+    processor = CommandProcessor.__new__(CommandProcessor)
+    report = processor._create_stagepulse_pdf(
+        "Elif Kır Bahçesi teknik sistem raporu",
+        "# Sistem Özeti\n\n## PA Yerleşimi\nÖlçü doğrulanmadı; açı hesaplanmadı.\n\n"
+        "- Sahne konumu kaynak krokiden doğrulanacak.\n"
+        "- Gerçek SPL ölçümü yapılmadı.\n\n"
+        "| Kalem | Durum |\n|---|---|\n| PA | İncelenecek |\n| Subwoofer | İncelenecek |",
+    )
+
+    assert report.is_file()
+    assert report.stat().st_size > 1200
+    assert report.read_bytes().startswith(b"%PDF-")
+    extracted = "\n".join(page.extract_text() or "" for page in PdfReader(str(report)).pages)
+    assert "STAGEPULSE" in extracted
+    assert "Sistem Özeti" in extracted
+    assert "Gerçek SPL ölçümü yapılmadı" in extracted
+    assert len(PdfReader(str(report)).pages) >= 1
+
+
+def test_public_research_queries_never_include_local_document_contents(tmp_path):
+    from core.command_processor import CommandProcessor
+
+    private_file = tmp_path / "Elif Kır Bahçesi.txt"
+    private_file.write_text("ÖZEL MÜŞTERİ TELEFONU: 05551234567; gizli fiyat: 999999", encoding="utf-8")
+
+    class FileManagerStub:
+        def find_files(self, query):
+            if "Elif" in query or "Nişanengi" in query:
+                return {"files": [{"path": str(private_file), "size": private_file.stat().st_size}]}
+            return {"files": []}
+
+    class BrainStub:
+        def __init__(self):
+            self.queries = []
+
+        def _web(self, query):
+            self.queries.append(query)
+            return "Kamuya açık arama özeti"
+
+        def analyze_local_images(self, *_args):
+            raise AssertionError("Görsel yok")
+
+    processor = CommandProcessor.__new__(CommandProcessor)
+    processor.file_manager = FileManagerStub()
+    processor.ai_brain = BrainStub()
+
+    context, private = processor._collect_stagepulse_context(
+        "Elif Kır Bahçesi işlemlerini Nişanengi Düğün Salonu'na göre hazırla"
+    )
+
+    assert private is True
+    assert "ÖZEL MÜŞTERİ TELEFONU" in context
+    assert processor.ai_brain.queries
+    assert all("05551234567" not in query for query in processor.ai_brain.queries)
+    assert all("999999" not in query for query in processor.ai_brain.queries)
+    assert all("Elif Kır Bahçesi" in query or "Nişanengi Düğün Salonu" in query for query in processor.ai_brain.queries)
