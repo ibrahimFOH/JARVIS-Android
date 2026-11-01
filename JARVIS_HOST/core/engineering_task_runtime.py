@@ -64,7 +64,7 @@ class EngineeringTaskRuntime:
         excluded = {"Stagepulse", "Jarvis", "Hazırla", "Oluştur", "Rapor", "Teknik", "Sistem", "Ses"}
         values, seen = [], set()
         for match in pattern.finditer(str(command or "")):
-            value = match.group(0).strip(" .,'\\"")
+            value = match.group(0).strip(" .,'\"")
             if not value or value in excluded:
                 continue
             key = _norm(value)
