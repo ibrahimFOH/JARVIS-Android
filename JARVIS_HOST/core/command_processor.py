@@ -694,38 +694,39 @@ class CommandProcessor:
     def _execute_find_files(self, params: Dict) -> Dict:
         query = params.get('query', '')
         result = self.file_manager.find_files(query)
-        
+
         if result['success']:
-            count = result['count']
-            if count > 0:
-                files = result['files'][:5]  # Show first 5
-                file_list = '\n'.join([f"- {f['name']} ({f['size']})" 
-                                      for f in files])
-                details = f"I found {count} file(s):\n{file_list}"
+            files = result.get('files', [])
+            if files:
+                file_list = '\n'.join(
+                    f"- {item['name']} ({item['size']})\n  {item['path']}"
+                    for item in files[:5]
+                )
+                response = f"Bilgisayarda {result['count']} eşleşen dosya bulundu:\n{file_list}"
                 if result.get('truncated'):
-                    details += "\n(Showing first 5 results)"
+                    response += "\nİlk sonuç sınırına ulaşıldı; daha fazla eşleşme olabilir."
+            elif result.get('timed_out'):
+                response = (
+                    f"'{query}' için yerel arama zaman sınırına ulaştı. "
+                    "Dosya bulunamadığı kesinleşmedi; indirme yapmadan önce aramayı daraltmak veya sürdürmek gerekiyor."
+                )
             else:
-                details = f"I couldn't find any files matching '{query}'"
-            
-            response = self.response_generator.generate(
-                'success',
-                intent='find_files',
-                details=details
-            )
+                response = f"Bilgisayarda '{query}' ile eşleşen mevcut dosya bulunamadı."
+            if result.get('timed_out') and files:
+                response += "\nArama süresi dolduğu için tüm diskler taranamadı; sonuç eksik olabilir."
         else:
-            response = self.response_generator.generate(
-                'error',
-                intent='find_files',
-                error=result.get('message', 'Failed to search for files')
+            response = "Yerel dosya araması başarısız: " + str(
+                result.get('message', 'Bilinmeyen arama hatası')
             )
-        
+
         return {
             'success': result['success'],
             'response': response,
             'intent': 'find_files',
-            'data': result.get('files', [])
+            'data': files if result['success'] else [],
+            'search_incomplete': bool(result.get('timed_out') or result.get('truncated')),
         }
-    
+
     def _execute_create_folder(self, params: Dict) -> Dict:
         name = params.get('name', '')
         result = self.file_manager.create_folder(name)
