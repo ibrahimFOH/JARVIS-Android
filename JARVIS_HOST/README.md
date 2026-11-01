@@ -21,7 +21,7 @@ Yalnızca ücretsiz kullanım kabul edilir. Yerel Ollama varsayılandır ve API 
 
 ## Ses
 
-Sesli kontrol ve sürekli dinleme kullanıcı tarafından açılıp kapatılabilir. Konuşma tanıma hizmeti internet bağlantısı isteyebilir. Yerel TTS veya Ollama kullanımı tüm ses tanıma ve web işlemlerini çevrimdışı yapmaz.
+Konuşma tanıma ve JARVIS uyandırma kelimesi yerel Türkçe Vosk modeliyle çevrimdışı çalışır. Model bilgisayarda yoksa yalnızca resmi Vosk HTTPS kaynağından bir kez indirilir; mevcut model bulunursa tekrar indirilmez. Picovoice/Porcupine ve ücretli/çevrimiçi konuşma tanıma yedekleri kaldırılmıştır. Web araştırması internet gerektirir; TTS seçimine göre yerel SAPI veya ücretsiz çevrimiçi Edge TTS kullanılabilir.
 
 ## Güvenlik
 
