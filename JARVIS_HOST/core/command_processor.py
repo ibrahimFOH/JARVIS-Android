@@ -4,6 +4,7 @@ Processes commands and routes them to appropriate modules
 """
 
 from typing import Dict, Any, Optional
+import hashlib
 import ipaddress
 import os
 import re
@@ -110,6 +111,20 @@ def _download_image(url: str, max_bytes: int = 20 * 1024 * 1024) -> Path:
     import requests
 
     current_url = str(url or "").strip()
+    url_key = hashlib.sha256(current_url.encode("utf-8")).hexdigest()[:12]
+    folder = Path.home() / "Downloads" / "StagepulseJARVIS"
+    if folder.is_dir():
+        url_name = Path(unquote(urlparse(current_url).path)).name
+        cached_stem = Path(url_name).stem
+        cached_stem = re.sub(r"[^A-Za-z0-9._ -]+", "_", cached_stem).strip(" ._")[:80] or "stagepulse-image"
+        cached = list(folder.glob(cached_stem + "-" + url_key + ".*"))
+        if cached and cached[0].is_file() and cached[0].stat().st_size > 0:
+            return cached[0]
+        # Existing pre-cache downloads are reused by their original filename.
+        for extension in (".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp", ".tiff", ".avif", ".ico"):
+            legacy = folder / (cached_stem + extension)
+            if legacy.is_file() and legacy.stat().st_size > 0:
+                return legacy
     response = None
     for _attempt in range(4):
         _validate_public_http_url(current_url)
@@ -149,17 +164,14 @@ def _download_image(url: str, max_bytes: int = 20 * 1024 * 1024) -> Path:
             except ValueError as exc:
                 if "sınırını" in str(exc):
                     raise
-        folder = Path.home() / "Downloads" / "StagepulseJARVIS"
         folder.mkdir(parents=True, exist_ok=True)
         url_name = Path(unquote(urlparse(current_url).path)).name
         stem = Path(url_name).stem
         stem = re.sub(r"[^A-Za-z0-9._ -]+", "_", stem).strip(" ._")[:80] or "stagepulse-image"
         extension = extensions[content_type]
-        destination = folder / (stem + extension)
-        suffix = 2
-        while destination.exists():
-            destination = folder / (stem + "-" + str(suffix) + extension)
-            suffix += 1
+        destination = folder / (stem + "-" + url_key + extension)
+        if destination.is_file() and destination.stat().st_size > 0:
+            return destination
         fd, temp_name = tempfile.mkstemp(prefix=".stagepulse-image-", suffix=".part", dir=str(folder))
         os.close(fd)
         temp_path = Path(temp_name)
@@ -237,7 +249,7 @@ class CommandProcessor:
             return "", False
 
         names = re.findall(
-            r"[A-ZÇĞİÖŞÜ][\\wÇĞİÖŞÜçğıöşü]*(?:\\s+[A-ZÇĞİÖŞÜ][\\wÇĞİÖŞÜçğıöşü]*){1,3}",
+            r"[A-ZÇĞİÖŞÜ][\wÇĞİÖŞÜçğıöşü]*(?:\s+[A-ZÇĞİÖŞÜ][\wÇĞİÖŞÜçğıöşü]*){1,3}",
             str(command or ""),
         )
         names = list(dict.fromkeys(name.strip() for name in names if len(name.strip()) > 2))
