@@ -1,0 +1,28 @@
+version: 2
+updates:
+  - package-ecosystem: pip
+    directory: /JARVIS_HOST
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 8
+    labels:
+      - dependencies
+      - security
+
+  - package-ecosystem: gradle
+    directory: /JARVIS_ANDROID
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 8
+    labels:
+      - dependencies
+      - security
+
+  - package-ecosystem: github-actions
+    directory: /.github/workflows
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 8
+    labels:
+      - dependencies
+      - security
