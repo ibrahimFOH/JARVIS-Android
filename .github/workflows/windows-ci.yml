@@ -47,7 +47,7 @@ jobs:
       - name: Check Python syntax
         shell: pwsh
         run: |
-          python -m py_compile JARVIS_HOST/main.py JARVIS_HOST/core/ai_brain.py JARVIS_HOST/core/command_processor.py JARVIS_HOST/core/jarvis.py JARVIS_HOST/core/software_scout.py JARVIS_HOST/core/translation_manager.py JARVIS_HOST/core/engineering_task_runtime.py JARVIS_HOST/core/update_manager.py JARVIS_HOST/gui/main_window.py JARVIS_HOST/modules/file_manager.py JARVIS_HOST/voice/text_to_speech.py JARVIS_HOST/voice/speech_recognition.py JARVIS_HOST/android_bridge.py
+          python -m py_compile JARVIS_HOST/main.py JARVIS_HOST/core/ai_brain.py JARVIS_HOST/core/command_processor.py JARVIS_HOST/core/jarvis.py JARVIS_HOST/core/software_scout.py JARVIS_HOST/core/translation_manager.py JARVIS_HOST/core/engineering_task_runtime.py JARVIS_HOST/core/update_manager.py JARVIS_HOST/gui/main_window.py JARVIS_HOST/modules/file_manager.py JARVIS_HOST/voice/text_to_speech.py JARVIS_HOST/voice/speech_recognition.py JARVIS_HOST/voice/wake_word.py JARVIS_HOST/voice/vosk_model_manager.py JARVIS_HOST/android_bridge.py
           if ($LASTEXITCODE -ne 0) { throw "Python syntax check failed" }
 
       - name: Verify expert workspace is wired into the desktop GUI
