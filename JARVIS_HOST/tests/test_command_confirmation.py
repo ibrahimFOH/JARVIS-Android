@@ -15,6 +15,9 @@ class _QuietLogger:
     def error(self, _message):
         pass
 
+    def warning(self, _message):
+        pass
+
 
 class _IntentRecognizer:
     def recognize(self, _command):
@@ -43,6 +46,7 @@ def _processor(monkeypatch, *, deletion_enabled):
     processor.validator.require_confirmation = {"system_shutdown": True}
     processor.response_generator = _ResponseGenerator()
     processor.memory = _Memory()
+    processor.ai_brain = SimpleNamespace(ask=lambda *_args, **_kwargs: "Test yanıtı.")
     processor.deleted = []
     processor.file_manager = SimpleNamespace(
         delete_file=lambda target: (
@@ -60,7 +64,7 @@ def test_file_deletion_is_denied_when_not_explicitly_enabled(monkeypatch):
     result = processor.process("test dosyasını sil")
 
     assert result["success"] is False
-    assert result["requires_confirmation"] is False
+    assert result.get("requires_confirmation") is False, result
     assert "devre dışı" in result["response"].lower()
     assert processor.deleted == []
 
@@ -71,7 +75,7 @@ def test_file_deletion_requires_explicit_confirmation(monkeypatch):
     pending = processor.process("test dosyasını sil")
 
     assert pending["success"] is False
-    assert pending["requires_confirmation"] is True
+    assert pending.get("requires_confirmation") is True, pending
     assert pending["pending_command"] == "test dosyasını sil"
     assert processor.deleted == []
 

@@ -72,7 +72,7 @@ class Validator:
     def _validate_delete_file(self, params: Dict) -> Tuple[bool, Optional[str], Optional[str]]:
         """Validate file deletion command"""
         if not self.allowed_operations.get('file_deletion', False):
-            return False, "File deletion is disabled in security settings", None
+            return False, "Dosya silme güvenlik ayarlarında devre dışı.", None
         
         target = params.get('target')
         if not target:
