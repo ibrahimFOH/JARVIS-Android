@@ -5,6 +5,8 @@ import re
 import html
 import logging
 import copy
+import time
+import unicodedata
 import requests
 from pathlib import Path
 from urllib.parse import quote
@@ -18,6 +20,9 @@ class AIBrain:
         self.model = "qwen3:0.6b"
         self.timeout = 18
         self.web_timeout = 5
+        self._ollama_models_cache = []
+        self._ollama_models_checked_at = 0.0
+        self.last_ollama_model = ""
         self.settings_path = self._settings_file()
         saved = self._read_settings()
         legacy_ai = {}
@@ -464,20 +469,158 @@ class AIBrain:
             except Exception: pass
         return ""
 
-    def _ollama(self,prompt,context=""):
+    @staticmethod
+    def _normalise_task_text(value):
+        value = unicodedata.normalize("NFKD", str(value or "").lower())
+        return "".join(char for char in value if not unicodedata.combining(char))
+
+    def _ollama_task(self, prompt):
+        text = self._normalise_task_text(prompt)
+        coding = ("kod", "python", "javascript", "typescript", "html", "css", "sql",
+                  "debug", "hata ayikla", "program", "fonksiyon", "class ", "api ", "repo",
+                  "github", "terminal", "script", "algoritma", "yazilim")
+        audio = ("ses muhendis", "ses sistemi", "akustik", "spl", "foh", "monitor",
+                 "iem", "rf ", "mikrofon", "mikser", "midas", "dante", "line array",
+                 "frekans", "eq ", "equalizer", "kompresor", "limiter", "delay", "rider",
+                 "stage plot", "soundcheck", "ses")
+        reasoning = ("mantik", "karsilastir", "analiz et", "derin dusun", "matematik",
+                     "hesapla", "kanitla", "muhendislik hesabi", "neden", "karmasik")
+        if any(term in text for term in coding):
+            return "coding"
+        if any(term in text for term in audio):
+            return "audio"
+        if any(term in text for term in reasoning):
+            return "reasoning"
+        return "general"
+
+    def _ollama_models(self, force_refresh=False):
+        now = time.monotonic()
+        if not force_refresh and self._ollama_models_cache and now - self._ollama_models_checked_at < 20:
+            return list(self._ollama_models_cache)
+        response = self.session.get(self.host + "/api/tags", timeout=5)
+        response.raise_for_status()
+        models = response.json().get("models", [])
+        self._ollama_models_cache = [
+            item for item in models
+            if isinstance(item, dict) and str(item.get("name", "")).strip()
+        ]
+        self._ollama_models_checked_at = now
+        return list(self._ollama_models_cache)
+
+    @staticmethod
+    def _ollama_memory_budget():
+        gib = 1024 ** 3
+        try:
+            import psutil
+            memory = psutil.virtual_memory()
+            total = int(memory.total)
+            available = int(memory.available)
+        except Exception:
+            total, available = 4 * gib, int(1.2 * gib)
+        # Windows and the desktop need memory too. On 4 GB machines, reserve
+        # at least 45% of currently available RAM and cap model files at 1.25 GB.
+        if total <= int(4.5 * gib):
+            return max(0, min(int(1.25 * gib), int(available * 0.55)))
+        return max(0, min(int(total * 0.45), int(available * 0.70)))
+
+    def _select_ollama_model(self, prompt, models=None):
+        models = self._ollama_models() if models is None else list(models)
+        if not models:
+            raise RuntimeError("Ollama'da kurulu model bulunamadı. 'ollama list' ile kontrol edin.")
+        budget = self._ollama_memory_budget()
+        candidates = []
+        for item in models:
+            name = str(item.get("name", "")).strip()
+            size = int(item.get("size") or 0)
+            if not name or size <= 0 or size > budget:
+                continue
+            candidates.append((name, size, item))
+        if not candidates:
+            gib = 1024 ** 3
+            smallest = min(models, key=lambda item: int(item.get("size") or 0))
+            smallest_size = int(smallest.get("size") or 0)
+            raise RuntimeError(
+                "4 GB RAM güvenli çalışma sınırı nedeniyle uygun model seçilemedi. "
+                "En küçük kurulu model: {} ({:.2f} GB); bu oturum için model bütçesi: {:.2f} GB. "
+                "JARVIS büyük modeli zorla yüklemeyecek.".format(
+                    smallest.get("name", "bilinmiyor"), smallest_size / gib, budget / gib
+                )
+            )
+
+        task = self._ollama_task(prompt)
+        def score(entry):
+            name = entry[0].lower()
+            if task == "coding":
+                preferred = any(key in name for key in ("coder", "code", "starcoder", "codestral"))
+                secondary = any(key in name for key in ("deepseek", "qwen"))
+            elif task == "reasoning":
+                preferred = any(key in name for key in ("deepseek-r1", "qwq", "reasoning", "r1"))
+                secondary = any(key in name for key in ("qwen", "deepseek"))
+            elif task == "audio":
+                preferred = any(key in name for key in ("qwen", "llama", "mistral", "gemma"))
+                secondary = any(key in name for key in ("instruct", "chat"))
+            else:
+                preferred = any(key in name for key in ("qwen", "llama", "mistral", "gemma"))
+                secondary = any(key in name for key in ("instruct", "chat"))
+            # Prefer a task-specialized model, then the strongest model that
+            # still fits the conservative RAM budget.
+            return (int(preferred), int(secondary), entry[1])
+        selected = max(candidates, key=score)
+        return selected[0], task, selected[1], budget
+
+    def _release_other_ollama_models(self, selected_model):
+        try:
+            response = self.session.get(self.host + "/api/ps", timeout=3)
+            response.raise_for_status()
+            running = response.json().get("models", [])
+        except Exception:
+            return
+        for item in running:
+            name = str(item.get("name", "")).strip()
+            if name and name != selected_model:
+                try:
+                    self.session.post(
+                        self.host + "/api/generate",
+                        json={"model": name, "keep_alive": 0},
+                        timeout=3,
+                    )
+                except Exception:
+                    logger.debug("Kullanılmayan Ollama modeli boşaltılamadı: %s", name)
+
+    def _ollama(self, prompt, context=""):
         system_prompt = """Sen JARVIS'sin. Daima Türkçe ve doğrudan yanıt ver.
 Kullanıcı tarafından bu istekte verilen bilgileri esas al. Kaydedilmiş bağlam bulunuyorsa
 onu yalnızca ilgili olduğunda kullan; eski bilgileri kesin gerçek sayma. Kaynak, ölçüm,
 dosya işlemi, donanım testi veya ağ erişimi gerçekten yapılmadıysa yapılmış gibi söyleme.
 Belirsizliği, varsayımları ve doğrulama adımlarını açıkça belirt. Gizli anahtar veya kişisel
 profil bilgilerini gereksiz yere yanıta kopyalama."""
-        payload={"model":self.model,"stream":False,"keep_alive":"30m","think":False,"options":{"temperature":0.1,"num_predict":180,"num_ctx":4096},"messages":[{"role":"system","content":system_prompt},{"role":"user","content":prompt+(("\n\nWEB VERİSİ:\n"+context) if context else "")}]}
         try:
-            r=requests.post(self.host+"/api/chat",json=payload,timeout=self.timeout)
-            r.raise_for_status()
-            return ((r.json().get("message") or {}).get("content") or "").strip()
-        except Exception as e:
-            return "Ollama bağlantısında sorun oluştu: "+str(e)
+            model, task, size, budget = self._select_ollama_model(prompt)
+            self._release_other_ollama_models(model)
+            self.last_ollama_model = model
+            logger.info(
+                "Ollama model seçildi: %s | görev=%s | boyut=%.2f GB | RAM bütçesi=%.2f GB",
+                model, task, size / (1024 ** 3), budget / (1024 ** 3)
+            )
+            payload = {
+                "model": model,
+                "stream": False,
+                "keep_alive": 0,
+                "think": False,
+                "options": {"temperature": 0.1, "num_predict": 160, "num_ctx": 2048},
+                "messages": [
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": prompt + (("\n\nWEB VERİSİ:\n" + context) if context else "")},
+                ],
+            }
+            response = self.session.post(self.host + "/api/chat", json=payload, timeout=self.timeout)
+            response.raise_for_status()
+            answer = ((response.json().get("message") or {}).get("content") or "").strip()
+            if not answer:
+                raise RuntimeError("Seçilen Ollama modeli boş yanıt döndürdü: " + model)
+            return answer
+        except Exception as exc:
+            return "Ollama bağlantısında sorun oluştu: " + str(exc)
 
     def ask(self, prompt, memory_context=""):
         instant = self._instant(prompt)
