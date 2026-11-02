@@ -39,7 +39,7 @@ def test_remaining_desktop_ui_labels_are_turkish():
     source = (ROOT / "gui" / "main_window.py").read_text(encoding="utf-8")
     assert "GELİŞMİŞ YAPAY ZEKÂ SİSTEMİ" in source
     assert "PDF İŞLENİYOR" in source
-    assert "YAPAY ZEKÂ SAĞLAYICISI" in source
+    assert "YEREL MODEL YÖNLENDİRME" in source
     assert "Android uygulamasındaki Bilgisayar alanına" in source
 
 
