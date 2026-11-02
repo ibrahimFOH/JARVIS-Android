@@ -526,3 +526,15 @@ def test_ollama_chat_uses_automatic_task_model_and_unlimited_generation(tmp_path
     assert captured["payload"]["model"] == "iamhere/qwen2.5-coder-3b-instruct-abliterated:latest"
     assert captured["payload"]["options"]["num_predict"] == -1
     assert captured["payload"]["options"]["num_ctx"] == 8192
+
+
+
+def test_ollama_task_router_uses_qwen14_for_live_sound_engineering():
+    models = [
+        "hf.co/bartowski/Qwen2.5-14B-Instruct-1M-GGUF:Q2_K",
+        "huihui_ai/qwen2.5-abliterate:latest",
+        "iamhere/qwen2.5-coder-3b-instruct-abliterated:latest",
+    ]
+    assert AIBrain.select_ollama_model(
+        "Midas M32 FOH monitör ve line array sistem tasarımı", models
+    ) == "hf.co/bartowski/Qwen2.5-14B-Instruct-1M-GGUF:Q2_K"
