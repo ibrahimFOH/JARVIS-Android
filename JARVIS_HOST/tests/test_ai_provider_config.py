@@ -527,7 +527,7 @@ def test_ollama_request_uses_selected_model_small_context_and_unloads(tmp_path, 
 def test_ollama_router_honors_model_typed_in_settings(tmp_path, monkeypatch):
     brain = fresh_brain(tmp_path, monkeypatch)
     gib = 1024 ** 3
-    brain.model = "huihui_ai/qwen2.5-abliterate:latest"
+    brain.model = "huihui_ai/qwen2.5-abliterate"
     monkeypatch.setattr(brain, "_ollama_memory_budget", lambda: int(2.0 * gib))
     models = [
         {"name": "dolphin-philatelist:latest", "size": int(1.49 * gib)},
@@ -536,7 +536,7 @@ def test_ollama_router_honors_model_typed_in_settings(tmp_path, monkeypatch):
     selected, task, size, budget = brain._select_ollama_model(
         "Genel bağlantı testi", models=models
     )
-    assert selected == brain.model
+    assert selected == "huihui_ai/qwen2.5-abliterate:latest"
     assert size == int(1.2 * gib)
     assert size <= budget
 
