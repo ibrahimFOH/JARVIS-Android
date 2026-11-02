@@ -468,26 +468,26 @@ class AIBrain:
         target = (provider or self.provider).strip().lower()
         try:
             if target == "auto":
-                answer = self.ask("Sadece 'Bağlantı başarılı' yaz.")
-                failed_prefixes = (
-                    "Yapay zekâ yanıtı alınamadı.",
-                    "Ollama bağlantısında sorun",
-                    "Ollama yanıt üretilemedi",
-                )
-                ok = bool(answer and not answer.startswith(failed_prefixes))
-                return {"success": ok, "message": answer[:1200]}
+                local = self.test_provider("ollama")
+                if local.get("success"):
+                    return local
+                if self.groq_key:
+                    return self.test_provider("groq")
+                return local
             if target == "ollama":
-                response = self.session.get(self.host + "/api/tags", timeout=8)
-                response.raise_for_status()
-                models = [item.get("name", "") for item in response.json().get("models", [])]
-                if not models:
-                    return {"success": False, "message": "Ollama erişilebilir ancak model listesi boş."}
-                if not any(name == self.model or name.startswith(self.model + ":") for name in models):
-                    return {"success": False, "message": "Model bulunamadı: " + self.model + ". Yüklü: " + ", ".join(models)}
-                return {"success": True, "message": "Ollama bağlantısı başarılı: " + self.model}
-            if target == "gemini":
-                answer = self._gemini_api("Sadece 'Bağlantı başarılı' yaz.")
-            elif target == "groq":
+                models = self.list_ollama_models(force=True)
+                general = self.select_ollama_model("Genel bir bağlantı testi", models)
+                code = self.select_ollama_model("Python kodu debug et", models)
+                analysis = self.select_ollama_model("Kapsamlı mühendislik analizi yap", models)
+                return {
+                    "success": True,
+                    "message": (
+                        "Ollama localhost bağlantısı başarılı. "
+                        f"{len(models)} model bulundu. Genel: {general} · Kod: {code} · Analiz: {analysis}"
+                    ),
+                    "models": models,
+                }
+            if target == "groq":
                 if not self.groq_key:
                     raise RuntimeError("Groq API anahtarı boş.")
                 response = self.session.post(
@@ -563,11 +563,27 @@ onu yalnızca ilgili olduğunda kullan; eski bilgileri kesin gerçek sayma. Kayn
 dosya işlemi, donanım testi veya ağ erişimi gerçekten yapılmadıysa yapılmış gibi söyleme.
 Belirsizliği, varsayımları ve doğrulama adımlarını açıkça belirt. Gizli anahtar veya kişisel
 profil bilgilerini gereksiz yere yanıta kopyalama."""
-        payload={"model":self.model,"stream":False,"keep_alive":"30m","think":False,"options":{"temperature":0.1,"num_predict":180,"num_ctx":4096},"messages":[{"role":"system","content":system_prompt},{"role":"user","content":prompt+(("\n\nWEB VERİSİ:\n"+context) if context else "")}]}
         try:
-            r=requests.post(self.host+"/api/chat",json=payload,timeout=self.timeout)
-            r.raise_for_status()
-            return ((r.json().get("message") or {}).get("content") or "").strip()
+            installed = self.list_ollama_models()
+            selected_model = self.select_ollama_model(prompt, installed)
+            self.last_ollama_model = selected_model
+            payload = {
+                "model": selected_model,
+                "stream": False,
+                "keep_alive": "30m",
+                "think": False,
+                "options": {"temperature": 0.1, "num_ctx": 8192, "num_predict": -1},
+                "messages": [
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": prompt+(("\n\nWEB VERİSİ:\n"+context) if context else "")},
+                ],
+            }
+            response = self.session.post(self.host+"/api/chat", json=payload, timeout=self.timeout)
+            response.raise_for_status()
+            answer = ((response.json().get("message") or {}).get("content") or "").strip()
+            if not answer:
+                raise RuntimeError("Ollama boş yanıt döndürdü.")
+            return answer
         except Exception as e:
             return "Ollama bağlantısında sorun oluştu: "+str(e)
 
@@ -583,17 +599,10 @@ profil bilgilerini gereksiz yere yanıta kopyalama."""
                 "güncel olmayan bilgileri kesin gerçek sayma):\n" + str(memory_context) +
                 "\n\nKULLANICI İSTEĞİ:\n" + str(prompt or "")
             )
-        available = []
-        if self.groq_key:
-            available.append("groq")
-        if self.gemini_key:
-            available.append("gemini")
-        available.extend(name for name in self.api_defaults if self.api_keys.get(name))
-        # A named provider is an explicit user choice. Do not silently transmit
-        # prompts to another service or incur cloud charges when it fails. "auto"
-        # prefers local Ollama, then uses configured cloud providers only on failure.
+        # Automatic failover is local-first and Groq-only. No other cloud
+        # provider receives user prompts or consumes a separate API key.
         if self.provider == "auto":
-            order = ["ollama"] + available
+            order = ["ollama"] + (["groq"] if self.groq_key else [])
         else:
             order = [self.provider]
         errors = []
@@ -604,8 +613,6 @@ profil bilgilerini gereksiz yere yanıta kopyalama."""
                     if not answer or answer.startswith("Ollama bağlantısında sorun oluştu:"):
                         raise RuntimeError(answer or "Ollama boş yanıt döndürdü.")
                     return answer
-                if selected == "gemini":
-                    return self._gemini_api(prompt, context)
                 if selected == "groq":
                     return self._compatible_groq(prompt, context)
                 if selected in self.api_defaults:
