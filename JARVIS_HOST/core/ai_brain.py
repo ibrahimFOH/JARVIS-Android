@@ -5,6 +5,8 @@ import re
 import html
 import logging
 import copy
+import time
+import unicodedata
 import requests
 from pathlib import Path
 from urllib.parse import quote
@@ -15,9 +17,12 @@ class AIBrain:
     def __init__(self):
         self.session = requests.Session()
         self.host = "http://127.0.0.1:11434"
-        self.model = "qwen3:0.6b"
+        self.model = ""  # Ollama model is always selected automatically
         self.timeout = 18
         self.web_timeout = 5
+        self._ollama_models_cache = []
+        self._ollama_models_checked_at = 0.0
+        self.last_ollama_model = ""
         self.settings_path = self._settings_file()
         saved = self._read_settings()
         legacy_ai = {}
@@ -60,7 +65,7 @@ class AIBrain:
         ).strip()
         self.groq_model = os.environ.get("GROQ_MODEL", saved.get("groq_model", legacy_value("groq", "model", "openai/gpt-oss-20b")))
         self.host = os.environ.get("OLLAMA_HOST", saved.get("ollama_host", legacy_ai.get("ollama_url", self.host))).rstrip("/")
-        self.model = os.environ.get("OLLAMA_MODEL", saved.get("ollama_model", legacy_ai.get("ollama_model", self.model)))
+        self.model = ""  # Ignore obsolete manually selected model settings
         self.api_keys = {
             str(key).lower(): self._unprotect_key(value)
             for key, value in saved.get("api_keys", {}).items()
@@ -103,10 +108,13 @@ class AIBrain:
             if os.environ.get(env_key):
                 self.api_keys[name] = os.environ[env_key].strip()
         self.provider = str(
-            saved.get("provider", os.environ.get("JARVIS_AI_PROVIDER", legacy_ai.get("provider", "ollama")))
+            saved.get("provider", os.environ.get("JARVIS_AI_PROVIDER", legacy_ai.get("provider", "auto")))
         ).strip().lower()
-        if self.provider not in ("auto", "gemini", "groq", "ollama", *self.api_defaults.keys()):
-            self.provider = "ollama"
+        if self.provider not in ("auto", "groq", "ollama"):
+            self.provider = "auto"
+        elif self.provider == "ollama":
+            # Existing installs should use automatic Ollama -> Groq failover.
+            self.provider = "auto"
 
         # Older releases stored provider API keys as cleartext in ai_settings.json
         # and config.json. Migrate those values to DPAPI before retaining them.
@@ -230,147 +238,30 @@ class AIBrain:
     def _persist_settings(self):
         payload = {
             "provider": self.provider,
-            "gemini_api_key": self._protect_key(self.gemini_key),
-            "gemini_model": self.gemini_model,
             "groq_api_key": self._protect_key(self.groq_key),
             "groq_model": self.groq_model,
             "ollama_host": self.host,
-            "ollama_model": self.model,
-            "api_keys": {k: self._protect_key(v) for k, v in self.api_keys.items()},
-            "api_models": self.api_models,
-            "api_base_urls": self.api_base_urls,
         }
         self.settings_path.parent.mkdir(parents=True, exist_ok=True)
         tmp = self.settings_path.with_suffix(".tmp")
         tmp.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
         os.replace(str(tmp), str(self.settings_path))
 
-    def configure(self, provider=None, gemini_key=None, gemini_model=None,
-                  ollama_host=None, ollama_model=None,
-                  groq_key=None, groq_model=None, api_keys=None, api_models=None,
-                  api_base_urls=None):
+    def configure(self, provider=None, ollama_host=None,
+                  groq_key=None, groq_model=None, **_retired_options):
         if provider is not None:
             value = str(provider).strip().lower()
-            allowed = ("auto", "gemini", "groq", "ollama", *self.api_defaults.keys())
+            allowed = ("auto", "groq", "ollama")
             if value not in allowed:
                 raise ValueError("Desteklenmeyen AI sağlayıcısı: " + value)
             self.provider = value
-        if gemini_key is not None:
-            self.gemini_key = gemini_key.strip()
-        if gemini_model and gemini_model.strip():
-            self.gemini_model = gemini_model.strip()
         if groq_key is not None:
             self.groq_key = groq_key.strip()
         if groq_model and groq_model.strip():
             self.groq_model = groq_model.strip()
         if ollama_host and ollama_host.strip():
             self.host = ollama_host.strip().rstrip("/")
-        if ollama_model and ollama_model.strip():
-            self.model = ollama_model.strip()
-        if isinstance(api_keys, dict):
-            for key, value in api_keys.items():
-                name = str(key).lower()
-                if name in self.api_defaults:
-                    self.api_keys[name] = str(value).strip()
-        if isinstance(api_models, dict):
-            for key, value in api_models.items():
-                name = str(key).lower()
-                if name in self.api_defaults and str(value).strip():
-                    self.api_models[name] = str(value).strip()
-        if isinstance(api_base_urls, dict):
-            for key, value in api_base_urls.items():
-                name = str(key).lower()
-                if name in self.api_defaults and str(value).strip():
-                    self.api_base_urls[name] = str(value).strip().rstrip("/")
         self._persist_settings()
-
-    def _compatible_api(self, provider, prompt, context=""):
-        key = self.api_keys.get(provider, "")
-        default_url, default_model = self.api_defaults[provider]
-        base_url = self.api_base_urls.get(provider, default_url).rstrip("/")
-        model = self.api_models.get(provider, default_model)
-        if not key:
-            raise RuntimeError(provider.upper() + " API anahtarı boş. AI PROVIDER ayarlarından ekleyin.")
-        user_text = prompt + (("\n\nWEB VERİSİ:\n" + context) if context else "")
-        if provider == "anthropic":
-            response = self.session.post(
-                base_url + "/messages",
-                headers={"x-api-key": key, "anthropic-version": "2023-06-01",
-                         "Content-Type": "application/json"},
-                json={"model": model, "max_tokens": 1200,
-                      "system": "Sen JARVIS'sin. Daima Türkçe yanıt ver; kısa, doğru ve işe yarar ol. Bilmediğin bilgiyi uydurma.",
-                      "messages": [{"role": "user", "content": user_text}]},
-                timeout=min(self.timeout, 60),
-            )
-        else:
-            chat_payload = {
-                "model": model,
-                "stream": False,
-                "temperature": 0.2,
-                "messages": [
-                    {"role": "system", "content": "Sen JARVIS'sin. Daima Türkçe yanıt ver; kısa, doğru ve işe yarar ol. Bilmediğin bilgiyi uydurma."},
-                    {"role": "user", "content": user_text},
-                ],
-            }
-            # GPT-6 models reject sampling parameters when reasoning is enabled.
-            # Luna supports reasoning_effort="none", which also permits temperature.
-            model_id = str(model).lower().split("/")[-1]
-            if model_id.startswith("gpt-6"):
-                if model_id in {"gpt-6-luna", "gpt-6-sol", "gpt-6.1-terra"}:
-                    chat_payload["reasoning_effort"] = "none"
-                else:
-                    chat_payload.pop("temperature", None)
-            response = self.session.post(
-                base_url + "/chat/completions",
-                headers={"Authorization": "Bearer " + key, "Content-Type": "application/json"},
-                json=chat_payload,
-                timeout=min(self.timeout, 60),
-            )
-        if not response.ok:
-            try:
-                detail = response.json().get("error", {}).get("message", response.text[:300])
-            except (ValueError, AttributeError):
-                detail = response.text[:300]
-            raise RuntimeError("{} API HTTP {}: {}".format(provider.upper(), response.status_code, detail))
-        data = response.json()
-        if provider == "anthropic":
-            blocks = data.get("content") or []
-            answer = " ".join(str(item.get("text", "")) for item in blocks
-                              if isinstance(item, dict) and item.get("type") == "text")
-        else:
-            choices = data.get("choices") or []
-            answer = (choices[0].get("message") or {}).get("content", "") if choices else ""
-            if isinstance(answer, list):
-                answer = " ".join(str(item.get("text", "")) for item in answer if isinstance(item, dict))
-        if not str(answer or "").strip():
-            raise RuntimeError(provider.upper() + " boş yanıt döndürdü.")
-        return str(answer).strip()
-
-    def _gemini_api(self, prompt, context=""):
-        if not self.gemini_key:
-            raise RuntimeError("Gemini API anahtarı boş. AI PROVIDER ayarlarından ekleyin.")
-        user_text = prompt + (("\n\nWEB VERİSİ:\n" + context) if context else "")
-        url = "https://generativelanguage.googleapis.com/v1beta/models/" + self.gemini_model + ":generateContent"
-        response = self.session.post(
-            url, params={"key": self.gemini_key},
-            json={
-                "systemInstruction": {"parts": [{"text": "Sen JARVIS'sin. Daima Türkçe yanıt ver."}]},
-                "contents": [{"role": "user", "parts": [{"text": user_text}]}],
-                "generationConfig": {"temperature": 0.2, "maxOutputTokens": 1200},
-            },
-            timeout=min(self.timeout, 60),
-        )
-        if not response.ok:
-            raise RuntimeError("Gemini API HTTP {}: {}".format(response.status_code, response.text[:300]))
-        data = response.json()
-        candidates = data.get("candidates") or []
-        if not candidates:
-            raise RuntimeError("Gemini boş yanıt döndürdü.")
-        parts = ((candidates[0].get("content") or {}).get("parts") or [])
-        answer = " ".join(str(part.get("text", "")) for part in parts if isinstance(part, dict))
-        if not answer.strip():
-            raise RuntimeError("Gemini metin yanıtı döndürmedi.")
-        return answer.strip()
 
     def test_provider(self, provider=None):
         target = (provider or self.provider).strip().lower()
@@ -385,17 +276,18 @@ class AIBrain:
                 ok = bool(answer and not answer.startswith(failed_prefixes))
                 return {"success": ok, "message": answer[:1200]}
             if target == "ollama":
-                response = self.session.get(self.host + "/api/tags", timeout=8)
-                response.raise_for_status()
-                models = [item.get("name", "") for item in response.json().get("models", [])]
-                if not models:
-                    return {"success": False, "message": "Ollama erişilebilir ancak model listesi boş."}
-                if not any(name == self.model or name.startswith(self.model + ":") for name in models):
-                    return {"success": False, "message": "Model bulunamadı: " + self.model + ". Yüklü: " + ", ".join(models)}
-                return {"success": True, "message": "Ollama bağlantısı başarılı: " + self.model}
-            if target == "gemini":
-                answer = self._gemini_api("Sadece 'Bağlantı başarılı' yaz.")
-            elif target == "groq":
+                models = self._ollama_models(force_refresh=True)
+                selected, task, size, budget = self._select_ollama_model(
+                    "Genel bağlantı testi", models=models
+                )
+                gib = 1024 ** 3
+                return {
+                    "success": True,
+                    "message": "Ollama hazır. JARVIS modeli otomatik seçecek: {} | görev: {} | model boyutu: {:.2f} GB. Bellek yönetimini Ollama ve Windows yapar.".format(
+                        selected, task, size / gib
+                    ),
+                }
+            if target == "groq":
                 if not self.groq_key:
                     raise RuntimeError("Groq API anahtarı boş.")
                 response = self.session.post(
@@ -409,8 +301,6 @@ class AIBrain:
                     raise RuntimeError("Groq API HTTP {}: {}".format(response.status_code, response.text[:300]))
                 choices = response.json().get("choices") or []
                 answer = (choices[0].get("message") or {}).get("content", "") if choices else ""
-            elif target in self.api_defaults:
-                answer = self._compatible_api(target, "Sadece 'Bağlantı başarılı' yaz.")
             else:
                 return {"success": False, "message": "Seçilen sağlayıcı desteklenmiyor: " + target}
             return {"success": bool(str(answer or "").strip()), "message": target.upper() + " yanıt verdi: " + str(answer)[:900]}
@@ -464,20 +354,123 @@ class AIBrain:
             except Exception: pass
         return ""
 
-    def _ollama(self,prompt,context=""):
+    @staticmethod
+    def _normalise_task_text(value):
+        value = unicodedata.normalize("NFKD", str(value or "").lower())
+        return "".join(char for char in value if not unicodedata.combining(char))
+
+    def _ollama_task(self, prompt):
+        text = self._normalise_task_text(prompt)
+        coding = ("kod", "python", "javascript", "typescript", "html", "css", "sql",
+                  "debug", "hata ayikla", "program", "fonksiyon", "class ", "api ", "repo",
+                  "github", "terminal", "script", "algoritma", "yazilim")
+        audio = ("ses muhendis", "ses sistemi", "akustik", "spl", "foh", "monitor",
+                 "iem", "rf ", "mikrofon", "mikser", "midas", "dante", "line array",
+                 "frekans", "eq ", "equalizer", "kompresor", "limiter", "delay", "rider",
+                 "stage plot", "soundcheck", "ses")
+        reasoning = ("mantik", "karsilastir", "analiz et", "derin dusun", "matematik",
+                     "hesapla", "kanitla", "muhendislik hesabi", "neden", "karmasik")
+        if any(term in text for term in coding):
+            return "coding"
+        if any(term in text for term in audio):
+            return "audio"
+        if any(term in text for term in reasoning):
+            return "reasoning"
+        return "general"
+
+    def _ollama_models(self, force_refresh=False):
+        now = time.monotonic()
+        if not force_refresh and self._ollama_models_cache and now - self._ollama_models_checked_at < 20:
+            return list(self._ollama_models_cache)
+        response = self.session.get(self.host + "/api/tags", timeout=5)
+        response.raise_for_status()
+        models = response.json().get("models", [])
+        self._ollama_models_cache = [
+            item for item in models
+            if isinstance(item, dict) and str(item.get("name", "")).strip()
+        ]
+        self._ollama_models_checked_at = now
+        return list(self._ollama_models_cache)
+
+    def _select_ollama_model(self, prompt, models=None):
+        """Select an installed model automatically; Ollama handles hardware limits."""
+        models = self._ollama_models() if models is None else list(models)
+        candidates = []
+        for item in models:
+            name = str(item.get("name", "")).strip()
+            if name:
+                candidates.append((name, int(item.get("size") or 0), item))
+        if not candidates:
+            raise RuntimeError("Ollama'da kurulu model bulunamadı. Önce en az bir model indirin.")
+        task = self._ollama_task(prompt)
+        def score(entry):
+            name = entry[0].lower()
+            if task == "coding":
+                preferred = any(k in name for k in ("coder", "code", "starcoder", "codestral"))
+                secondary = any(k in name for k in ("deepseek", "qwen"))
+            elif task == "reasoning":
+                preferred = any(k in name for k in ("deepseek-r1", "qwq", "reasoning", "r1"))
+                secondary = any(k in name for k in ("qwen", "deepseek"))
+            elif task == "audio":
+                preferred = any(k in name for k in ("qwen", "llama", "mistral", "gemma", "dolphin"))
+                secondary = any(k in name for k in ("instruct", "chat", "abliterate"))
+            else:
+                preferred = any(k in name for k in ("qwen", "llama", "mistral", "gemma", "dolphin"))
+                secondary = any(k in name for k in ("instruct", "chat", "abliterate"))
+            return (int(preferred), int(secondary), entry[1])
+        selected = max(candidates, key=score)
+        return selected[0], task, selected[1], None
+
+    def _release_other_ollama_models(self, selected_model):
+        try:
+            response = self.session.get(self.host + "/api/ps", timeout=3)
+            response.raise_for_status()
+            running = response.json().get("models", [])
+        except Exception:
+            return
+        for item in running:
+            name = str(item.get("name", "")).strip()
+            if name and name != selected_model:
+                try:
+                    self.session.post(
+                        self.host + "/api/generate",
+                        json={"model": name, "keep_alive": 0},
+                        timeout=3,
+                    )
+                except Exception:
+                    logger.debug("Kullanılmayan Ollama modeli boşaltılamadı: %s", name)
+
+    def _ollama(self, prompt, context=""):
         system_prompt = """Sen JARVIS'sin. Daima Türkçe ve doğrudan yanıt ver.
 Kullanıcı tarafından bu istekte verilen bilgileri esas al. Kaydedilmiş bağlam bulunuyorsa
 onu yalnızca ilgili olduğunda kullan; eski bilgileri kesin gerçek sayma. Kaynak, ölçüm,
 dosya işlemi, donanım testi veya ağ erişimi gerçekten yapılmadıysa yapılmış gibi söyleme.
 Belirsizliği, varsayımları ve doğrulama adımlarını açıkça belirt. Gizli anahtar veya kişisel
 profil bilgilerini gereksiz yere yanıta kopyalama."""
-        payload={"model":self.model,"stream":False,"keep_alive":"30m","think":False,"options":{"temperature":0.1,"num_predict":180,"num_ctx":4096},"messages":[{"role":"system","content":system_prompt},{"role":"user","content":prompt+(("\n\nWEB VERİSİ:\n"+context) if context else "")}]}
         try:
-            r=requests.post(self.host+"/api/chat",json=payload,timeout=self.timeout)
-            r.raise_for_status()
-            return ((r.json().get("message") or {}).get("content") or "").strip()
-        except Exception as e:
-            return "Ollama bağlantısında sorun oluştu: "+str(e)
+            model, task, size, budget = self._select_ollama_model(prompt)
+            self._release_other_ollama_models(model)
+            self.last_ollama_model = model
+            logger.info("Ollama otomatik model seçildi: %s | görev=%s | boyut=%.2f GB", model, task, size / (1024 ** 3))
+            payload = {
+                "model": model,
+                "stream": False,
+                "keep_alive": "5m",
+                "think": False,
+                "options": {"temperature": 0.1},
+                "messages": [
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": prompt + (("\n\nWEB VERİSİ:\n" + context) if context else "")},
+                ],
+            }
+            response = self.session.post(self.host + "/api/chat", json=payload, timeout=max(self.timeout, 300))
+            response.raise_for_status()
+            answer = ((response.json().get("message") or {}).get("content") or "").strip()
+            if not answer:
+                raise RuntimeError("Seçilen Ollama modeli boş yanıt döndürdü: " + model)
+            return answer
+        except Exception as exc:
+            return "Ollama bağlantısında sorun oluştu: " + str(exc)
 
     def ask(self, prompt, memory_context=""):
         instant = self._instant(prompt)
@@ -491,17 +484,10 @@ profil bilgilerini gereksiz yere yanıta kopyalama."""
                 "güncel olmayan bilgileri kesin gerçek sayma):\n" + str(memory_context) +
                 "\n\nKULLANICI İSTEĞİ:\n" + str(prompt or "")
             )
-        available = []
-        if self.groq_key:
-            available.append("groq")
-        if self.gemini_key:
-            available.append("gemini")
-        available.extend(name for name in self.api_defaults if self.api_keys.get(name))
-        # A named provider is an explicit user choice. Do not silently transmit
-        # prompts to another service or incur cloud charges when it fails. "auto"
-        # prefers local Ollama, then uses configured cloud providers only on failure.
+        # Only local Ollama and the configured Groq API are supported.
+        # AUTO prefers local inference and uses Groq only if Ollama fails.
         if self.provider == "auto":
-            order = ["ollama"] + available
+            order = ["ollama"] + (["groq"] if self.groq_key else [])
         else:
             order = [self.provider]
         errors = []
@@ -512,12 +498,8 @@ profil bilgilerini gereksiz yere yanıta kopyalama."""
                     if not answer or answer.startswith("Ollama bağlantısında sorun oluştu:"):
                         raise RuntimeError(answer or "Ollama boş yanıt döndürdü.")
                     return answer
-                if selected == "gemini":
-                    return self._gemini_api(prompt, context)
                 if selected == "groq":
                     return self._compatible_groq(prompt, context)
-                if selected in self.api_defaults:
-                    return self._compatible_api(selected, prompt, context)
                 raise RuntimeError("Bilinmeyen sağlayıcı: " + selected)
             except Exception as exc:
                 errors.append(selected.upper() + ": " + str(exc))

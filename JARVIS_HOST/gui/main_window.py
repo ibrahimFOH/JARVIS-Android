@@ -875,104 +875,55 @@ class JarvisGUI:
         ).pack(anchor="e", padx=22, pady=(0, 14))
 
     def _open_ai_settings(self):
-        """Configure optional cloud AI providers without replacing Turkish/local defaults."""
+        """Configure only automatic local Ollama and the optional Groq fallback."""
         brain = self.jarvis.command_processor.ai_brain
         win = ctk.CTkToplevel(self.root)
         win.title("STAGEPULSE // YAPAY ZEKÂ SAĞLAYICISI")
-        win.geometry("650x850")
-        win.minsize(590, 650)
+        win.geometry("620x520")
+        win.minsize(560, 460)
         win.configure(fg_color=BG)
         win.transient(self.root)
         win.grab_set()
 
-        content = ctk.CTkScrollableFrame(win, fg_color=BG, corner_radius=0)
-        content.pack(fill="both", expand=True, padx=8, pady=(8, 0))
+        content = ctk.CTkFrame(win, fg_color=BG, corner_radius=0)
+        content.pack(fill="both", expand=True, padx=12, pady=12)
         actions = ctk.CTkFrame(win, fg_color=BG, corner_radius=0)
-        actions.pack(fill="x", padx=12, pady=8)
+        actions.pack(fill="x", padx=12, pady=(0, 12))
 
-        ctk.CTkLabel(
-            content, text="YAPAY ZEKÂ SAĞLAYICISI", text_color=GOLD,
-            font=("Consolas", 12, "bold")
-        ).pack(anchor="w", padx=20, pady=(16, 5))
+        ctk.CTkLabel(content, text="YAPAY ZEKÂ SAĞLAYICISI", text_color=GOLD,
+                     font=("Consolas", 12, "bold")).pack(anchor="w", padx=18, pady=(14, 6))
         provider = ctk.StringVar(value=brain.provider)
-        ctk.CTkOptionMenu(
-            content, variable=provider,
-            values=["auto", "ollama", "gemini", "groq", "openai", "grok",
-                    "anthropic", "deepseek", "perplexity", "openrouter", "custom"],
-            width=550, fg_color="#17191C", button_color=GOLD2,
-            button_hover_color=GOLD, text_color=WHITE
-        ).pack(anchor="w", padx=20, pady=(0, 10))
+        ctk.CTkOptionMenu(content, variable=provider, values=["auto", "ollama", "groq"],
+                          width=540, fg_color="#17191C", button_color=GOLD2,
+                          button_hover_color=GOLD, text_color=WHITE).pack(anchor="w", padx=18, pady=(0, 12))
 
         def field(label, value="", secret=False):
-            ctk.CTkLabel(
-                content, text=label, text_color=WHITE,
-                font=("Consolas", 10)
-            ).pack(anchor="w", padx=20, pady=(7, 2))
-            entry = ctk.CTkEntry(
-                content, width=550, show="*" if secret else "",
-                fg_color="#08090A", border_color=GOLD2,
-                text_color=WHITE
-            )
-            entry.pack(anchor="w", padx=20)
+            ctk.CTkLabel(content, text=label, text_color=WHITE,
+                         font=("Consolas", 10)).pack(anchor="w", padx=18, pady=(8, 2))
+            entry = ctk.CTkEntry(content, width=540, show="*" if secret else "",
+                                 fg_color="#08090A", border_color=GOLD2, text_color=WHITE)
+            entry.pack(anchor="w", padx=18)
             if value:
                 entry.insert(0, str(value))
             return entry
 
-        ctk.CTkLabel(
-            content, text="YEREL / GOOGLE / GROQ", text_color=GOLD,
-            font=("Consolas", 11, "bold")
-        ).pack(anchor="w", padx=20, pady=(12, 3))
+        ctk.CTkLabel(content, text="OLLAMA YEREL MODEL HAVUZU", text_color=GOLD,
+                     font=("Consolas", 11, "bold")).pack(anchor="w", padx=18, pady=(10, 3))
         ollama_host = field("OLLAMA ADRESİ", brain.host)
-        ollama_model = field("OLLAMA MODELİ", brain.model)
-        gemini_key = field("GEMINI API ANAHTARI", brain.gemini_key, secret=True)
-        gemini_model = field("GEMINI MODELİ", brain.gemini_model)
+        ctk.CTkLabel(content,
+                     text="Model seçimi tamamen otomatik. Kurulu modeller görev türüne göre taranır. JARVIS içinde sabit GB, bağlam veya yanıt uzunluğu sınırı uygulanmaz.",
+                     text_color=MUTED, wraplength=540, justify="left",
+                     font=("Consolas", 9)).pack(anchor="w", padx=18, pady=(8, 6))
         groq_key = field("GROQ API ANAHTARI", brain.groq_key, secret=True)
         groq_model = field("GROQ MODELİ", brain.groq_model)
-
-        ctk.CTkLabel(
-            content, text="DİĞER API SAĞLAYICILARI", text_color=GOLD,
-            font=("Consolas", 11, "bold")
-        ).pack(anchor="w", padx=20, pady=(14, 3))
-        ctk.CTkLabel(
-            content,
-            text="API anahtarları yerel ayar dosyasında Windows DPAPI ile şifrelenir. DPAPI başarısız olursa anahtar düz metin kaydedilmez ve kayıt hata verir. Anahtarları kaynak koduna veya GitHub'a yazma.",
-            text_color=MUTED, wraplength=550, justify="left",
-            font=("Consolas", 9)
-        ).pack(anchor="w", padx=20, pady=(0, 4))
-
-        key_entries, model_entries, url_entries = {}, {}, {}
-        labels = [
-            ("openai", "OPENAI"), ("grok", "GROK / XAI"),
-            ("anthropic", "ANTHROPIC"), ("deepseek", "DEEPSEEK"),
-            ("perplexity", "PERPLEXITY"), ("openrouter", "OPENROUTER"),
-            ("custom", "ÖZEL OPENAI-UYUMLU API"),
-        ]
-        for name, label in labels:
-            default_url, default_model = brain.api_defaults[name]
-            key_entries[name] = field(label + " API ANAHTARI", brain.api_keys.get(name, ""), secret=True)
-            url_entries[name] = field(label + " BASE URL", brain.api_base_urls.get(name, default_url))
-            model_entries[name] = field(label + " MODEL", brain.api_models.get(name, default_model))
-
-        ctk.CTkLabel(
-            content,
-            text="AUTO modu önce yerel Ollama'yı dener; başarısız olursa tanımlı API sağlayıcılarına geçer. Belirli bir sağlayıcı seçildiğinde sessizce başka sağlayıcıya geçilmez. Özel adres için OpenAI Chat Completions uyumlu /chat/completions uç noktası gerekir.",
-            text_color=MUTED, wraplength=550, justify="left",
-            font=("Consolas", 9)
-        ).pack(anchor="w", padx=20, pady=(14, 12))
+        ctk.CTkLabel(content,
+                     text="AUTO: önce Ollama, yerel model hata verirse Groq yedeği. Yalnızca Ollama ve Groq desteklenir. Fiziksel RAM/işlemci ve Groq servisinin kendi kota sınırları yazılımla kaldırılamaz.",
+                     text_color=MUTED, wraplength=540, justify="left",
+                     font=("Consolas", 9)).pack(anchor="w", padx=18, pady=(12, 8))
 
         def persist():
-            brain.configure(
-                provider=provider.get(),
-                gemini_key=gemini_key.get(),
-                gemini_model=gemini_model.get(),
-                ollama_host=ollama_host.get(),
-                ollama_model=ollama_model.get(),
-                groq_key=groq_key.get(),
-                groq_model=groq_model.get(),
-                api_keys={key: entry.get() for key, entry in key_entries.items()},
-                api_models={key: entry.get() for key, entry in model_entries.items()},
-                api_base_urls={key: entry.get() for key, entry in url_entries.items()},
-            )
+            brain.configure(provider=provider.get(), ollama_host=ollama_host.get(),
+                            groq_key=groq_key.get(), groq_model=groq_model.get())
             label = getattr(self, "_telemetry_widgets", {}).get("YAPAY ZEKÂ ÇEKİRDEĞİ")
             if label is not None:
                 label.configure(text=brain.provider.upper())
@@ -981,9 +932,7 @@ class JarvisGUI:
         def save():
             try:
                 persist()
-                self._append_to_chat(
-                    "SYSTEM", "AI ayarları kaydedildi. Sağlayıcı: " + brain.provider.upper(), "green"
-                )
+                self._append_to_chat("SYSTEM", "AI ayarları kaydedildi. Sağlayıcı: " + brain.provider.upper(), "green")
                 win.destroy()
             except Exception as exc:
                 messagebox.showerror("AI ayarları", str(exc), parent=win)
@@ -996,15 +945,11 @@ class JarvisGUI:
                 return
             target = provider.get()
             self._append_to_chat("SYSTEM", target.upper() + " bağlantısı test ediliyor...", "yellow")
-
             def worker():
                 result = brain.test_provider(target)
-
                 def finish():
                     message = str(result.get("message", "Test tamamlandı."))
-                    self._append_to_chat(
-                        "SYSTEM", message, "green" if result.get("success") else "red"
-                    )
+                    self._append_to_chat("SYSTEM", message, "green" if result.get("success") else "red")
                     if result.get("success"):
                         messagebox.showinfo("AI bağlantı testi", message, parent=win)
                     else:
@@ -1013,23 +958,15 @@ class JarvisGUI:
                     self.root.after(0, finish)
                 except Exception:
                     pass
+            threading.Thread(target=worker, daemon=True, name="JARVIS-AI-Provider-Test").start()
 
-            threading.Thread(
-                target=worker, daemon=True,
-                name="JARVIS-AI-Provider-Test"
-            ).start()
-
-        ctk.CTkButton(
-            actions, text="SEÇİLİ SAĞLAYICIYI TEST ET",
-            command=test, fg_color="#090B0D", hover_color="#15181C",
-            border_width=1, border_color=GOLD2, text_color=GOLD,
-            font=("Consolas", 10, "bold")
-        ).pack(fill="x", padx=6, pady=3)
-        ctk.CTkButton(
-            actions, text="AYARLARI KAYDET",
-            command=save, fg_color=GOLD2, hover_color=GOLD,
-            text_color="#050505", font=("Consolas", 10, "bold")
-        ).pack(fill="x", padx=6, pady=3)
+        ctk.CTkButton(actions, text="BAĞLANTIYI TEST ET", command=test,
+                      fg_color="#090B0D", hover_color="#15181C", border_width=1,
+                      border_color=GOLD2, text_color=GOLD,
+                      font=("Consolas", 10, "bold")).pack(fill="x", padx=6, pady=3)
+        ctk.CTkButton(actions, text="AYARLARI KAYDET", command=save,
+                      fg_color=GOLD2, hover_color=GOLD, text_color="#050505",
+                      font=("Consolas", 10, "bold")).pack(fill="x", padx=6, pady=3)
 
     def _open_experts(self):
         """Open the APK-inspired expert workspace in the Windows host."""
