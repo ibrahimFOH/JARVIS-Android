@@ -173,6 +173,10 @@ class AIBrain:
             "kapsamlı", "detaylı analiz", "derin analiz", "araştır", "karşılaştır",
             "mühendislik", "akustik", "spl", "rta", "teknik rapor", "mimari",
             "fiziksel hesap", "hesapla", "tasarla", "projelendir", "teknik şartname",
+            "foh", "monitör", "monitor", "line array", "subwoofer", "subbass",
+            "rider", "stageplot", "stage plot", "midas", "m32", "cl5", "avantis",
+            "mikser", "mikrofon", "dante", "iem", "soundcheck", "gain staging",
+            "oda akustiği", "oda akustigi", "yankı süresi", "reverb time",
         )
         routes = {
             "code": [
