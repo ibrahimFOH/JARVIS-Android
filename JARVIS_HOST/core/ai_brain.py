@@ -7,7 +7,8 @@ import logging
 import copy
 import requests
 from pathlib import Path
-from urllib.parse import quote
+from urllib.parse import quote, urlparse
+import time
 
 logger = logging.getLogger(__name__)
 
@@ -15,9 +16,12 @@ class AIBrain:
     def __init__(self):
         self.session = requests.Session()
         self.host = "http://127.0.0.1:11434"
-        self.model = "qwen3:0.6b"
-        self.timeout = 18
+        self.model = "auto"
+        self.timeout = 180
         self.web_timeout = 5
+        self._ollama_models_cache = []
+        self._ollama_models_cache_at = 0.0
+        self.last_ollama_model = ""
         self.settings_path = self._settings_file()
         saved = self._read_settings()
         legacy_ai = {}
@@ -59,8 +63,10 @@ class AIBrain:
             "GROQ_API_KEY", self._unprotect_key(saved.get("groq_api_key", legacy_value("groq", "api_key", "")))
         ).strip()
         self.groq_model = os.environ.get("GROQ_MODEL", saved.get("groq_model", legacy_value("groq", "model", "openai/gpt-oss-20b")))
-        self.host = os.environ.get("OLLAMA_HOST", saved.get("ollama_host", legacy_ai.get("ollama_url", self.host))).rstrip("/")
-        self.model = os.environ.get("OLLAMA_MODEL", saved.get("ollama_model", legacy_ai.get("ollama_model", self.model)))
+        configured_host = os.environ.get("OLLAMA_HOST", saved.get("ollama_host", legacy_ai.get("ollama_url", self.host)))
+        self.host = self._normalize_ollama_host(configured_host)
+        # Never depend on a stale model saved by an older release.
+        self.model = "auto"
         self.api_keys = {
             str(key).lower(): self._unprotect_key(value)
             for key, value in saved.get("api_keys", {}).items()
@@ -105,12 +111,96 @@ class AIBrain:
         self.provider = str(
             saved.get("provider", os.environ.get("JARVIS_AI_PROVIDER", legacy_ai.get("provider", "ollama")))
         ).strip().lower()
-        if self.provider not in ("auto", "gemini", "groq", "ollama", *self.api_defaults.keys()):
+        if self.provider not in ("auto", "groq", "ollama"):
             self.provider = "ollama"
 
         # Older releases stored provider API keys as cleartext in ai_settings.json
         # and config.json. Migrate those values to DPAPI before retaining them.
         self._migrate_plaintext_credentials(saved, legacy_ai, legacy_config_manager)
+
+    @staticmethod
+    def _normalize_ollama_host(value):
+        raw = str(value or "http://127.0.0.1:11434").strip().rstrip("/")
+        parsed = urlparse(raw)
+        if (
+            parsed.scheme != "http"
+            or parsed.hostname not in {"127.0.0.1", "localhost", "::1"}
+            or parsed.username or parsed.password or parsed.query or parsed.fragment
+            or parsed.path not in ("", "/")
+        ):
+            return "http://127.0.0.1:11434"
+        return raw
+
+    def list_ollama_models(self, force=False):
+        """Read installed model tags from the local Ollama service only."""
+        now = time.monotonic()
+        if not force and self._ollama_models_cache and now - self._ollama_models_cache_at < 30:
+            return list(self._ollama_models_cache)
+        response = self.session.get(self.host + "/api/tags", timeout=8)
+        response.raise_for_status()
+        data = response.json()
+        items = data.get("models", []) if isinstance(data, dict) else []
+        names = sorted({
+            str(item.get("name") or item.get("model") or "").strip()
+            for item in items if isinstance(item, dict)
+            and str(item.get("name") or item.get("model") or "").strip()
+        })
+        if not names:
+            raise RuntimeError("Ollama çalışıyor ancak yüklü model listesi boş. ollama list ile kontrol et.")
+        self._ollama_models_cache = names
+        self._ollama_models_cache_at = now
+        return list(names)
+
+    @staticmethod
+    def select_ollama_model(prompt, installed_models):
+        """Choose a task-appropriate installed model without asking the user."""
+        available = set(str(name).strip() for name in installed_models if str(name).strip())
+        if not available:
+            raise RuntimeError("Ollama'da kullanılabilir model bulunamadı.")
+        text = str(prompt or "").casefold()
+        code_terms = (
+            "kod", "python", "javascript", "typescript", "kotlin", "java ",
+            "html", "css", "json", "yaml", "sql", "powershell", "terminal",
+            "cmd", "script", "debug", "hata ayıkla", "derle", "build", "apk",
+            "exe", "github", "repo", "pull request", "workflow", "fonksiyon yaz",
+            "uygulama geliştir", "programla", "kodla",
+        )
+        analysis_terms = (
+            "kapsamlı", "detaylı analiz", "derin analiz", "araştır", "karşılaştır",
+            "mühendislik", "akustik", "spl", "rta", "teknik rapor", "mimari",
+            "fiziksel hesap", "hesapla", "tasarla", "projelendir", "teknik şartname",
+        )
+        routes = {
+            "code": [
+                "iamhere/qwen2.5-coder-3b-instruct-abliterated:latest",
+                "hf.co/bartowski/Qwen2.5-14B-Instruct-1M-GGUF:Q2_K",
+                "huihui_ai/qwen2.5-abliterate:latest",
+                "dolphin-llama3:latest",
+                "superdrew100/llama3-abliterated:latest",
+            ],
+            "analysis": [
+                "hf.co/bartowski/Qwen2.5-14B-Instruct-1M-GGUF:Q2_K",
+                "huihui_ai/qwen2.5-abliterate:latest",
+                "dolphin-mistral:latest",
+                "dolphin-llama3:latest",
+            ],
+            "general": [
+                "huihui_ai/qwen2.5-abliterate:latest",
+                "dolphin-mistral:latest",
+                "dolphin-llama3:latest",
+                "superdrew100/llama3-abliterated:latest",
+                "dolphin-phi:latest",
+                "hf.co/bartowski/Qwen2.5-14B-Instruct-1M-GGUF:Q2_K",
+            ],
+        }
+        route = "code" if any(term in text for term in code_terms) else (
+            "analysis" if any(term in text for term in analysis_terms) else "general"
+        )
+        for candidate in routes[route]:
+            if candidate in available:
+                return candidate
+        # Unknown future Ollama tags remain usable; never invent a model name.
+        return sorted(available)[0]
 
     @staticmethod
     def _settings_file():
@@ -251,9 +341,8 @@ class AIBrain:
                   api_base_urls=None):
         if provider is not None:
             value = str(provider).strip().lower()
-            allowed = ("auto", "gemini", "groq", "ollama", *self.api_defaults.keys())
-            if value not in allowed:
-                raise ValueError("Desteklenmeyen AI sağlayıcısı: " + value)
+            if value not in {"auto", "ollama", "groq"}:
+                raise ValueError("Yalnızca otomatik yönlendirme, yerel Ollama veya Groq kullanılabilir.")
             self.provider = value
         if gemini_key is not None:
             self.gemini_key = gemini_key.strip()
@@ -264,9 +353,12 @@ class AIBrain:
         if groq_model and groq_model.strip():
             self.groq_model = groq_model.strip()
         if ollama_host and ollama_host.strip():
-            self.host = ollama_host.strip().rstrip("/")
-        if ollama_model and ollama_model.strip():
-            self.model = ollama_model.strip()
+            normalized = self._normalize_ollama_host(ollama_host)
+            if normalized != str(ollama_host).strip().rstrip("/"):
+                raise ValueError("Ollama yalnızca bu bilgisayardaki http://127.0.0.1:11434 adresinden kullanılabilir.")
+            self.host = normalized
+        # ollama_model is accepted for old callers but never overrides automatic routing.
+        self.model = "auto"
         if isinstance(api_keys, dict):
             for key, value in api_keys.items():
                 name = str(key).lower()
