@@ -112,6 +112,9 @@ class AIBrain:
         ).strip().lower()
         if self.provider not in ("auto", "groq", "ollama"):
             self.provider = "auto"
+        elif self.provider == "ollama":
+            # Existing installs should use automatic Ollama -> Groq failover.
+            self.provider = "auto"
 
         # Older releases stored provider API keys as cleartext in ai_settings.json
         # and config.json. Migrate those values to DPAPI before retaining them.
