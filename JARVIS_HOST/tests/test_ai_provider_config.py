@@ -14,7 +14,7 @@ def fresh_brain(tmp_path, monkeypatch):
 
 def test_ollama_remains_the_default_provider(tmp_path, monkeypatch):
     brain = fresh_brain(tmp_path, monkeypatch)
-    assert brain.provider == "ollama"
+    assert brain.provider == "auto"
     assert brain.host == "http://127.0.0.1:11434"
     assert brain.model == "auto"
 
@@ -31,47 +31,26 @@ def test_only_local_ollama_and_groq_are_active_providers(tmp_path, monkeypatch):
 def test_provider_settings_persist_and_reload(tmp_path, monkeypatch):
     brain = fresh_brain(tmp_path, monkeypatch)
     brain.configure(
-        provider="openai",
-        api_keys={"openai": "not-a-real-secret"},
-        api_models={"openai": "test-model"},
-        api_base_urls={"openai": "https://example.invalid/v1"},
+        provider="groq",
+        groq_key="not-a-real-secret",
+        groq_model="test-groq-model",
+        ollama_host="http://127.0.0.1:11434",
+        ollama_model="auto",
     )
     saved = (tmp_path / "ai_settings.json").read_text(encoding="utf-8")
-    assert '"provider": "openai"' in saved
+    assert '"provider": "groq"' in saved
     reloaded = fresh_brain(tmp_path, monkeypatch)
-    assert reloaded.provider == "openai"
-    assert reloaded.api_keys["openai"] == "not-a-real-secret"
-    assert reloaded.api_models["openai"] == "test-model"
-    assert reloaded.api_base_urls["openai"] == "https://example.invalid/v1"
+    assert reloaded.provider == "groq"
+    assert reloaded.groq_key == "not-a-real-secret"
+    assert reloaded.groq_model == "test-groq-model"
+    assert reloaded.host == "http://127.0.0.1:11434"
+    assert reloaded.model == "auto"
 
 
-def test_openai_compatible_provider_uses_selected_url_model_and_key(tmp_path, monkeypatch):
+def test_disabled_openai_provider_cannot_be_selected(tmp_path, monkeypatch):
     brain = fresh_brain(tmp_path, monkeypatch)
-    brain.api_keys["openai"] = "test-secret"
-    brain.api_models["openai"] = "unit-test-model"
-    brain.api_base_urls["openai"] = "https://example.invalid/v1"
-
-    class Response:
-        ok = True
-        status_code = 200
-        text = ""
-
-        def json(self):
-            return {"choices": [{"message": {"content": "Yanıt tamam"}}]}
-
-    class Session:
-        call = None
-
-        def post(self, url, **kwargs):
-            self.call = (url, kwargs)
-            return Response()
-
-    session = Session()
-    brain.session = session
-    assert brain._compatible_api("openai", "test prompt") == "Yanıt tamam"
-    assert session.call[0] == "https://example.invalid/v1/chat/completions"
-    assert session.call[1]["json"]["model"] == "unit-test-model"
-    assert session.call[1]["headers"]["Authorization"] == "Bearer test-secret"
+    with pytest.raises(ValueError, match="Yalnızca otomatik"):
+        brain.configure(provider="openai")
 
 
 def test_auto_provider_connection_check_rejects_ollama_failure(tmp_path, monkeypatch):
@@ -84,11 +63,17 @@ def test_auto_provider_connection_check_rejects_ollama_failure(tmp_path, monkeyp
     assert result["success"] is False
 
 
-def test_auto_provider_connection_check_accepts_a_real_response(tmp_path, monkeypatch):
+def test_auto_provider_connection_check_accepts_real_local_model_list(tmp_path, monkeypatch):
     brain = fresh_brain(tmp_path, monkeypatch)
-    monkeypatch.setattr(brain, "ask", lambda _prompt: "Bağlantı başarılı")
+    models = [
+        "huihui_ai/qwen2.5-abliterate:latest",
+        "iamhere/qwen2.5-coder-3b-instruct-abliterated:latest",
+        "hf.co/bartowski/Qwen2.5-14B-Instruct-1M-GGUF:Q2_K",
+    ]
+    monkeypatch.setattr(brain, "list_ollama_models", lambda force=False: models)
     result = brain.test_provider("auto")
     assert result["success"] is True
+    assert "3 model bulundu" in result["message"]
 
 
 def test_groq_missing_key_reports_failure_without_network(tmp_path, monkeypatch):
@@ -155,7 +140,10 @@ def test_legacy_api_provider_settings_are_preserved(tmp_path, monkeypatch):
         staticmethod(lambda: tmp_path / "no-settings-yet.json")
     )
     brain = AIBrain()
-    assert brain.provider == "openai"
+    # Old provider credentials remain readable for safe migration, but
+    # an obsolete cloud provider is never activated in the new runtime.
+    assert brain.provider == "ollama"
+    assert brain.model == "auto"
     assert brain.gemini_key == "legacy-gemini-key"
     assert brain.api_keys["openai"] == "legacy-openai-key"
     assert brain.api_models["openai"] == "legacy-model"
