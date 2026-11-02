@@ -71,6 +71,7 @@ def test_auto_provider_connection_check_accepts_real_local_model_list(tmp_path, 
         "hf.co/bartowski/Qwen2.5-14B-Instruct-1M-GGUF:Q2_K",
     ]
     monkeypatch.setattr(brain, "list_ollama_models", lambda force=False: models)
+    monkeypatch.setattr(brain, "_ollama", lambda _prompt, _context="": "Bağlantı başarılı")
     result = brain.test_provider("auto")
     assert result["success"] is True
     assert "3 model bulundu" in result["message"]
