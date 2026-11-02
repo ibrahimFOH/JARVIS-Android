@@ -483,13 +483,18 @@ class AIBrain:
                 general = self.select_ollama_model("Genel bir bağlantı testi", models)
                 code = self.select_ollama_model("Python kodu debug et", models)
                 analysis = self.select_ollama_model("Kapsamlı mühendislik analizi yap", models)
+                probe = self._ollama("Sadece 'Bağlantı başarılı' yaz.")
+                if not probe or probe.startswith("Ollama bağlantısında sorun oluştu:"):
+                    return {"success": False, "message": probe or "Ollama boş yanıt döndürdü.", "models": models}
                 return {
                     "success": True,
                     "message": (
-                        "Ollama localhost bağlantısı başarılı. "
+                        "Ollama localhost bağlantısı ve model yanıtı başarılı. "
                         f"{len(models)} model bulundu. Genel: {general} · Kod: {code} · Analiz: {analysis}"
                     ),
                     "models": models,
+                    "probe_model": self.last_ollama_model,
+                    "probe_response": probe[:500],
                 }
             if target == "groq":
                 if not self.groq_key:
