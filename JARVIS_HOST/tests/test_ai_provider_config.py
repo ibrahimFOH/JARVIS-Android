@@ -142,7 +142,7 @@ def test_legacy_api_provider_settings_are_preserved(tmp_path, monkeypatch):
     brain = AIBrain()
     # Old provider credentials remain readable for safe migration, but
     # an obsolete cloud provider is never activated in the new runtime.
-    assert brain.provider == "ollama"
+    assert brain.provider == "auto"
     assert brain.model == "auto"
     assert brain.gemini_key == "legacy-gemini-key"
     assert brain.api_keys["openai"] == "legacy-openai-key"
