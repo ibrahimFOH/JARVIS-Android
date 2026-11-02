@@ -894,7 +894,7 @@ class JarvisGUI:
             content, text="YAPAY ZEKÂ SAĞLAYICISI / YEREL MODEL YÖNLENDİRME", text_color=GOLD,
             font=("Consolas", 12, "bold")
         ).pack(anchor="w", padx=20, pady=(16, 5))
-        provider = ctk.StringVar(value=brain.provider)
+        provider = tk.StringVar(value=brain.provider)
         ctk.CTkOptionMenu(
             content, variable=provider, values=["auto", "ollama", "groq"],
             width=550, fg_color="#17191C", button_color=GOLD2,
