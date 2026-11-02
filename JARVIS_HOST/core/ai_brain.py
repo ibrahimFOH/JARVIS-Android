@@ -567,7 +567,7 @@ class AIBrain:
                 secondary = any(key in name for key in ("instruct", "chat"))
             # Prefer a task-specialized model, then the strongest model that
             # still fits the conservative RAM budget.
-            return (int(preferred), int(secondary), entry[1])
+            return (int(preferred), int(secondary), -entry[1])
         selected = max(candidates, key=score)
         return selected[0], task, selected[1], budget
 
