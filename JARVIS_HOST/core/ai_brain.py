@@ -395,10 +395,11 @@ class AIBrain:
                     "Genel bağlantı testi", models=models
                 )
                 gib = 1024 ** 3
+                mode = "Ayarlar ekranında seçilen model" if selected == self.model else "Otomatik seçilen model"
                 return {
                     "success": True,
-                    "message": "Ollama hazır. Otomatik model: {} | görev: {} | model: {:.2f} GB | güvenli RAM bütçesi: {:.2f} GB".format(
-                        selected, task, size / gib, budget / gib
+                    "message": "Ollama hazır. {}: {} | model: {:.2f} GB | güvenli RAM bütçesi: {:.2f} GB".format(
+                        mode, selected, size / gib, budget / gib
                     ),
                 }
             if target == "gemini":
@@ -531,6 +532,39 @@ class AIBrain:
         if not models:
             raise RuntimeError("Ollama'da kurulu model bulunamadı. 'ollama list' ile kontrol edin.")
         budget = self._ollama_memory_budget()
+        gib = 1024 ** 3
+        installed = {
+            str(item.get("name", "")).strip(): item
+            for item in models
+            if isinstance(item, dict) and str(item.get("name", "")).strip()
+        }
+
+        # Respect the model explicitly entered in the settings screen.
+        # Only the untouched built-in default may fall back to automatic discovery.
+        configured = str(self.model or "").strip()
+        default_model = "qwen3:0.6b"
+        if configured and configured in installed:
+            chosen = installed[configured]
+            chosen_size = int(chosen.get("size") or 0)
+            if chosen_size <= 0:
+                raise RuntimeError("Seçilen Ollama modelinin boyutu okunamadı: " + configured)
+            if chosen_size > budget:
+                raise RuntimeError(
+                    "Seçtiğiniz model kurulu ancak şu anki boş RAM'e sığmıyor: {} ({:.2f} GB). "
+                    "JARVIS'in hesapladığı güvenli model bütçesi {:.2f} GB. "
+                    "Windows'ta kullanılabilir RAM'i artırıp yeniden deneyin veya daha küçük bir model seçin.".format(
+                        configured, chosen_size / gib, budget / gib
+                    )
+                )
+            return configured, self._ollama_task(prompt), chosen_size, budget
+        if configured and configured != default_model:
+            raise RuntimeError(
+                "Ayarlar ekranında seçtiğiniz model Ollama'da kurulu değil: {}. "
+                "Modeli kurmak için Komut İstemi'nde şu komutu çalıştırın: ollama pull {}".format(
+                    configured, configured
+                )
+            )
+
         candidates = []
         for item in models:
             name = str(item.get("name", "")).strip()
@@ -539,13 +573,12 @@ class AIBrain:
                 continue
             candidates.append((name, size, item))
         if not candidates:
-            gib = 1024 ** 3
             smallest = min(models, key=lambda item: int(item.get("size") or 0))
             smallest_size = int(smallest.get("size") or 0)
             raise RuntimeError(
-                "4 GB RAM güvenli çalışma sınırı nedeniyle uygun model seçilemedi. "
-                "En küçük kurulu model: {} ({:.2f} GB); bu oturum için model bütçesi: {:.2f} GB. "
-                "JARVIS büyük modeli zorla yüklemeyecek.".format(
+                "Ollama'ya erişildi ancak boş RAM yetersiz. En küçük kurulu model: {} ({:.2f} GB); "
+                "bu oturumdaki güvenli model bütçesi: {:.2f} GB. "
+                "Diğer programları kapatıp yeniden deneyin veya daha küçük model kurun.".format(
                     smallest.get("name", "bilinmiyor"), smallest_size / gib, budget / gib
                 )
             )
