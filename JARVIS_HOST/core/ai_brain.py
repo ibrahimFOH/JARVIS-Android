@@ -109,10 +109,10 @@ class AIBrain:
             if os.environ.get(env_key):
                 self.api_keys[name] = os.environ[env_key].strip()
         self.provider = str(
-            saved.get("provider", os.environ.get("JARVIS_AI_PROVIDER", legacy_ai.get("provider", "ollama")))
+            saved.get("provider", os.environ.get("JARVIS_AI_PROVIDER", legacy_ai.get("provider", "auto")))
         ).strip().lower()
         if self.provider not in ("auto", "groq", "ollama"):
-            self.provider = "ollama"
+            self.provider = "auto"
 
         # Older releases stored provider API keys as cleartext in ai_settings.json
         # and config.json. Migrate those values to DPAPI before retaining them.
