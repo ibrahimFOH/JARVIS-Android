@@ -17,7 +17,7 @@ class AIBrain:
         self.session = requests.Session()
         self.host = "http://127.0.0.1:11434"
         self.model = "auto"
-        self.timeout = 180
+        self.timeout = 600
         self.web_timeout = 5
         self._ollama_models_cache = []
         self._ollama_models_cache_at = 0.0
