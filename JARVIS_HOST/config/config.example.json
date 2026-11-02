@@ -118,13 +118,9 @@
   },
   "ai": {
     "enabled": true,
-    "strategy": "ollama_only",
-    "free_only": true,
-    "max_output_tokens": 120,
-    "timeout_seconds": 18,
-    "provider": "ollama",
+    "strategy": "ollama_then_groq",
+    "provider": "auto",
     "ollama_url": "http://127.0.0.1:11434",
-    "ollama_model": "qwen3:0.6b",
     "web_enabled": true
   },
   "android_bridge": {
