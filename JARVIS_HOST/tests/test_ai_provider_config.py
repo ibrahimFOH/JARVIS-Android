@@ -21,6 +21,8 @@ def test_ollama_remains_the_default_provider(tmp_path, monkeypatch):
 
 
 def test_provider_settings_persist_and_reload(tmp_path, monkeypatch):
+    monkeypatch.setattr(AIBrain, "_protect_key", staticmethod(lambda value: {"test": value}))
+    monkeypatch.setattr(AIBrain, "_unprotect_key", staticmethod(lambda value: value.get("test", "") if isinstance(value, dict) else value))
     brain = fresh_brain(tmp_path, monkeypatch)
     brain.configure(provider="groq", groq_key="not-a-real-secret", groq_model="test-model")
     saved = (tmp_path / "ai_settings.json").read_text(encoding="utf-8")
