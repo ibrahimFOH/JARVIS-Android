@@ -390,14 +390,17 @@ class AIBrain:
                 ok = bool(answer and not answer.startswith(failed_prefixes))
                 return {"success": ok, "message": answer[:1200]}
             if target == "ollama":
-                response = self.session.get(self.host + "/api/tags", timeout=8)
-                response.raise_for_status()
-                models = [item.get("name", "") for item in response.json().get("models", [])]
-                if not models:
-                    return {"success": False, "message": "Ollama erişilebilir ancak model listesi boş."}
-                if not any(name == self.model or name.startswith(self.model + ":") for name in models):
-                    return {"success": False, "message": "Model bulunamadı: " + self.model + ". Yüklü: " + ", ".join(models)}
-                return {"success": True, "message": "Ollama bağlantısı başarılı: " + self.model}
+                models = self._ollama_models(force_refresh=True)
+                selected, task, size, budget = self._select_ollama_model(
+                    "Genel bağlantı testi", models=models
+                )
+                gib = 1024 ** 3
+                return {
+                    "success": True,
+                    "message": "Ollama hazır. Otomatik model: {} | görev: {} | model: {:.2f} GB | güvenli RAM bütçesi: {:.2f} GB".format(
+                        selected, task, size / gib, budget / gib
+                    ),
+                }
             if target == "gemini":
                 answer = self._gemini_api("Sadece 'Bağlantı başarılı' yaz.")
             elif target == "groq":
