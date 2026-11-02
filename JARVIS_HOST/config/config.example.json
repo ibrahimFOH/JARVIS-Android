@@ -118,10 +118,10 @@
   },
   "ai": {
     "enabled": true,
-    "strategy": "ollama_only",
+    "strategy": "local_auto_then_groq_fallback",
     "free_only": true,
-    "max_output_tokens": 120,
-    "timeout_seconds": 18,
+    "max_output_tokens": -1,
+    "timeout_seconds": 600,
     "provider": "auto",
     "ollama_url": "http://127.0.0.1:11434",
     "ollama_model": "auto",
