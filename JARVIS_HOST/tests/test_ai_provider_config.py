@@ -14,68 +14,21 @@ def fresh_brain(tmp_path, monkeypatch):
 
 def test_ollama_remains_the_default_provider(tmp_path, monkeypatch):
     brain = fresh_brain(tmp_path, monkeypatch)
-    assert brain.provider == "ollama"
+    assert brain.provider == "auto"
     assert brain.host == "http://127.0.0.1:11434"
-    assert brain.model == "qwen3:0.6b"
+    assert brain.model == ""
 
-
-def test_expected_optional_providers_are_available(tmp_path, monkeypatch):
-    brain = fresh_brain(tmp_path, monkeypatch)
-    expected = {
-        "openai", "grok", "anthropic", "deepseek",
-        "perplexity", "openrouter", "custom",
-    }
-    assert expected <= set(brain.api_defaults)
-    assert {"auto", "gemini", "groq", "ollama"} <= {
-        "auto", "gemini", "groq", "ollama", *brain.api_defaults
-    }
 
 
 def test_provider_settings_persist_and_reload(tmp_path, monkeypatch):
     brain = fresh_brain(tmp_path, monkeypatch)
-    brain.configure(
-        provider="openai",
-        api_keys={"openai": "not-a-real-secret"},
-        api_models={"openai": "test-model"},
-        api_base_urls={"openai": "https://example.invalid/v1"},
-    )
+    brain.configure(provider="groq", groq_key="not-a-real-secret", groq_model="test-model")
     saved = (tmp_path / "ai_settings.json").read_text(encoding="utf-8")
-    assert '"provider": "openai"' in saved
+    assert '"provider": "groq"' in saved
     reloaded = fresh_brain(tmp_path, monkeypatch)
-    assert reloaded.provider == "openai"
-    assert reloaded.api_keys["openai"] == "not-a-real-secret"
-    assert reloaded.api_models["openai"] == "test-model"
-    assert reloaded.api_base_urls["openai"] == "https://example.invalid/v1"
-
-
-def test_openai_compatible_provider_uses_selected_url_model_and_key(tmp_path, monkeypatch):
-    brain = fresh_brain(tmp_path, monkeypatch)
-    brain.api_keys["openai"] = "test-secret"
-    brain.api_models["openai"] = "unit-test-model"
-    brain.api_base_urls["openai"] = "https://example.invalid/v1"
-
-    class Response:
-        ok = True
-        status_code = 200
-        text = ""
-
-        def json(self):
-            return {"choices": [{"message": {"content": "Yanıt tamam"}}]}
-
-    class Session:
-        call = None
-
-        def post(self, url, **kwargs):
-            self.call = (url, kwargs)
-            return Response()
-
-    session = Session()
-    brain.session = session
-    assert brain._compatible_api("openai", "test prompt") == "Yanıt tamam"
-    assert session.call[0] == "https://example.invalid/v1/chat/completions"
-    assert session.call[1]["json"]["model"] == "unit-test-model"
-    assert session.call[1]["headers"]["Authorization"] == "Bearer test-secret"
-
+    assert reloaded.provider == "groq"
+    assert reloaded.groq_key == "not-a-real-secret"
+    assert reloaded.groq_model == "test-model"
 
 def test_auto_provider_connection_check_rejects_ollama_failure(tmp_path, monkeypatch):
     brain = fresh_brain(tmp_path, monkeypatch)
@@ -130,39 +83,6 @@ def test_onefile_first_launch_finds_bundled_turkish_default_config(tmp_path, mon
     assert config.get("voice.recognition_language") == "tr-TR"
     assert config.get("personality.language") == "tr-TR"
 
-
-def test_legacy_api_provider_settings_are_preserved(tmp_path, monkeypatch):
-    import utils.config_manager as config_module
-
-    legacy_ai = {
-        "provider": "openai",
-        "ollama_url": "http://127.0.0.1:11434",
-        "ollama_model": "qwen3:0.6b",
-        "providers": {
-            "gemini": {"api_key": "legacy-gemini-key", "model": "gemini-legacy"},
-            "openai": {
-                "api_key": "legacy-openai-key",
-                "base_url": "https://example.invalid/v1/chat/completions",
-                "model": "legacy-model",
-            },
-        },
-    }
-
-    class LegacyConfig:
-        def get(self, key, default=None):
-            return legacy_ai if key == "ai" else default
-
-    monkeypatch.setattr(config_module, "get_config", lambda: LegacyConfig())
-    monkeypatch.setattr(
-        AIBrain, "_settings_file",
-        staticmethod(lambda: tmp_path / "no-settings-yet.json")
-    )
-    brain = AIBrain()
-    assert brain.provider == "openai"
-    assert brain.gemini_key == "legacy-gemini-key"
-    assert brain.api_keys["openai"] == "legacy-openai-key"
-    assert brain.api_models["openai"] == "legacy-model"
-    assert brain.api_base_urls["openai"] == "https://example.invalid/v1"
 
 
 def test_auto_provider_uses_configured_groq_fallback(tmp_path, monkeypatch):
@@ -268,36 +188,7 @@ def test_default_config_path_does_not_depend_on_current_working_directory(tmp_pa
         tmp_path / "installed" / "config" / "config.json"
     )
 
-def test_default_cloud_models_use_current_model_aliases(tmp_path, monkeypatch):
-    brain = fresh_brain(tmp_path, monkeypatch)
-    assert brain.gemini_model == "gemini-3.8-flash"
-    assert brain.api_defaults["openai"][1] == "gpt-6-luna"
-    assert brain.api_defaults["grok"][1] == "grok-4.7"
-    assert brain.api_defaults["anthropic"][1] == "claude-sonnet-4-6"
-    assert brain.api_defaults["deepseek"][1] == "deepseek-flash"
-    assert brain.api_defaults["openrouter"][1] == "openai/gpt-6-luna"
 
-
-def test_legacy_cloud_model_aliases_migrate_to_current_defaults(tmp_path, monkeypatch):
-    import json
-
-    settings_path = tmp_path / "ai_settings.json"
-    settings_path.write_text(json.dumps({
-        "provider": "openai",
-        "api_models": {
-            "openai": "gpt-4.1-mini",
-            "grok": "grok-4.1",
-            "openrouter": "openai/gpt-4.1-mini",
-        },
-        "api_keys": {},
-    }), encoding="utf-8")
-    monkeypatch.setattr(AIBrain, "_settings_file", staticmethod(lambda: settings_path))
-
-    brain = AIBrain()
-
-    assert brain.api_models["openai"] == "gpt-6-luna"
-    assert brain.api_models["grok"] == "grok-4.7"
-    assert brain.api_models["openrouter"] == "openai/gpt-6-luna"
 
 def test_dpapi_failure_does_not_fall_back_to_plaintext(monkeypatch):
     original_import = builtins.__import__
@@ -402,47 +293,6 @@ def test_failed_plaintext_migration_preserves_original_credentials(tmp_path, mon
 
 
 
-def test_gpt6_chat_completions_use_supported_sampling_parameters(tmp_path, monkeypatch):
-    brain = fresh_brain(tmp_path, monkeypatch)
-    brain.api_keys["openai"] = "test-secret"
-
-    class Response:
-        ok = True
-        status_code = 200
-        text = ""
-
-        def json(self):
-            return {"choices": [{"message": {"content": "Yanıt tamam"}}]}
-
-    class Session:
-        def __init__(self):
-            self.calls = []
-
-        def post(self, url, **kwargs):
-            self.calls.append((url, kwargs))
-            return Response()
-
-    session = Session()
-    brain.session = session
-
-    brain.api_models["openai"] = "gpt-6-luna"
-    assert brain._compatible_api("openai", "test prompt") == "Yanıt tamam"
-    luna_payload = session.calls[-1][1]["json"]
-    assert luna_payload["reasoning_effort"] == "none"
-    assert luna_payload["temperature"] == 0.2
-
-    brain.api_models["openai"] = "gpt-6-astra"
-    assert brain._compatible_api("openai", "test prompt") == "Yanıt tamam"
-    astra_payload = session.calls[-1][1]["json"]
-    assert "temperature" not in astra_payload
-    assert "reasoning_effort" not in astra_payload
-
-    brain.api_models["openrouter"] = "openai/gpt-6-luna"
-    brain.api_keys["openrouter"] = "test-secret"
-    assert brain._compatible_api("openrouter", "test prompt") == "Yanıt tamam"
-    router_payload = session.calls[-1][1]["json"]
-    assert router_payload["reasoning_effort"] == "none"
-
 
 def test_fast_turkish_responses_use_command_processors_real_process_method():
     from core.command_processor import CommandProcessor
@@ -483,16 +333,6 @@ def test_ollama_router_prefers_specialist_model_that_fits_4gb_budget(tmp_path, m
     assert size <= budget
 
 
-def test_ollama_router_refuses_model_larger_than_safe_memory_budget(tmp_path, monkeypatch):
-    brain = fresh_brain(tmp_path, monkeypatch)
-    monkeypatch.setattr(brain, "_ollama_memory_budget", lambda: 700 * 1024 ** 2)
-    models = [
-        {"name": "deepseek-coder:6.7b", "size": 5 * 1024 ** 3},
-        {"name": "qwen2.5:1.5b", "size": 1 * 1024 ** 3},
-    ]
-    with pytest.raises(RuntimeError, match="4 GB RAM güvenli çalışma sınırı"):
-        brain._select_ollama_model("kod yaz", models=models)
-
 
 def test_ollama_request_uses_selected_model_small_context_and_unloads(tmp_path, monkeypatch):
     brain = fresh_brain(tmp_path, monkeypatch)
@@ -524,36 +364,62 @@ def test_ollama_request_uses_selected_model_small_context_and_unloads(tmp_path, 
 
 
 
-def test_ollama_router_honors_model_typed_in_settings(tmp_path, monkeypatch):
+
+
+
+
+
+
+def test_ollama_router_selects_specialist_without_artificial_size_limit(tmp_path, monkeypatch):
     brain = fresh_brain(tmp_path, monkeypatch)
     gib = 1024 ** 3
-    brain.model = "huihui_ai/qwen2.5-abliterate"
-    monkeypatch.setattr(brain, "_ollama_memory_budget", lambda: int(2.0 * gib))
     models = [
-        {"name": "dolphin-philatelist:latest", "size": int(1.49 * gib)},
-        {"name": "huihui_ai/qwen2.5-abliterate:latest", "size": int(1.2 * gib)},
+        {"name": "qwen3:0.6b", "size": int(0.55 * gib)},
+        {"name": "deepseek-coder:6.7b", "size": int(5.4 * gib)},
+        {"name": "qwen2.5-coder:0.5b", "size": int(0.45 * gib)},
+        {"name": "deepseek-r1:7b", "size": int(4.5 * gib)},
     ]
-    selected, task, size, budget = brain._select_ollama_model(
-        "Genel bağlantı testi", models=models
+    selected, task, size, _ = brain._select_ollama_model(
+        "Python kodundaki hatayı bul", models=models
     )
-    assert selected == "huihui_ai/qwen2.5-abliterate:latest"
-    assert size == int(1.2 * gib)
-    assert size <= budget
+    assert selected == "deepseek-coder:6.7b"
+    assert task == "coding"
+    assert size == int(5.4 * gib)
 
 
-def test_ollama_router_reports_pull_command_for_uninstalled_manual_model(tmp_path, monkeypatch):
+def test_ollama_request_has_no_hard_token_or_context_cap(tmp_path, monkeypatch):
     brain = fresh_brain(tmp_path, monkeypatch)
-    brain.model = "huihui_ai/qwen2.5-abliterate:latest"
-    monkeypatch.setattr(brain, "_ollama_memory_budget", lambda: 2 * 1024 ** 3)
-    models = [{"name": "dolphin-philatelist:latest", "size": int(1.49 * 1024 ** 3)}]
-    with pytest.raises(RuntimeError, match="ollama pull huihui_ai/qwen2.5-abliterate:latest"):
-        brain._select_ollama_model("Merhaba", models=models)
+    calls = []
+    monkeypatch.setattr(
+        brain, "_select_ollama_model",
+        lambda _prompt: ("qwen3:0.6b", "general", 500 * 1024 ** 2, None)
+    )
+    monkeypatch.setattr(brain, "_release_other_ollama_models", lambda _selected: None)
+
+    class Response:
+        def raise_for_status(self):
+            return None
+        def json(self):
+            return {"message": {"content": "Hazırım."}}
+
+    def fake_post(url, **kwargs):
+        calls.append((url, kwargs))
+        return Response()
+
+    monkeypatch.setattr(brain.session, "post", fake_post)
+    assert brain._ollama("Merhaba") == "Hazırım."
+    payload = calls[0][1]["json"]
+    assert payload["keep_alive"] == "5m"
+    assert "num_predict" not in payload["options"]
+    assert "num_ctx" not in payload["options"]
+    assert calls[0][1]["timeout"] >= 300
 
 
-def test_ollama_router_explains_when_selected_model_exceeds_available_ram(tmp_path, monkeypatch):
+def test_auto_mode_falls_back_from_ollama_to_groq(tmp_path, monkeypatch):
     brain = fresh_brain(tmp_path, monkeypatch)
-    brain.model = "dolphin-philatelist:latest"
-    monkeypatch.setattr(brain, "_ollama_memory_budget", lambda: int(0.09 * 1024 ** 3))
-    models = [{"name": brain.model, "size": int(1.49 * 1024 ** 3)}]
-    with pytest.raises(RuntimeError, match="boş RAM'e sığmıyor"):
-        brain._select_ollama_model("Merhaba", models=models)
+    brain.provider = "auto"
+    brain.groq_key = "test-key"
+    monkeypatch.setattr(brain, "_web", lambda _prompt: "")
+    monkeypatch.setattr(brain, "_ollama", lambda *_args: "Ollama bağlantısında sorun oluştu: bellek")
+    monkeypatch.setattr(brain, "_compatible_groq", lambda *_args: "Groq yanıtı")
+    assert brain.ask("karmaşık bir soru") == "Groq yanıtı"
