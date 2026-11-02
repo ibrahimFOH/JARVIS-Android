@@ -521,3 +521,39 @@ def test_ollama_request_uses_selected_model_small_context_and_unloads(tmp_path, 
     assert payload["keep_alive"] == 0
     assert payload["options"]["num_ctx"] == 2048
     assert brain.last_ollama_model == "qwen3:0.6b"
+
+
+
+def test_ollama_router_honors_model_typed_in_settings(tmp_path, monkeypatch):
+    brain = fresh_brain(tmp_path, monkeypatch)
+    gib = 1024 ** 3
+    brain.model = "huihui_ai/qwen2.5-abliterate:latest"
+    monkeypatch.setattr(brain, "_ollama_memory_budget", lambda: int(2.0 * gib))
+    models = [
+        {"name": "dolphin-philatelist:latest", "size": int(1.49 * gib)},
+        {"name": "huihui_ai/qwen2.5-abliterate:latest", "size": int(1.2 * gib)},
+    ]
+    selected, task, size, budget = brain._select_ollama_model(
+        "Genel bağlantı testi", models=models
+    )
+    assert selected == brain.model
+    assert size == int(1.2 * gib)
+    assert size <= budget
+
+
+def test_ollama_router_reports_pull_command_for_uninstalled_manual_model(tmp_path, monkeypatch):
+    brain = fresh_brain(tmp_path, monkeypatch)
+    brain.model = "huihui_ai/qwen2.5-abliterate:latest"
+    monkeypatch.setattr(brain, "_ollama_memory_budget", lambda: 2 * 1024 ** 3)
+    models = [{"name": "dolphin-philatelist:latest", "size": int(1.49 * 1024 ** 3)}]
+    with pytest.raises(RuntimeError, match="ollama pull huihui_ai/qwen2.5-abliterate:latest"):
+        brain._select_ollama_model("Merhaba", models=models)
+
+
+def test_ollama_router_explains_when_selected_model_exceeds_available_ram(tmp_path, monkeypatch):
+    brain = fresh_brain(tmp_path, monkeypatch)
+    brain.model = "dolphin-philatelist:latest"
+    monkeypatch.setattr(brain, "_ollama_memory_budget", lambda: int(0.09 * 1024 ** 3))
+    models = [{"name": brain.model, "size": int(1.49 * 1024 ** 3)}]
+    with pytest.raises(RuntimeError, match="boş RAM'e sığmıyor"):
+        brain._select_ollama_model("Merhaba", models=models)
