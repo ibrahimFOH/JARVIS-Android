@@ -16,19 +16,16 @@ def test_ollama_remains_the_default_provider(tmp_path, monkeypatch):
     brain = fresh_brain(tmp_path, monkeypatch)
     assert brain.provider == "ollama"
     assert brain.host == "http://127.0.0.1:11434"
-    assert brain.model == "qwen3:0.6b"
+    assert brain.model == "auto"
 
 
-def test_expected_optional_providers_are_available(tmp_path, monkeypatch):
+def test_only_local_ollama_and_groq_are_active_providers(tmp_path, monkeypatch):
     brain = fresh_brain(tmp_path, monkeypatch)
-    expected = {
-        "openai", "grok", "anthropic", "deepseek",
-        "perplexity", "openrouter", "custom",
-    }
-    assert expected <= set(brain.api_defaults)
-    assert {"auto", "gemini", "groq", "ollama"} <= {
-        "auto", "gemini", "groq", "ollama", *brain.api_defaults
-    }
+    assert brain.provider in {"auto", "ollama", "groq"}
+    with pytest.raises(ValueError, match="Yalnızca otomatik"):
+        brain.configure(provider="gemini")
+    with pytest.raises(ValueError, match="Yalnızca otomatik"):
+        brain.configure(provider="openai")
 
 
 def test_provider_settings_persist_and_reload(tmp_path, monkeypatch):
@@ -455,3 +452,88 @@ def test_fast_turkish_responses_use_command_processors_real_process_method():
     assert result["intent"] == "greeting"
     assert result["fast_local"] is True
     assert "Hazırım" in result["response"]
+
+
+
+def test_ollama_task_router_selects_only_installed_models():
+    models = [
+        "hf.co/bartowski/Qwen2.5-14B-Instruct-1M-GGUF:Q2_K",
+        "huihui_ai/qwen2.5-abliterate:latest",
+        "iamhere/qwen2.5-coder-3b-instruct-abliterated:latest",
+        "dolphin-mistral:latest",
+        "dolphin-llama3:latest",
+        "superdrew100/llama3-abliterated:latest",
+        "dolphin-phi:latest",
+    ]
+    assert AIBrain.select_ollama_model("Python kodunu debug et", models) == (
+        "iamhere/qwen2.5-coder-3b-instruct-abliterated:latest"
+    )
+    assert AIBrain.select_ollama_model("Kapsamlı SPL mühendislik analizi yap", models) == (
+        "hf.co/bartowski/Qwen2.5-14B-Instruct-1M-GGUF:Q2_K"
+    )
+    assert AIBrain.select_ollama_model("Merhaba, nasılsın?", models) == (
+        "huihui_ai/qwen2.5-abliterate:latest"
+    )
+
+
+def test_ollama_router_never_invents_an_uninstalled_model():
+    models = ["dolphin-phi:latest"]
+    assert AIBrain.select_ollama_model("Python kodu yaz", models) == "dolphin-phi:latest"
+
+
+def test_ollama_host_is_local_only(tmp_path, monkeypatch):
+    brain = fresh_brain(tmp_path, monkeypatch)
+    with pytest.raises(ValueError, match="127.0.0.1"):
+        brain.configure(ollama_host="http://192.168.1.20:11434")
+    assert brain.host == "http://127.0.0.1:11434"
+
+
+def test_ollama_model_discovery_reads_real_local_tags(tmp_path, monkeypatch):
+    brain = fresh_brain(tmp_path, monkeypatch)
+
+    class Response:
+        def raise_for_status(self):
+            return None
+        def json(self):
+            return {"models": [
+                {"name": "huihui_ai/qwen2.5-abliterate:latest"},
+                {"model": "dolphin-mistral:latest"},
+            ]}
+
+    class Session:
+        def get(self, url, timeout):
+            assert url == "http://127.0.0.1:11434/api/tags"
+            assert timeout == 8
+            return Response()
+
+    brain.session = Session()
+    assert brain.list_ollama_models(force=True) == [
+        "dolphin-mistral:latest",
+        "huihui_ai/qwen2.5-abliterate:latest",
+    ]
+
+
+def test_ollama_chat_uses_automatic_task_model_and_unlimited_generation(tmp_path, monkeypatch):
+    brain = fresh_brain(tmp_path, monkeypatch)
+    monkeypatch.setattr(brain, "list_ollama_models", lambda force=False: [
+        "huihui_ai/qwen2.5-abliterate:latest",
+        "iamhere/qwen2.5-coder-3b-instruct-abliterated:latest",
+    ])
+    captured = {}
+
+    class Response:
+        def raise_for_status(self):
+            return None
+        def json(self):
+            return {"message": {"content": "Kod yanıtı"}}
+
+    class Session:
+        def post(self, url, json, timeout):
+            captured.update(url=url, payload=json, timeout=timeout)
+            return Response()
+
+    brain.session = Session()
+    assert brain._ollama("Python kodunu debug et") == "Kod yanıtı"
+    assert captured["payload"]["model"] == "iamhere/qwen2.5-coder-3b-instruct-abliterated:latest"
+    assert captured["payload"]["options"]["num_predict"] == -1
+    assert captured["payload"]["options"]["num_ctx"] == 8192
