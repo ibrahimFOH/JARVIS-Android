@@ -278,11 +278,10 @@ class AIBrain:
                     "Genel bağlantı testi", models=models
                 )
                 gib = 1024 ** 3
-                mode = "Ayarlar ekranında seçilen model" if selected == self.model else "Otomatik seçilen model"
                 return {
                     "success": True,
-                    "message": "Ollama hazır. {}: {} | model: {:.2f} GB | güvenli RAM bütçesi: {:.2f} GB".format(
-                        mode, selected, size / gib, budget / gib
+                    "message": "Ollama hazır. JARVIS modeli otomatik seçecek: {} | görev: {} | model boyutu: {:.2f} GB. Bellek yönetimini Ollama ve Windows yapar.".format(
+                        selected, task, size / gib
                     ),
                 }
             if target == "groq":
@@ -390,66 +389,34 @@ class AIBrain:
         self._ollama_models_checked_at = now
         return list(self._ollama_models_cache)
 
-    @staticmethod
-    def _ollama_memory_budget():
-        gib = 1024 ** 3
-        try:
-            import psutil
-            memory = psutil.virtual_memory()
-            total = int(memory.total)
-            available = int(memory.available)
-        except Exception:
-            total, available = 4 * gib, int(1.2 * gib)
-        # Windows and the desktop need memory too. On 4 GB machines, reserve
-        # at least 45% of currently available RAM and cap model files at 1.25 GB.
-        if total <= int(4.5 * gib):
-            return max(0, min(int(1.25 * gib), int(available * 0.55)))
-        return max(0, min(int(total * 0.45), int(available * 0.70)))
-
     def _select_ollama_model(self, prompt, models=None):
+        """Select an installed model automatically; Ollama handles hardware limits."""
         models = self._ollama_models() if models is None else list(models)
-        if not models:
-            raise RuntimeError("Ollama'da kurulu model bulunamadı. 'ollama list' ile kontrol edin.")
-        budget = self._ollama_memory_budget()
-        gib = 1024 ** 3
-        # Model selection is automatic; the settings screen never chooses a model.\n        candidates = []
+        candidates = []
         for item in models:
             name = str(item.get("name", "")).strip()
-            size = int(item.get("size") or 0)
-            if not name or size <= 0 or size > budget:
-                continue
-            candidates.append((name, size, item))
+            if name:
+                candidates.append((name, int(item.get("size") or 0), item))
         if not candidates:
-            smallest = min(models, key=lambda item: int(item.get("size") or 0))
-            smallest_size = int(smallest.get("size") or 0)
-            raise RuntimeError(
-                "Ollama'ya erişildi ancak boş RAM yetersiz. En küçük kurulu model: {} ({:.2f} GB); "
-                "bu oturumdaki güvenli model bütçesi: {:.2f} GB. "
-                "Diğer programları kapatıp yeniden deneyin veya daha küçük model kurun.".format(
-                    smallest.get("name", "bilinmiyor"), smallest_size / gib, budget / gib
-                )
-            )
-
+            raise RuntimeError("Ollama'da kurulu model bulunamadı. Önce en az bir model indirin.")
         task = self._ollama_task(prompt)
         def score(entry):
             name = entry[0].lower()
             if task == "coding":
-                preferred = any(key in name for key in ("coder", "code", "starcoder", "codestral"))
-                secondary = any(key in name for key in ("deepseek", "qwen"))
+                preferred = any(k in name for k in ("coder", "code", "starcoder", "codestral"))
+                secondary = any(k in name for k in ("deepseek", "qwen"))
             elif task == "reasoning":
-                preferred = any(key in name for key in ("deepseek-r1", "qwq", "reasoning", "r1"))
-                secondary = any(key in name for key in ("qwen", "deepseek"))
+                preferred = any(k in name for k in ("deepseek-r1", "qwq", "reasoning", "r1"))
+                secondary = any(k in name for k in ("qwen", "deepseek"))
             elif task == "audio":
-                preferred = any(key in name for key in ("qwen", "llama", "mistral", "gemma"))
-                secondary = any(key in name for key in ("instruct", "chat"))
+                preferred = any(k in name for k in ("qwen", "llama", "mistral", "gemma", "dolphin"))
+                secondary = any(k in name for k in ("instruct", "chat", "abliterate"))
             else:
-                preferred = any(key in name for key in ("qwen", "llama", "mistral", "gemma"))
-                secondary = any(key in name for key in ("instruct", "chat"))
-            # Prefer a task-specialized model, then the strongest model that
-            # still fits the conservative RAM budget.
-            return (int(preferred), int(secondary), -entry[1])
+                preferred = any(k in name for k in ("qwen", "llama", "mistral", "gemma", "dolphin"))
+                secondary = any(k in name for k in ("instruct", "chat", "abliterate"))
+            return (int(preferred), int(secondary), entry[1])
         selected = max(candidates, key=score)
-        return selected[0], task, selected[1], budget
+        return selected[0], task, selected[1], None
 
     def _release_other_ollama_models(self, selected_model):
         try:
@@ -481,22 +448,19 @@ profil bilgilerini gereksiz yere yanıta kopyalama."""
             model, task, size, budget = self._select_ollama_model(prompt)
             self._release_other_ollama_models(model)
             self.last_ollama_model = model
-            logger.info(
-                "Ollama model seçildi: %s | görev=%s | boyut=%.2f GB | RAM bütçesi=%.2f GB",
-                model, task, size / (1024 ** 3), budget / (1024 ** 3)
-            )
+            logger.info("Ollama otomatik model seçildi: %s | görev=%s | boyut=%.2f GB", model, task, size / (1024 ** 3))
             payload = {
                 "model": model,
                 "stream": False,
-                "keep_alive": 0,
+                "keep_alive": "5m",
                 "think": False,
-                "options": {"temperature": 0.1, "num_predict": 160, "num_ctx": 2048},
+                "options": {"temperature": 0.1},
                 "messages": [
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": prompt + (("\n\nWEB VERİSİ:\n" + context) if context else "")},
                 ],
             }
-            response = self.session.post(self.host + "/api/chat", json=payload, timeout=self.timeout)
+            response = self.session.post(self.host + "/api/chat", json=payload, timeout=max(self.timeout, 300))
             response.raise_for_status()
             answer = ((response.json().get("message") or {}).get("content") or "").strip()
             if not answer:
