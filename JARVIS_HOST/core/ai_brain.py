@@ -113,6 +113,10 @@ class AIBrain:
         ).strip().lower()
         if self.provider not in ("auto", "groq", "ollama"):
             self.provider = "auto"
+        elif self.provider == "ollama":
+            # Upgrade older installs to local-first automatic mode. Ollama remains
+            # first choice; the Groq key is used only if the local server fails.
+            self.provider = "auto"
 
         # Older releases stored provider API keys as cleartext in ai_settings.json
         # and config.json. Migrate those values to DPAPI before retaining them.
