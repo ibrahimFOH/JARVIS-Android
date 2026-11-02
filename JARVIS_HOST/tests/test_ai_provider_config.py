@@ -455,3 +455,69 @@ def test_fast_turkish_responses_use_command_processors_real_process_method():
     assert result["intent"] == "greeting"
     assert result["fast_local"] is True
     assert "Hazırım" in result["response"]
+
+
+
+def test_ollama_task_router_classifies_coding_audio_and_general(tmp_path, monkeypatch):
+    brain = fresh_brain(tmp_path, monkeypatch)
+    assert brain._ollama_task("Python kodunu debug et") == "coding"
+    assert brain._ollama_task("Midas M32 FOH ve SPL hesabı") == "audio"
+    assert brain._ollama_task("Bana kısa bir selam ver") == "general"
+
+
+def test_ollama_router_prefers_specialist_model_that_fits_4gb_budget(tmp_path, monkeypatch):
+    brain = fresh_brain(tmp_path, monkeypatch)
+    gib = 1024 ** 3
+    monkeypatch.setattr(brain, "_ollama_memory_budget", lambda: int(1.1 * gib))
+    models = [
+        {"name": "qwen3:0.6b", "size": int(0.55 * gib)},
+        {"name": "deepseek-coder:1.3b", "size": int(1.0 * gib)},
+        {"name": "qwen2.5-coder:0.5b", "size": int(0.45 * gib)},
+        {"name": "deepseek-r1:7b", "size": int(4.5 * gib)},
+    ]
+    selected, task, size, budget = brain._select_ollama_model(
+        "Python kodundaki hatayı bul", models=models
+    )
+    assert selected == "qwen2.5-coder:0.5b"
+    assert task == "coding"
+    assert size <= budget
+
+
+def test_ollama_router_refuses_model_larger_than_safe_memory_budget(tmp_path, monkeypatch):
+    brain = fresh_brain(tmp_path, monkeypatch)
+    monkeypatch.setattr(brain, "_ollama_memory_budget", lambda: 700 * 1024 ** 2)
+    models = [
+        {"name": "deepseek-coder:6.7b", "size": 5 * 1024 ** 3},
+        {"name": "qwen2.5:1.5b", "size": 1 * 1024 ** 3},
+    ]
+    with pytest.raises(RuntimeError, match="4 GB RAM güvenli çalışma sınırı"):
+        brain._select_ollama_model("kod yaz", models=models)
+
+
+def test_ollama_request_uses_selected_model_small_context_and_unloads(tmp_path, monkeypatch):
+    brain = fresh_brain(tmp_path, monkeypatch)
+    calls = []
+    monkeypatch.setattr(
+        brain, "_select_ollama_model",
+        lambda _prompt: ("qwen3:0.6b", "general", 500 * 1024 ** 2, 900 * 1024 ** 2)
+    )
+    monkeypatch.setattr(brain, "_release_other_ollama_models", lambda _selected: None)
+
+    class Response:
+        ok = True
+        def raise_for_status(self):
+            return None
+        def json(self):
+            return {"message": {"content": "Hazırım."}}
+
+    def fake_post(url, **kwargs):
+        calls.append((url, kwargs))
+        return Response()
+
+    monkeypatch.setattr(brain.session, "post", fake_post)
+    assert brain._ollama("Merhaba") == "Hazırım."
+    payload = calls[0][1]["json"]
+    assert payload["model"] == "qwen3:0.6b"
+    assert payload["keep_alive"] == 0
+    assert payload["options"]["num_ctx"] == 2048
+    assert brain.last_ollama_model == "qwen3:0.6b"
