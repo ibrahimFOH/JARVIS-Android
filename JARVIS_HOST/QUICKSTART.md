@@ -38,10 +38,9 @@ Python 3.11 x64 kurulu Windows bilgisayarda `BUILD_JARVIS_EXE.bat` dosyasını �
 
 ## 3. Yapay zekâ sağlayıcıları
 
-- **Ollama:** Yerel model; Ollama hizmeti ve model bilgisayarda kurulu olmalıdır. JARVIS kurulu modelleri otomatik tarar; kodlama, ses mühendisliği, akıl yürütme ve genel sohbet isteğine göre uygun modeli seçer. 4 GB RAM sınıfındaki bilgisayarlarda kullanılabilir RAM'e göre muhafazakâr model sınırı uygular, tek seferde tek model çalıştırır, bağlamı 2048 token ile sınırlar ve yanıt sonrası modeli bellekten boşaltır. Belleğe sığmayan modeli zorla başlatmaz.
-- **Gemini, OpenAI, Grok/xAI, Anthropic, DeepSeek, Perplexity, Groq ve OpenRouter:** API anahtarı ve internet bağlantısı gerektirir.
-- **Özel sağlayıcı:** OpenAI Chat Completions uyumlu uç nokta girilebilir.
-- **AUTO:** Önce yerel Ollama'yı dener; başarısızsa yapılandırılmış yedek sağlayıcılara geçer. Ollama içindeki model seçimi de otomatik yapılır; elle model adı girme zorunluluğu yoktur.
+- **Ollama:** JARVIS kurulu bütün modelleri otomatik tarar; kodlama, ses mühendisliği, akıl yürütme ve genel sohbet görevine göre kendisi model seçer. JARVIS içinde sabit model GB, bağlam veya yanıt token sınırı yoktur. Aynı anda tek model çalıştırılır; donanım belleği ve model yükleme davranışını Ollama/Windows yönetir.
+- **Groq:** Yalnızca isteğe bağlı bulut yedeği; API anahtarı ve internet bağlantısı gerekir.
+- **AUTO:** Önce görev için en uygun Ollama modelini çalıştırır. Ollama yanıt veremezse Groq anahtarı tanımlıysa otomatik olarak Groq'a geçer.
 
 API anahtarları Windows DPAPI korumasıyla saklanır. Şifreleme başarısız olursa anahtar düz metin olarak kaydedilmez.
 
