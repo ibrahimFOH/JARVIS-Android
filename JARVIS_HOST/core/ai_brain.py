@@ -501,8 +501,6 @@ class AIBrain:
                     raise RuntimeError("Groq API HTTP {}: {}".format(response.status_code, response.text[:300]))
                 choices = response.json().get("choices") or []
                 answer = (choices[0].get("message") or {}).get("content", "") if choices else ""
-            elif target in self.api_defaults:
-                answer = self._compatible_api(target, "Sadece 'Bağlantı başarılı' yaz.")
             else:
                 return {"success": False, "message": "Seçilen sağlayıcı desteklenmiyor: " + target}
             return {"success": bool(str(answer or "").strip()), "message": target.upper() + " yanıt verdi: " + str(answer)[:900]}
@@ -615,8 +613,6 @@ profil bilgilerini gereksiz yere yanıta kopyalama."""
                     return answer
                 if selected == "groq":
                     return self._compatible_groq(prompt, context)
-                if selected in self.api_defaults:
-                    return self._compatible_api(selected, prompt, context)
                 raise RuntimeError("Bilinmeyen sağlayıcı: " + selected)
             except Exception as exc:
                 errors.append(selected.upper() + ": " + str(exc))
