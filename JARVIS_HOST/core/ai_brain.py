@@ -543,20 +543,25 @@ class AIBrain:
         # Only the untouched built-in default may fall back to automatic discovery.
         configured = str(self.model or "").strip()
         default_model = "qwen3:0.6b"
-        if configured and configured in installed:
-            chosen = installed[configured]
+        configured_match = configured if configured in installed else ""
+        if configured and not configured_match and ":" not in configured:
+            configured_match = next(
+                (name for name in installed if name.startswith(configured + ":")), ""
+            )
+        if configured_match:
+            chosen = installed[configured_match]
             chosen_size = int(chosen.get("size") or 0)
             if chosen_size <= 0:
-                raise RuntimeError("Seçilen Ollama modelinin boyutu okunamadı: " + configured)
+                raise RuntimeError("Seçilen Ollama modelinin boyutu okunamadı: " + configured_match)
             if chosen_size > budget:
                 raise RuntimeError(
                     "Seçtiğiniz model kurulu ancak şu anki boş RAM'e sığmıyor: {} ({:.2f} GB). "
                     "JARVIS'in hesapladığı güvenli model bütçesi {:.2f} GB. "
                     "Windows'ta kullanılabilir RAM'i artırıp yeniden deneyin veya daha küçük bir model seçin.".format(
-                        configured, chosen_size / gib, budget / gib
+                        configured_match, chosen_size / gib, budget / gib
                     )
                 )
-            return configured, self._ollama_task(prompt), chosen_size, budget
+            return configured_match, self._ollama_task(prompt), chosen_size, budget
         if configured and configured != default_model:
             raise RuntimeError(
                 "Ayarlar ekranında seçtiğiniz model Ollama'da kurulu değil: {}. "
