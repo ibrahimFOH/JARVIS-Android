@@ -11,7 +11,7 @@ pvporcupine>=3.0.0  # Wake word detection
 pyautogui>=0.9.54
 pygetwindow>=0.0.9
 psutil>=5.9.6
-pywin32>=306  # Windows API access
+pywin32>=312  # Windows API access
 pillow>=10.0.0
 
 # Natural Language Processing
